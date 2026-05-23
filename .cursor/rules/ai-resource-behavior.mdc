@@ -1,0 +1,50 @@
+---
+description: AI behavioral rules when operating on workspace resources and .meta files
+alwaysApply: true
+---
+
+# AI 资源操作行为规范
+
+## 创建文件
+
+必须同步创建 `.meta` sidecar，生成新 uid，填写 `origin`、`pipeline`、`boundFileName`、`contentHash`、`fileSize`。
+
+## 派生文件
+
+- 新文件 `origin.source` 设为 `derived`，`origin.sourceFiles` 用源文件 uid
+- 新文件 `relations` 添加 `{ rel: "derived-from", uid: "<source-uid>" }`
+- 源文件 `.meta` 的 `relations` 添加 `{ rel: "produces", uid: "<new-uid>" }`
+
+## 删除文件
+
+- 同步删除对应 `.meta`
+- 检查其他 `.meta` 的 `relations` 是否引用了该 uid，如有则提示用户
+
+## 重命名 / 移动文件
+
+- 同步重命名/移动 `.meta` 文件
+- uid 不变，更新 `boundFileName`
+- 引用该文件 `path` 的其他 `.meta` 需要更新（uid 引用不受影响）
+
+## 保存切分配置
+
+将完整 `sliceConfig` 写入 `moduleData["sprite-slicer"]`，`pipeline` 追加 step。
+
+## 从资源打开到模块
+
+读取 `moduleData` 恢复参数，读取 `openWith` 决定跳转目标。
+
+## 修改文件内容
+
+更新 `.meta` 的 `contentHash`、`fileSize`、`updatedAt`。
+
+## 绝对禁止
+
+**永远不修改已有的 uid 字段。** uid 一旦生成，终身不变。
+
+## Reconciliation
+
+- 孤儿 `.meta` 通过 `contentHash` + `fileSize` 在未匹配文件中搜索，匹配则自动修复绑定
+- `.meta` 被删时从 `.g-studio/uid-index.json` 恢复 UID
+- 重复 UID 检测后为较新文件分配新 UID 并添加 `variant-of` 关系
+- `.meta` JSON 损坏时保留为 `.corrupt` 后缀，重建新 `.meta`

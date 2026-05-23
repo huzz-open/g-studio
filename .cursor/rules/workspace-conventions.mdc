@@ -1,0 +1,36 @@
+---
+description: G-Studio project-wide conventions for storage, UID, and shared components
+alwaysApply: true
+---
+
+# G-Studio 项目约定
+
+## 技术栈
+
+Vue 3 + TypeScript + Vite，所有源码在 `src/` 下，模块化组织于 `src/modules/`。
+
+## 存储架构
+
+- **两层**：IndexedDB (L1 cache) + File System Access API (L2 disk)
+- 工作区本地目录是 **source of truth**，用户可自由组织目录结构
+- IDB 只做缓存加速，任何时候可以从磁盘重建
+
+## 文件 UID
+
+格式：`gs://<timestamp-base36>-<random-6chars>`，示例：`gs://m1abc12-x7y8z9`
+
+- 首次创建 `.meta` 时生成，之后 **永不修改**
+- 文件重命名、移动、内容修改都不影响 uid
+- 引用其他资源时优先用 uid，`path` 仅作人类可读 fallback
+
+## 国际化
+
+- UI 默认中文，i18n keys 必须同时添加 `zh-CN.ts` 和 `en-US.ts`
+- i18n 文件位于 `src/shared/i18n/`
+
+## 共享组件
+
+- 所有共享组件在 `src/shared/components/`
+- Toast 通知：`import { showToast } from '@/shared/components/toast'`
+- 确认弹窗：`import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'`
+- 图标：`import SvgIcon from '@/shared/icons/SvgIcon.vue'`

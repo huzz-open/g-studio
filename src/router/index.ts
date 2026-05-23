@@ -1,0 +1,29 @@
+import { createRouter, createWebHashHistory } from 'vue-router'
+
+const router = createRouter({
+  history: createWebHashHistory(),
+  routes: [
+    {
+      path: '/',
+      name: 'dashboard',
+      component: () => import('../modules/dashboard/DashboardView.vue'),
+    },
+    {
+      path: '/resource-manager',
+      name: 'resource-manager',
+      component: () => import('../modules/resource-manager/components/ResourceManagerView.vue'),
+    },
+    {
+      path: '/sprite-slicer',
+      name: 'sprite-slicer',
+      component: () => import('../modules/sprite-slicer/components/SlicerView.vue'),
+    },
+    {
+      path: '/map-editor',
+      name: 'map-editor',
+      component: () => import('../modules/map-editor/components/MapEditorView.vue'),
+    },
+  ],
+})
+
+export default router

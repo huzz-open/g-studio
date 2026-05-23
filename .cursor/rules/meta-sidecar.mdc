@@ -1,0 +1,69 @@
+---
+description: Schema and rules for .meta sidecar files used by the resource manager
+globs: "**/*.meta"
+alwaysApply: false
+---
+
+# .meta Sidecar 文件规范
+
+## 命名规则
+
+资源文件 `foo.png` 的 sidecar 为 `.foo.png.meta`（点前缀隐藏），放在同一目录下。
+
+## 必填字段
+
+`__version`, `uid`, `boundFileName`, `contentHash`, `fileSize`, `type`, `createdAt`, `updatedAt`
+
+## 可选字段
+
+`tags`, `description`, `openWith`, `origin`, `pipeline`, `relations`, `moduleData`
+
+## Schema 示例
+
+```json
+{
+  "__version": 1,
+  "uid": "gs://m1abc12-x7y8z9",
+  "boundFileName": "hero-walk.png",
+  "contentHash": "a1b2c3d4e5f67890",
+  "fileSize": 24576,
+  "type": "spritesheet",
+  "tags": ["character", "walk"],
+  "openWith": "sprite-slicer",
+  "origin": {
+    "source": "derived",
+    "method": "sprite-slicer/standardize",
+    "sourceFiles": ["gs://m0xyz99-a1b2c3"],
+    "createdBy": "g-studio",
+    "importedAt": 1716451200000
+  },
+  "pipeline": [
+    { "step": "upload", "at": 1716451200000, "detail": "user drag-drop" }
+  ],
+  "relations": [
+    { "rel": "derived-from", "uid": "gs://m0xyz99-a1b2c3", "path": "../raw/hero-raw.png" }
+  ],
+  "moduleData": {
+    "sprite-slicer": { "sliceConfig": {} }
+  },
+  "createdAt": 1716451200000,
+  "updatedAt": 1716451203000
+}
+```
+
+## 字段枚举
+
+- `origin.source`: `uploaded` | `derived` | `imported` | `external`
+- `origin.method`: `sprite-slicer/upload`, `sprite-slicer/standardize`, `sprite-slicer/slice`, `map-editor/export`, `zip-import`
+- `relations[].rel`: `derived-from` | `produces` | `used-by` | `variant-of`
+- `relations[]` 优先用 `uid` 引用，`path` 为 fallback
+
+## 绑定字段
+
+- `boundFileName` — 上次同步时的主文件名，reconciliation 修复后更新
+- `contentHash` — 主文件 SHA-256 前 16 hex，文件内容变更时重新计算
+- `fileSize` — 主文件字节大小，内容变更时同步更新
+
+## 无 .meta 的文件
+
+视为 `type: "generic"`, `origin.source: "external"`，双击纯预览。
