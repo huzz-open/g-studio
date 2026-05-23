@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, watch, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from '../../../shared/i18n'
 import { useSlicerStore } from '../store'
@@ -12,8 +12,6 @@ import {
 } from '../../resource-manager'
 import type { SlicerModuleData, MetaResourceType } from '../../resource-manager'
 import { PngExporter } from '../core/export/png-exporter'
-import { SlicerDraftService, type SlicerSession, type SlicerDraft } from '../services/draft-service'
-import { getStorage } from '../../../shared/storage'
 import { showToast } from '../../../shared/components/toast'
 import { confirm } from '../../../shared/components/confirm'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
@@ -30,136 +28,10 @@ const store = useSlicerStore()
 const { isOpen: wsOpen } = useWorkspace()
 const showAnimPreview = ref(false)
 const exporter = new PngExporter()
-const restoring = ref(false)
 const loadingResource = ref(false)
-
-let draftService: SlicerDraftService | null = null
-let draftSaveTimer = 0
-
-async function getDraftService(): Promise<SlicerDraftService> {
-  if (!draftService) {
-    const storage = await getStorage()
-    draftService = new SlicerDraftService(storage)
-  }
-  return draftService
-}
-
-function scheduleDraftSave() {
-  if (restoring.value || store.isRestoring()) return
-  if (draftSaveTimer) clearTimeout(draftSaveTimer)
-  draftSaveTimer = window.setTimeout(() => void saveDraft(), 1000)
-}
-
-async function saveDraft(): Promise<void> {
-  if (store.tabs.value.length === 0) {
-    const svc = await getDraftService()
-    await svc.deleteSession()
-    return
-  }
-
-  const svc = await getDraftService()
-  const tabs: SlicerDraft[] = []
-
-  for (const tabInfo of store.tabs.value) {
-    const isActive = tabInfo.id === store.activeTabId.value
-    const draft: SlicerDraft = {
-      id: tabInfo.id,
-      fileName: tabInfo.fileName,
-      imageBlobKey: tabInfo.workspacePath ? '' : `slicer-drafts/${tabInfo.id}.png`,
-      workspacePath: tabInfo.workspacePath,
-      params: {
-        bgRemoverId: store.bgRemoverId.value,
-        bgColor: [...store.bgColor.value] as [number, number, number],
-        bgTolerance: store.bgTolerance.value,
-        bgSpillStrength: store.bgSpillStrength.value,
-        detectionMode: isActive ? store.detectionMode.value : 'auto',
-        mergeGap: isActive ? store.mergeGap.value : 3,
-        minArea: isActive ? store.minArea.value : 50,
-        cols: isActive ? store.cols.value : 6,
-        rows: isActive ? store.rows.value : 6,
-        gapH: isActive ? store.gapH.value : 0,
-        gapV: isActive ? store.gapV.value : 0,
-        marginH: isActive ? store.marginH.value : 0,
-        marginV: isActive ? store.marginV.value : 0,
-        namePrefix: isActive ? store.namePrefix.value : 'sprite',
-        stdEnabled: isActive ? store.stdEnabled.value : false,
-      },
-      spriteNames: isActive ? store.sprites.value.map(s => s.name) : [],
-      selectedIds: isActive ? [...store.selected.value] : [],
-    }
-    tabs.push(draft)
-  }
-
-  const session: SlicerSession = {
-    id: 'current',
-    activeTabId: store.activeTabId.value,
-    tabs,
-    savedAt: Date.now(),
-  }
-  await svc.saveSession(session)
-}
-
-async function tryRestoreSession(): Promise<void> {
-  const svc = await getDraftService()
-  const session = await svc.loadSession()
-  if (!session || session.tabs.length === 0) return
-
-  restoring.value = true
-  try {
-    const activeIdx = session.tabs.findIndex(t => t.id === session.activeTabId)
-    const activeDraftIdx = activeIdx >= 0 ? activeIdx : 0
-
-    for (const draft of session.tabs) {
-      let fileData: Uint8Array | null = null
-
-      if (draft.workspacePath && isWorkspaceConnected()) {
-        const result = await readFileFromWorkspace(draft.workspacePath)
-        if (result) fileData = result.data
-      }
-      if (!fileData && draft.imageBlobKey) {
-        fileData = await svc.loadImageBlob(draft.imageBlobKey)
-      }
-      if (!fileData) continue
-
-      const blob = new Blob([fileData as unknown as BlobPart], { type: 'image/png' })
-      const file = new File([blob], draft.fileName, { type: 'image/png' })
-      store.addTab(file, draft.workspacePath)
-    }
-
-    if (store.tabs.value.length === 0) return
-
-    const targetTab = store.tabs.value[Math.min(activeDraftIdx, store.tabs.value.length - 1)]
-    if (targetTab.id !== store.activeTabId.value) {
-      store.switchTab(targetTab.id)
-    }
-
-    const activeDraft = session.tabs[activeDraftIdx]
-    if (activeDraft?.params) {
-      const p = activeDraft.params
-      store.bgRemoverId.value = p.bgRemoverId
-      store.bgColor.value = [...p.bgColor] as [number, number, number]
-      store.bgTolerance.value = p.bgTolerance
-      store.bgSpillStrength.value = p.bgSpillStrength
-      store.detectionMode.value = p.detectionMode
-      store.mergeGap.value = p.mergeGap
-      store.minArea.value = p.minArea
-      store.cols.value = p.cols
-      store.rows.value = p.rows
-      store.gapH.value = p.gapH
-      store.gapV.value = p.gapV
-      store.marginH.value = p.marginH
-      store.marginV.value = p.marginV
-      store.namePrefix.value = p.namePrefix
-      store.stdEnabled.value = p.stdEnabled
-    }
-  } finally {
-    restoring.value = false
-  }
-}
 
 async function loadFromResource(_resourceId: string): Promise<void> {
   loadingResource.value = true
-  restoring.value = true
   try {
     const filePath = route.query.path as string | undefined
     if (!filePath || !isWorkspaceConnected()) {
@@ -198,7 +70,6 @@ async function loadFromResource(_resourceId: string): Promise<void> {
     }
     router.replace({ path: '/sprite-slicer' })
   } finally {
-    restoring.value = false
     loadingResource.value = false
   }
 }
@@ -207,8 +78,6 @@ onMounted(() => {
   const resourceId = route.query.resource as string | undefined
   if (resourceId) {
     void loadFromResource(resourceId)
-  } else if (store.tabs.value.length === 0) {
-    void tryRestoreSession()
   }
 })
 
@@ -216,10 +85,6 @@ watch(() => route.query.resource, (newId) => {
   if (newId && typeof newId === 'string') {
     void loadFromResource(newId)
   }
-})
-
-onUnmounted(() => {
-  if (draftSaveTimer) clearTimeout(draftSaveTimer)
 })
 
 watch(wsOpen, async (connected) => {
@@ -235,23 +100,28 @@ watch(wsOpen, async (connected) => {
 })
 
 async function syncAllTabsToWorkspace() {
-  const svc = await getDraftService()
   let saved = 0
   for (const tab of store.tabs.value) {
     if (tab.workspacePath) continue
     try {
-      const blobKey = `slicer-drafts/${tab.id}.png`
-      const blobData = await svc.loadImageBlob(blobKey)
-      if (!blobData) continue
-      await saveFileToWorkspace({
+      const img = store.sourceImage.value
+      if (!img) continue
+      const cv = document.createElement('canvas')
+      cv.width = img.width; cv.height = img.height
+      cv.getContext('2d')!.drawImage(img, 0, 0)
+      const blob = await new Promise<Blob | null>(r => cv.toBlob(r, 'image/png'))
+      if (!blob) continue
+      const data = new Uint8Array(await blob.arrayBuffer())
+      const result = await saveFileToWorkspace({
         fileName: tab.fileName,
-        data: blobData,
+        data,
         type: 'spritesheet',
         dir: 'spritesheets',
         openWith: 'sprite-slicer',
         origin: { source: 'uploaded', method: 'sprite-slicer/upload', createdBy: 'g-studio', importedAt: Date.now() },
         pipeline: [{ step: 'upload', at: Date.now(), detail: `synced from slicer: ${tab.fileName}` }],
       })
+      tab.workspacePath = result.path
       saved++
     } catch { /* skip failed ones */ }
   }
@@ -262,6 +132,10 @@ async function syncAllTabsToWorkspace() {
 
 async function offerSaveToWorkspace(file: File) {
   if (!isWorkspaceConnected()) return
+  if (wsOpen.value) {
+    void saveOriginalToWorkspace(file)
+    return
+  }
   const ok = await confirm({
     title: t('slicer.upload.saveOffer'),
     message: t('slicer.upload.saveConfirmMsg', { name: file.name }),
@@ -273,7 +147,7 @@ async function offerSaveToWorkspace(file: File) {
 async function saveOriginalToWorkspace(file: File) {
   try {
     const data = new Uint8Array(await file.arrayBuffer())
-    await saveFileToWorkspace({
+    const result = await saveFileToWorkspace({
       fileName: file.name,
       data,
       type: 'spritesheet',
@@ -282,6 +156,8 @@ async function saveOriginalToWorkspace(file: File) {
       origin: { source: 'uploaded', method: 'sprite-slicer/upload', createdBy: 'g-studio', importedAt: Date.now() },
       pipeline: [{ step: 'upload', at: Date.now(), detail: `slicer upload: ${file.name}` }],
     })
+    const tab = store.tabs.value.find(t => t.fileName === file.name && !t.workspacePath)
+    if (tab) tab.workspacePath = result.path
     showToast(t('toast.save.success'), 'success')
   } catch {
     showToast(t('toast.save.error'), 'error')
@@ -450,37 +326,32 @@ async function exportMeta() {
 watch(() => store.bgRemoverId.value, () => {
   if (store.isRestoring()) return
   store.processBackground()
-  scheduleDraftSave()
 })
 watch(() => store.bgColor.value, () => {
   if (store.isRestoring()) return
   store.processBackground()
-  scheduleDraftSave()
 }, { deep: true })
 
 let bgDebounce = 0
 watch([() => store.bgTolerance.value, () => store.bgSpillStrength.value], () => {
   if (store.isRestoring()) return
   clearTimeout(bgDebounce)
-  bgDebounce = window.setTimeout(() => { store.processBackground(); scheduleDraftSave() }, 50)
+  bgDebounce = window.setTimeout(() => store.processBackground(), 50)
 })
 
 watch([() => store.mergeGap.value, () => store.minArea.value], () => {
   if (store.isRestoring()) return
   if (store.detectionMode.value === 'auto') store.runDetection()
-  scheduleDraftSave()
 })
 
 watch([() => store.cols.value, () => store.rows.value, () => store.gapH.value, () => store.gapV.value, () => store.marginH.value, () => store.marginV.value], () => {
   if (store.isRestoring()) return
   if (store.detectionMode.value === 'grid') store.runDetection()
-  scheduleDraftSave()
 })
 
 watch(() => store.stdEnabled.value, () => {
   if (store.isRestoring()) return
   store.applyStandardize()
-  scheduleDraftSave()
 })
 
 watch(() => store.namePrefix.value, () => {
@@ -489,33 +360,6 @@ watch(() => store.namePrefix.value, () => {
   store.sprites.value.forEach((s, i) => {
     s.name = `${prefix}-${String(i + 1).padStart(2, '0')}`
   })
-  scheduleDraftSave()
-})
-
-watch(() => store.sourceImage.value, (img) => {
-  if (!img || store.isRestoring() || restoring.value) return
-  const activeTab = store.tabs.value.find(t => t.id === store.activeTabId.value)
-  if (activeTab?.workspacePath) {
-    scheduleDraftSave()
-    return
-  }
-  const cv = document.createElement('canvas')
-  cv.width = img.width; cv.height = img.height
-  const ctx = cv.getContext('2d')!
-  ctx.drawImage(img, 0, 0)
-  cv.toBlob(blob => {
-    if (!blob || !store.activeTabId.value) return
-    void (async () => {
-      const data = new Uint8Array(await blob.arrayBuffer())
-      const svc = await getDraftService()
-      await svc.saveImageBlob(store.activeTabId.value!, data)
-      scheduleDraftSave()
-    })()
-  }, 'image/png')
-})
-
-watch(() => store.tabs.value.length, () => {
-  scheduleDraftSave()
 })
 </script>
 

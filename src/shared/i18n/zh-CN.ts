@@ -91,7 +91,7 @@ export default {
   'resource.openWorkspace': '打开工作区',
   'storage.clearCache': '清理缓存',
   'storage.clearCacheTitle': '清理浏览器缓存',
-  'storage.clearCacheMsg': '将清空 IndexedDB 中的所有缓存数据（资源列表、切分器草稿、缩略图等）。如果已连接工作区，数据可从磁盘重新加载。',
+  'storage.clearCacheMsg': '将清空 IndexedDB 中的所有缓存数据（资源列表、缩略图等）。如果已连接工作区，数据可从磁盘重新加载。',
 
   'slicer.title': '精灵图切分',
   'slicer.upload.hint': '点击或拖拽精灵表图片到此处',

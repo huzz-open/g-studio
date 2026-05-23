@@ -28,7 +28,7 @@ src/
     │   ├── interfaces/   # IBackgroundRemover, ISpriteDetector, ISliceMode
     │   ├── core/         # Algorithm implementations
     │   ├── modes/        # Animation, Location, Item modes
-    │   ├── services/     # SlicerDraftService (session persistence)
+    │   ├── services/     # Slicer utilities
     │   └── components/   # Vue UI components
     └── map-editor/       # World map editor
 ```

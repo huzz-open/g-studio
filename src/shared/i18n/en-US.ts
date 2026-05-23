@@ -91,7 +91,7 @@ export default {
   'resource.openWorkspace': 'Open Workspace',
   'storage.clearCache': 'Clear Cache',
   'storage.clearCacheTitle': 'Clear Browser Cache',
-  'storage.clearCacheMsg': 'This will clear all cached data in IndexedDB (resource list, slicer drafts, thumbnails, etc). If a workspace is connected, data can be reloaded from disk.',
+  'storage.clearCacheMsg': 'This will clear all cached data in IndexedDB (resource list, thumbnails, etc). If a workspace is connected, data can be reloaded from disk.',
 
   'slicer.title': 'Sprite Slicer',
   'slicer.upload.hint': 'Click or drag a sprite sheet here',

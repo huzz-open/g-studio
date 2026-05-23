@@ -5,7 +5,6 @@ const DB_VERSION = 2
 const BLOB_STORE = '_blobs'
 const RESOURCE_STORE = 'resources'
 const DIRTY_QUEUE_STORE = '_dirty_queue'
-const SLICER_DRAFTS_STORE = 'slicer-drafts'
 
 export interface DirtyEntry {
   key: string
@@ -34,10 +33,6 @@ export class IndexedDBProvider implements IStorageProvider {
         }
         if (!db.objectStoreNames.contains(DIRTY_QUEUE_STORE)) {
           db.createObjectStore(DIRTY_QUEUE_STORE, { keyPath: 'key' })
-        }
-        if (!db.objectStoreNames.contains(SLICER_DRAFTS_STORE)) {
-          const sd = db.createObjectStore(SLICER_DRAFTS_STORE, { keyPath: 'id' })
-          sd.createIndex('savedAt', 'savedAt', { unique: false })
         }
       }
       req.onsuccess = () => resolve(req.result)
@@ -236,7 +231,7 @@ export class IndexedDBProvider implements IStorageProvider {
 
   async clearWorkspaceData(): Promise<void> {
     if (!this.db) return
-    const stores = [RESOURCE_STORE, BLOB_STORE, DIRTY_QUEUE_STORE, SLICER_DRAFTS_STORE]
+    const stores = [RESOURCE_STORE, BLOB_STORE, DIRTY_QUEUE_STORE]
     return new Promise((resolve, reject) => {
       const tx = this.db!.transaction(stores, 'readwrite')
       for (const name of stores) {
