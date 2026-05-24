@@ -6,6 +6,12 @@ export interface DetectedSprite {
   imageData: ImageData
   dataUrl: string
   name: string
+  /** IDs of components merged into this sprite */
+  mergedFrom?: number[]
+  /** Original rects before merge, for smart split restoration */
+  mergedFromRects?: Rect[]
+  /** ID of the parent sprite this was split from */
+  splitFrom?: number
   _origDataUrl?: string
   _origRect?: Rect
 }

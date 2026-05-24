@@ -1,56 +1,130 @@
 import { ref, readonly } from 'vue'
-import { WORKSPACE_DIRS, WORKSPACE_META_FILE } from './interfaces'
+import { WORKSPACE_DIRS, WORKSPACE_SYSTEM_DIR, WORKSPACE_CONFIG_FILE } from './interfaces'
 import type { WorkspaceInfo } from './interfaces'
-import { connectWorkspace, disconnectWorkspace, clearWorkspaceData } from '../storage'
-import { invalidateCache as invalidateRmCache } from '../../modules/resource-manager/services/workspace-cache'
+import { invalidateCache as invalidateRmCache } from '../../modules/resource-manager'
+import { readJsonFileOrNull, writeJsonFile } from './fs'
 
 const HANDLE_DB_NAME = 'g-studio-workspace-handle'
 const HANDLE_STORE = 'handles'
-const HANDLE_KEY = 'last-workspace'
+const ACTIVE_KEY = 'active-workspace'
+const LIST_KEY = 'workspace-list'
+
+export interface SavedWorkspace {
+  name: string
+  handle: FileSystemDirectoryHandle
+  lastOpenedAt: number
+}
 
 const isOpen = ref(false)
 const workspaceName = ref('')
 let _dirHandle: FileSystemDirectoryHandle | null = null
 
-async function saveHandleToIDB(handle: FileSystemDirectoryHandle): Promise<void> {
+type WorkspaceSwitchHook = () => Promise<boolean>
+const _switchHooks: WorkspaceSwitchHook[] = []
+
+export function onBeforeWorkspaceSwitch(hook: WorkspaceSwitchHook) {
+  _switchHooks.push(hook)
+}
+
+async function runSwitchHooks(): Promise<boolean> {
+  for (const hook of _switchHooks) {
+    const ok = await hook()
+    if (!ok) return false
+  }
+  return true
+}
+
+function openIDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(HANDLE_DB_NAME, 1)
-    req.onupgradeneeded = () => req.result.createObjectStore(HANDLE_STORE)
-    req.onsuccess = () => {
-      const tx = req.result.transaction(HANDLE_STORE, 'readwrite')
-      tx.objectStore(HANDLE_STORE).put(handle, HANDLE_KEY)
-      tx.oncomplete = () => { req.result.close(); resolve() }
-      tx.onerror = () => { req.result.close(); reject(tx.error) }
+    const req = indexedDB.open(HANDLE_DB_NAME, 2)
+    req.onupgradeneeded = () => {
+      const db = req.result
+      if (!db.objectStoreNames.contains(HANDLE_STORE)) {
+        db.createObjectStore(HANDLE_STORE)
+      }
     }
+    req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
+    req.onblocked = () => reject(new Error('IDB upgrade blocked by another connection'))
   })
 }
 
-async function loadHandleFromIDB(): Promise<FileSystemDirectoryHandle | null> {
+async function saveActiveToIDB(handle: FileSystemDirectoryHandle): Promise<void> {
+  const db = await openIDB()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(HANDLE_STORE, 'readwrite')
+    tx.objectStore(HANDLE_STORE).put(handle, ACTIVE_KEY)
+    tx.oncomplete = () => { db.close(); resolve() }
+    tx.onerror = () => { db.close(); reject(tx.error) }
+  })
+}
+
+async function clearActiveFromIDB(): Promise<void> {
+  const db = await openIDB()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(HANDLE_STORE, 'readwrite')
+    tx.objectStore(HANDLE_STORE).delete(ACTIVE_KEY)
+    tx.oncomplete = () => { db.close(); resolve() }
+    tx.onerror = () => { db.close(); reject(tx.error) }
+  })
+}
+
+async function loadActiveFromIDB(): Promise<FileSystemDirectoryHandle | null> {
+  const db = await openIDB()
   return new Promise((resolve) => {
-    const req = indexedDB.open(HANDLE_DB_NAME, 1)
-    req.onupgradeneeded = () => req.result.createObjectStore(HANDLE_STORE)
-    req.onsuccess = () => {
-      const tx = req.result.transaction(HANDLE_STORE, 'readonly')
-      const get = tx.objectStore(HANDLE_STORE).get(HANDLE_KEY)
-      get.onsuccess = () => { req.result.close(); resolve(get.result ?? null) }
-      get.onerror = () => { req.result.close(); resolve(null) }
-    }
-    req.onerror = () => resolve(null)
+    const tx = db.transaction(HANDLE_STORE, 'readonly')
+    const get = tx.objectStore(HANDLE_STORE).get(ACTIVE_KEY)
+    get.onsuccess = () => { db.close(); resolve(get.result ?? null) }
+    get.onerror = () => { db.close(); resolve(null) }
   })
 }
 
-async function clearHandleFromIDB(): Promise<void> {
+async function upsertWorkspaceList(entry: SavedWorkspace): Promise<void> {
+  const db = await openIDB()
+  const list = await readWorkspaceListFromDB(db)
+  const idx = list.findIndex((w) => w.name === entry.name)
+  if (idx >= 0) {
+    list[idx] = entry
+  } else {
+    list.push(entry)
+  }
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(HANDLE_DB_NAME, 1)
-    req.onupgradeneeded = () => req.result.createObjectStore(HANDLE_STORE)
-    req.onsuccess = () => {
-      const tx = req.result.transaction(HANDLE_STORE, 'readwrite')
-      tx.objectStore(HANDLE_STORE).delete(HANDLE_KEY)
-      tx.oncomplete = () => { req.result.close(); resolve() }
-      tx.onerror = () => { req.result.close(); reject(tx.error) }
-    }
-    req.onerror = () => reject(req.error)
+    const tx = db.transaction(HANDLE_STORE, 'readwrite')
+    tx.objectStore(HANDLE_STORE).put(list, LIST_KEY)
+    tx.oncomplete = () => { db.close(); resolve() }
+    tx.onerror = () => { db.close(); reject(tx.error) }
+  })
+}
+
+function readWorkspaceListFromDB(db: IDBDatabase): Promise<SavedWorkspace[]> {
+  return new Promise((resolve) => {
+    const tx = db.transaction(HANDLE_STORE, 'readonly')
+    const get = tx.objectStore(HANDLE_STORE).get(LIST_KEY)
+    get.onsuccess = () => resolve(Array.isArray(get.result) ? get.result : [])
+    get.onerror = () => resolve([])
+  })
+}
+
+export async function listSavedWorkspaces(): Promise<SavedWorkspace[]> {
+  try {
+    const db = await openIDB()
+    const list = await readWorkspaceListFromDB(db)
+    db.close()
+    return list.sort((a, b) => b.lastOpenedAt - a.lastOpenedAt)
+  } catch {
+    return []
+  }
+}
+
+export async function removeSavedWorkspace(name: string): Promise<void> {
+  const db = await openIDB()
+  const list = await readWorkspaceListFromDB(db)
+  const filtered = list.filter((w) => w.name !== name)
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(HANDLE_STORE, 'readwrite')
+    tx.objectStore(HANDLE_STORE).put(filtered, LIST_KEY)
+    tx.oncomplete = () => { db.close(); resolve() }
+    tx.onerror = () => { db.close(); reject(tx.error) }
   })
 }
 
@@ -59,25 +133,13 @@ async function initWorkspaceStructure(root: FileSystemDirectoryHandle): Promise<
     await root.getDirectoryHandle(dir, { create: true })
   }
 
-  let meta: WorkspaceInfo
-  try {
-    const file = await root.getFileHandle(WORKSPACE_META_FILE)
-    const text = await (await file.getFile()).text()
-    meta = JSON.parse(text) as WorkspaceInfo
-    meta.lastOpenedAt = Date.now()
-  } catch {
-    meta = {
-      version: 1,
-      name: root.name,
-      createdAt: Date.now(),
-      lastOpenedAt: Date.now(),
-    }
-  }
+  const sysDir = await root.getDirectoryHandle(WORKSPACE_SYSTEM_DIR, { create: true })
+  const existing = await readJsonFileOrNull<WorkspaceInfo>(sysDir, WORKSPACE_CONFIG_FILE)
+  const meta: WorkspaceInfo = existing
+    ? { ...existing, lastOpenedAt: Date.now() }
+    : { version: 1, name: root.name, createdAt: Date.now(), lastOpenedAt: Date.now() }
 
-  const metaHandle = await root.getFileHandle(WORKSPACE_META_FILE, { create: true })
-  const writable = await metaHandle.createWritable()
-  await writable.write(JSON.stringify(meta, null, 2))
-  await writable.close()
+  await writeJsonFile(sysDir, WORKSPACE_CONFIG_FILE, meta)
 }
 
 export async function openWorkspace(handle?: FileSystemDirectoryHandle): Promise<void> {
@@ -89,34 +151,50 @@ export async function openWorkspace(handle?: FileSystemDirectoryHandle): Promise
   }
 
   const isSame = _dirHandle ? await _dirHandle.isSameEntry(h).catch(() => false) : false
+
   if (_dirHandle && !isSame) {
-    await clearWorkspaceData()
+    const canSwitch = await runSwitchHooks()
+    if (!canSwitch) return
     invalidateRmCache()
   }
 
   await initWorkspaceStructure(h)
-  await connectWorkspace(h)
-  await saveHandleToIDB(h)
 
   _dirHandle = h
   workspaceName.value = h.name
   isOpen.value = true
+
+  try {
+    await saveActiveToIDB(h)
+    await upsertWorkspaceList({ name: h.name, handle: h, lastOpenedAt: Date.now() })
+  } catch (e) {
+    console.warn('[workspace-manager] IDB persistence failed:', e)
+  }
 }
 
 export async function closeWorkspace(): Promise<void> {
-  await clearWorkspaceData()
-  await clearHandleFromIDB()
+  if (_dirHandle) {
+    const canSwitch = await runSwitchHooks()
+    if (!canSwitch) return
+  }
+
   invalidateRmCache()
   _dirHandle = null
   workspaceName.value = ''
   isOpen.value = false
+
+  try {
+    await clearActiveFromIDB()
+  } catch (e) {
+    console.warn('[workspace-manager] IDB clear failed:', e)
+  }
 }
 
 export async function tryRestoreWorkspace(): Promise<boolean> {
-  const handle = await loadHandleFromIDB()
-  if (!handle) return false
-
   try {
+    const handle = await loadActiveFromIDB()
+    if (!handle) return false
+
     const perm = await handle.queryPermission({ mode: 'readwrite' })
     if (perm === 'granted') {
       await openWorkspace(handle)
@@ -152,5 +230,7 @@ export function useWorkspace() {
     tryRestoreWorkspace,
     reconnectWorkspace,
     hasSavedHandle,
+    listSavedWorkspaces,
+    removeSavedWorkspace,
   }
 }

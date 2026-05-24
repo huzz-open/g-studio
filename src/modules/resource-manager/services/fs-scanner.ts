@@ -1,5 +1,6 @@
 import type { FsEntry, MetaFile, ScanResult } from '../interfaces/meta'
-import { isMetaFile, isSystemFile, mainFileNameFromMeta, readMetaFileByHandle } from './meta-service'
+import { isMetaFile, isSystemFile, mainFileNameFromMeta, readMetaFileByHandleFsResult } from './meta-service'
+import { writeFile, deleteFile as fsDeleteFile } from '../../../shared/workspace/fs'
 
 /**
  * Recursively scan a workspace directory, building an FsEntry tree
@@ -12,10 +13,11 @@ export async function scanWorkspace(
   const linked: ScanResult['linked'] = []
   const unmatchedFiles: FsEntry[] = []
   const orphanedMetas: ScanResult['orphanedMetas'] = []
+  const corruptMetas: string[] = []
 
-  await scanDirectory(root, '', tree, linked, unmatchedFiles, orphanedMetas)
+  await scanDirectory(root, '', tree, linked, unmatchedFiles, orphanedMetas, corruptMetas)
 
-  return { tree, linked, unmatchedFiles, orphanedMetas }
+  return { tree, linked, unmatchedFiles, orphanedMetas, corruptMetas }
 }
 
 async function scanDirectory(
@@ -25,6 +27,7 @@ async function scanDirectory(
   linked: ScanResult['linked'],
   unmatchedFiles: FsEntry[],
   orphanedMetas: ScanResult['orphanedMetas'],
+  corruptMetas: string[],
 ): Promise<void> {
   const files = new Map<string, FileSystemFileHandle>()
   const metas = new Map<string, FileSystemFileHandle>()
@@ -58,10 +61,21 @@ async function scanDirectory(
     }
 
     if (metaHandle) {
-      const meta = await readMetaFileByHandle(metaHandle)
-      if (meta) {
-        fsEntry.meta = meta
-        linked.push({ file: fsEntry, meta })
+      const result = await readMetaFileByHandleFsResult(metaHandle)
+      if (result.ok) {
+        fsEntry.meta = result.data
+        linked.push({ file: fsEntry, meta: result.data })
+      } else if (result.error === 'parse-error' || result.error === 'invalid-schema') {
+        const corruptName = `${metaName}.corrupt`
+        const metaPath = basePath ? `${basePath}/${metaName}` : metaName
+        try {
+          const file = await metaHandle.getFile()
+          const content = await file.arrayBuffer()
+          await writeFile(dirHandle, corruptName, new Uint8Array(content))
+          await fsDeleteFile(dirHandle, metaName)
+        } catch { /* best effort */ }
+        corruptMetas.push(metaPath)
+        unmatchedFiles.push(fsEntry)
       } else {
         unmatchedFiles.push(fsEntry)
       }
@@ -76,10 +90,10 @@ async function scanDirectory(
   for (const [metaName, metaHandle] of metas) {
     const mainFileName = mainFileNameFromMeta(metaName)
     if (!mainFileName) continue
-    const meta = await readMetaFileByHandle(metaHandle)
-    if (!meta) continue
+    const result = await readMetaFileByHandleFsResult(metaHandle)
+    if (!result.ok) continue
     const path = basePath ? `${basePath}/${metaName}` : metaName
-    orphanedMetas.push({ path, meta, handle: metaHandle })
+    orphanedMetas.push({ path, meta: result.data, handle: metaHandle })
   }
 
   dirs.sort((a, b) => a.name.localeCompare(b.name))
@@ -93,7 +107,7 @@ async function scanDirectory(
       children: [],
     }
     await scanDirectory(
-      handle, dirPath, dirEntry.children!, linked, unmatchedFiles, orphanedMetas,
+      handle, dirPath, dirEntry.children!, linked, unmatchedFiles, orphanedMetas, corruptMetas,
     )
     entries.push(dirEntry)
   }
@@ -104,35 +118,3 @@ async function scanDirectory(
   })
 }
 
-/**
- * Get a directory handle at a relative path, creating intermediaries if needed.
- */
-export async function resolveDirectoryPath(
-  root: FileSystemDirectoryHandle,
-  relativePath: string,
-  create = false,
-): Promise<FileSystemDirectoryHandle> {
-  const parts = relativePath.split('/').filter(Boolean)
-  let dir = root
-  for (const part of parts) {
-    dir = await dir.getDirectoryHandle(part, { create })
-  }
-  return dir
-}
-
-/**
- * Get a file handle at a relative path.
- */
-export async function resolveFilePath(
-  root: FileSystemDirectoryHandle,
-  relativePath: string,
-): Promise<{ dir: FileSystemDirectoryHandle; fileName: string; handle: FileSystemFileHandle }> {
-  const parts = relativePath.split('/')
-  const fileName = parts.pop()!
-  let dir = root
-  for (const part of parts) {
-    dir = await dir.getDirectoryHandle(part)
-  }
-  const handle = await dir.getFileHandle(fileName)
-  return { dir, fileName, handle }
-}

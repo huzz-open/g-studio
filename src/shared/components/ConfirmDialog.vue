@@ -90,7 +90,7 @@ defineExpose({ open })
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  z-index: 100000;
 }
 .confirm-card {
   background: #2a2a2a;

@@ -1,17 +1,15 @@
 import type { UidIndex } from '../interfaces/meta'
+import { readJsonFileOrNull, writeJsonFile } from '../../../shared/workspace/fs'
+import { WORKSPACE_SYSTEM_DIR } from '../../../shared/workspace/interfaces'
 
-const INDEX_DIR = '.g-studio'
 const INDEX_FILE = 'uid-index.json'
 
 export async function readUidIndex(
   root: FileSystemDirectoryHandle,
 ): Promise<UidIndex> {
   try {
-    const dir = await root.getDirectoryHandle(INDEX_DIR)
-    const fileHandle = await dir.getFileHandle(INDEX_FILE)
-    const file = await fileHandle.getFile()
-    const text = await file.text()
-    return JSON.parse(text) as UidIndex
+    const dir = await root.getDirectoryHandle(WORKSPACE_SYSTEM_DIR)
+    return await readJsonFileOrNull<UidIndex>(dir, INDEX_FILE) ?? {}
   } catch {
     return {}
   }
@@ -21,11 +19,8 @@ export async function writeUidIndex(
   root: FileSystemDirectoryHandle,
   index: UidIndex,
 ): Promise<void> {
-  const dir = await root.getDirectoryHandle(INDEX_DIR, { create: true })
-  const fileHandle = await dir.getFileHandle(INDEX_FILE, { create: true })
-  const writable = await fileHandle.createWritable()
-  await writable.write(JSON.stringify(index, null, 2))
-  await writable.close()
+  const dir = await root.getDirectoryHandle(WORKSPACE_SYSTEM_DIR, { create: true })
+  await writeJsonFile(dir, INDEX_FILE, index)
 }
 
 export function buildUidIndexFromLinked(

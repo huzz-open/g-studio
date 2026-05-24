@@ -1,0 +1,71 @@
+---
+description: 图片格子/区域的交互规范（适用于精灵切分、瓦片编辑等任何网格化区域）
+globs:
+  - src/**/components/*Preview*.vue
+  - src/**/components/*Canvas*.vue
+  - src/**/components/*Grid*.vue
+alwaysApply: false
+---
+
+# 格子交互规范
+
+## 选择模型：两层分离
+
+- **待操作选择 (pending)**：表示"接下来要对谁操作"，蓝色边框高亮
+- **导出选择 (export)**：表示"最终保存/导出哪些"，通过勾选图标控制
+
+两层互不干扰，交互入口不同。
+
+## 待操作选择交互
+
+| 操作 | 行为 |
+|------|------|
+| 左键点击格子 | **单选**：pending = {该格子} |
+| Ctrl+左键点击格子 | **多选切换**：toggle 该格子在 pending 中 |
+| Ctrl+拖动 | **框选**：pending = 框内所有格子 |
+| 左键点击空白 | 清空 pending |
+| ESC | 先关菜单，再清空 pending |
+| 右键点击格子 | 若不在 pending 中则 pending={该格子}，弹出菜单 |
+| 右键点击已选格子 | 保持 pending 不变，弹出菜单 |
+
+## 导出选择交互
+
+| 操作 | 行为 |
+|------|------|
+| 点击右上角 √ 图标 | 切换该格子的导出状态 |
+| 右键菜单"加入/移出导出" | 批量切换所有 pending 格子 |
+
+## 视觉状态（边框 + 填充两维独立）
+
+### 边框表达选中状态
+
+| 状态 | 边框样式 |
+|------|----------|
+| 默认 | `rgba(120,120,120,0.5)` 1px |
+| 已选中 (highlighted) | `rgba(74,144,226,0.85)` 2px |
+| 已合并 (merged) | `rgba(255,200,50,0.6)` 虚线 |
+| 未导出 | 暗色填充遮罩 `rgba(0,0,0,0.45)` |
+
+### 填充表达 hover（与边框独立，统一表现）
+
+| 状态 | 填充叠加 |
+|------|----------|
+| hover | `rgba(255,255,255,0.08)` — 任何边框状态下都一样 |
+| 非 hover | 无额外填充 |
+
+**禁止**为 hover 改变边框颜色或使用闪烁/脉冲动画。hover 只通过填充微亮来表达"鼠标在这里"。
+
+## 光标样式
+
+| 场景 | 光标 |
+|------|------|
+| 默认 | pointer |
+| 按住 Ctrl | crosshair（整个 viewport） |
+| 拖动中 | crosshair |
+| 画布空白区域 | grab / grabbing（由 ImageCanvas 控制） |
+
+## ImageCanvas 集成
+
+- `ImageCanvas` 在 Ctrl+左键时 emit `ctrl-mousedown`，不启动 panning
+- 父组件通过 `viewport-cursor` prop 控制 viewport 光标
+- 框选可从图片区域外开始（通过 `ctrl-mousedown` 事件）

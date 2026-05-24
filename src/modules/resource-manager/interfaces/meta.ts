@@ -24,26 +24,34 @@ export interface MetaRelation {
   path?: string
 }
 
+export interface SlicerSliceConfig {
+  detectionMode?: string
+  bgRemoverId?: string
+  bgColor?: number[]
+  bgTolerance?: number
+  bgSpillStrength?: number
+  mergeGap?: number
+  minArea?: number
+  cols?: number
+  rows?: number
+  gapH?: number
+  gapV?: number
+  marginH?: number
+  marginV?: number
+  arrangeMode?: 'none' | 'standardize' | 'bin-pack'
+  namePrefix?: string
+}
+
+export interface SlicerSpriteEntry {
+  name: string
+  rect: { x: number; y: number; w: number; h: number }
+  originalRect?: { x: number; y: number; w: number; h: number }
+}
+
 export interface SlicerModuleData {
-  sliceConfig?: {
-    detectionMode?: string
-    cols?: number
-    rows?: number
-    gapH?: number
-    gapV?: number
-    marginH?: number
-    marginV?: number
-    bgRemoverId?: string
-    bgColor?: number[]
-    bgTolerance?: number
-    mergeGap?: number
-    minArea?: number
-    stdEnabled?: boolean
-  }
-  sprites?: Array<{
-    name: string
-    rect: { x: number; y: number; w: number; h: number }
-  }>
+  sliceConfig?: SlicerSliceConfig
+  sprites?: SlicerSpriteEntry[]
+  isComposite?: boolean
 }
 
 export interface MetaFile {
@@ -90,6 +98,7 @@ export interface ScanResult {
   linked: Array<{ file: FsEntry; meta: MetaFile }>
   unmatchedFiles: FsEntry[]
   orphanedMetas: Array<{ path: string; meta: MetaFile; handle: FileSystemFileHandle }>
+  corruptMetas: string[]
 }
 
 export type UidIndex = Record<string, string>

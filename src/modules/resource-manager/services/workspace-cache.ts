@@ -2,7 +2,6 @@ import { ref, type Ref } from 'vue'
 import type { ScanResult } from '../interfaces/meta'
 import { scanWorkspace } from './fs-scanner'
 import { reconcile, type ReconciliationReport } from './reconciliation'
-import { migrateFromRegistry } from './migration'
 import { getWorkspaceHandle } from '../../../shared/workspace'
 
 export interface WorkspaceCacheState {
@@ -49,16 +48,11 @@ export async function fullScan(): Promise<ReconciliationReport | null> {
 
   scanning.value = true
   try {
-    const migrated = await migrateFromRegistry(handle)
     const result = await scanWorkspace(handle)
     const report = await reconcile(handle, result)
     scanResult.value = result
     lastScanAt.value = Date.now()
     reconciled = true
-
-    if (migrated > 0) {
-      report.newMetas += migrated
-    }
     return report
   } finally {
     scanning.value = false

@@ -6,13 +6,20 @@ import { useSlicerStore } from '../store'
 import { useWorkspace } from '../../../shared/workspace'
 import {
   saveFileToWorkspace,
-  saveSpritesheetToWorkspace,
   readFileFromWorkspace,
+  readMetaFile,
+  writeMetaFile,
   isWorkspaceConnected,
 } from '../../resource-manager'
-import type { SlicerModuleData, MetaResourceType } from '../../resource-manager'
-import { PngExporter } from '../core/export/png-exporter'
-import { showToast } from '../../../shared/components/toast'
+import type { SlicerModuleData } from '../../resource-manager'
+import { notifyFileChanged } from '../../resource-manager'
+import { resolveDir, splitPath } from '../../../shared/workspace/fs'
+import type { FsErrorKind } from '../../../shared/workspace/fs'
+import { getWorkspaceHandle } from '../../../shared/workspace'
+import { readUidIndex } from '../../resource-manager'
+import { useSettings } from '../../../shared/settings'
+import type { OutputPayload } from './SlicerSidebar.vue'
+import { showToast, withProgress } from '../../../shared/components/toast'
 import { confirm } from '../../../shared/components/confirm'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import FileDropZone from '../../../shared/components/FileDropZone.vue'
@@ -26,47 +33,101 @@ const router = useRouter()
 const { t } = useI18n()
 const store = useSlicerStore()
 const { isOpen: wsOpen } = useWorkspace()
+const { settings: appSettings } = useSettings()
 const showAnimPreview = ref(false)
-const exporter = new PngExporter()
 const loadingResource = ref(false)
+
+function guessMime(fileName: string): string {
+  const ext = fileName.split('.').pop()?.toLowerCase()
+  switch (ext) {
+    case 'jpg': case 'jpeg': return 'image/jpeg'
+    case 'webp': return 'image/webp'
+    case 'gif': return 'image/gif'
+    default: return 'image/png'
+  }
+}
+
+function showLoadError(error: FsErrorKind) {
+  switch (error) {
+    case 'not-found': showToast(t('slicer.load.notFound'), 'error'); break
+    case 'parse-error':
+    case 'invalid-schema': showToast(t('slicer.load.corrupt'), 'error'); break
+    case 'permission-denied': showToast(t('slicer.load.permDenied'), 'error'); break
+    default: showToast(t('slicer.load.unknownError'), 'error')
+  }
+}
 
 async function loadFromResource(_resourceId: string): Promise<void> {
   loadingResource.value = true
   try {
-    const filePath = route.query.path as string | undefined
+    let filePath = route.query.path as string | undefined
+    const resourceUid = route.query.resource as string | undefined
     if (!filePath || !isWorkspaceConnected()) {
       showToast(t('slicer.save.needWorkspace'), 'error')
       return
     }
 
-    const result = await readFileFromWorkspace(filePath)
-    if (!result) {
-      showToast(t('toast.save.error'), 'error')
+    if (resourceUid) {
+      const existingTab = store.tabs.value.find(tab => tab.resourceUid === resourceUid)
+      if (existingTab) {
+        if (store.isTabModified(existingTab.id)) {
+          const switchToExisting = await confirm({
+            title: t('slicer.load.alreadyOpenTitle'),
+            message: t('slicer.load.alreadyOpenMsg', { name: existingTab.fileName }),
+            confirmText: t('slicer.load.switchToExisting'),
+            cancelText: t('slicer.load.openOriginal'),
+          })
+          if (switchToExisting) {
+            store.switchTab(existingTab.id)
+            router.replace({ path: '/sprite-slicer' })
+            return
+          }
+          store.removeTab(existingTab.id)
+        } else {
+          store.switchTab(existingTab.id)
+          router.replace({ path: '/sprite-slicer' })
+          return
+        }
+      }
+    }
+
+    let result = await readFileFromWorkspace(filePath)
+
+    if (!result.ok && result.error === 'not-found' && resourceUid) {
+      const root = getWorkspaceHandle()
+      if (root) {
+        const uidIndex = await readUidIndex(root)
+        const altPath = uidIndex[resourceUid]
+        if (altPath && altPath !== filePath) {
+          filePath = altPath
+          result = await readFileFromWorkspace(filePath)
+        }
+      }
+    }
+
+    if (!result.ok) {
+      showLoadError(result.error)
       return
     }
-    const blob = new Blob([result.data as BlobPart], { type: 'image/png' })
-    const fileName = filePath.split('/').pop() ?? 'spritesheet.png'
-    const file = new File([blob], fileName, { type: 'image/png' })
-    store.addTab(file, filePath)
 
-    const sc = result.meta?.moduleData?.['sprite-slicer']?.sliceConfig as Record<string, unknown> | undefined
-    if (sc) {
-      if (sc.bgRemoverId) store.bgRemoverId.value = sc.bgRemoverId as string
-      if (sc.bgColor) store.bgColor.value = sc.bgColor as [number, number, number]
-      if (sc.bgTolerance !== undefined) store.bgTolerance.value = sc.bgTolerance as number
-      if (sc.mergeGap !== undefined) store.mergeGap.value = sc.mergeGap as number
-      if (sc.minArea !== undefined) store.minArea.value = sc.minArea as number
-      if (sc.cols !== undefined) store.cols.value = sc.cols as number
-      if (sc.rows !== undefined) store.rows.value = sc.rows as number
-      if (sc.gapH !== undefined) store.gapH.value = sc.gapH as number
-      if (sc.gapV !== undefined) store.gapV.value = sc.gapV as number
-      if (sc.marginH !== undefined) store.marginH.value = sc.marginH as number
-      if (sc.marginV !== undefined) store.marginV.value = sc.marginV as number
-      if (sc.stdEnabled) {
-        store.detectionMode.value = 'grid'
-      } else if (sc.detectionMode) {
-        store.detectionMode.value = sc.detectionMode as 'auto' | 'grid'
-      }
+    const { data: fileData, meta } = result.data
+    const fileUid = meta?.uid ?? resourceUid
+    const { fileName: resourceFileName } = splitPath(filePath)
+    const mime = guessMime(resourceFileName)
+    const blob = new Blob([fileData as BlobPart], { type: mime })
+    const file = new File([blob], resourceFileName || 'spritesheet.png', { type: mime })
+
+    const slicerData = meta?.moduleData?.['sprite-slicer'] as SlicerModuleData | undefined
+    const isComposite = slicerData?.isComposite === true
+
+    if (isComposite && slicerData?.sprites && slicerData.sprites.length > 0) {
+      store.setPendingMetaRestore({ sprites: slicerData.sprites })
+    }
+
+    store.addTab(file, filePath, fileUid)
+
+    if (isComposite && slicerData?.sliceConfig) {
+      store.applySliceConfig(slicerData.sliceConfig)
     }
     router.replace({ path: '/sprite-slicer' })
   } finally {
@@ -101,11 +162,15 @@ watch(wsOpen, async (connected) => {
 
 async function syncAllTabsToWorkspace() {
   let saved = 0
+  let skipped = 0
   for (const tab of store.tabs.value) {
     if (tab.workspacePath) continue
     try {
-      const img = store.sourceImage.value
-      if (!img) continue
+      const isActive = tab.id === store.activeTabId.value
+      const img = isActive
+        ? store.sourceImage.value
+        : store.getTabSnapshot(tab.id)?.sourceImage ?? null
+      if (!img) { skipped++; continue }
       const cv = document.createElement('canvas')
       cv.width = img.width; cv.height = img.height
       cv.getContext('2d')!.drawImage(img, 0, 0)
@@ -122,11 +187,15 @@ async function syncAllTabsToWorkspace() {
         pipeline: [{ step: 'upload', at: Date.now(), detail: `synced from slicer: ${tab.fileName}` }],
       })
       tab.workspacePath = result.path
+      tab.resourceUid = result.uid
       saved++
     } catch { /* skip failed ones */ }
   }
   if (saved > 0) {
     showToast(t('slicer.workspace.syncDone', { count: saved }), 'success')
+  }
+  if (skipped > 0) {
+    showToast(t('slicer.workspace.syncSkipped', { count: skipped }), 'info')
   }
 }
 
@@ -157,7 +226,10 @@ async function saveOriginalToWorkspace(file: File) {
       pipeline: [{ step: 'upload', at: Date.now(), detail: `slicer upload: ${file.name}` }],
     })
     const tab = store.tabs.value.find(t => t.fileName === file.name && !t.workspacePath)
-    if (tab) tab.workspacePath = result.path
+    if (tab) {
+      tab.workspacePath = result.path
+      tab.resourceUid = result.uid
+    }
     showToast(t('toast.save.success'), 'success')
   } catch {
     showToast(t('toast.save.error'), 'error')
@@ -199,101 +271,8 @@ function onViewportDrop(e: DragEvent) {
   }
 }
 
-async function saveToResources(type: MetaResourceType) {
-  if (!isWorkspaceConnected()) {
-    showToast(t('slicer.save.needWorkspace'), 'error')
-    return
-  }
-  const sel = store.selectedSprites.value
-  if (sel.length === 0) return
-  store.saving.value = true
-  try {
-    const typeToDir: Record<string, string> = {
-      icon: 'icons', animation: 'animations', spritesheet: 'spritesheets',
-      tile: 'tiles', item: 'items', generic: 'exports',
-    }
-    const dir = typeToDir[type] ?? 'exports'
-
-    for (const sprite of sel) {
-      const resp = await fetch(sprite.dataUrl)
-      const blob = await resp.blob()
-      const data = new Uint8Array(await blob.arrayBuffer())
-      await saveFileToWorkspace({
-        fileName: `${sprite.name}.png`,
-        data,
-        type,
-        dir,
-        origin: { source: 'derived', method: 'sprite-slicer/slice', createdBy: 'g-studio', importedAt: Date.now() },
-        pipeline: [{ step: 'slice', at: Date.now(), detail: `sliced from spritesheet` }],
-      })
-    }
-    showToast(t('toast.save.success'), 'success')
-  } catch {
-    showToast(t('toast.save.error'), 'error')
-  } finally {
-    store.saving.value = false
-  }
-}
-
-async function saveAsSpritesheet() {
-  if (!isWorkspaceConnected()) {
-    showToast(t('slicer.save.needWorkspace'), 'error')
-    return
-  }
-  const img = store.sourceImage.value
-  if (!img || store.sprites.value.length === 0) return
-  store.saving.value = true
-  try {
-    let pngBlob: Blob | null
-
-    const cleanUrl = store.cleanImageUrl.value
-    if (store.stdEnabled.value && cleanUrl) {
-      const resp = await fetch(cleanUrl)
-      pngBlob = await resp.blob()
-    } else {
-      const cv = document.createElement('canvas')
-      cv.width = img.width; cv.height = img.height
-      const ctx = cv.getContext('2d')!
-      ctx.drawImage(img, 0, 0)
-      pngBlob = await new Promise<Blob | null>(r => cv.toBlob(r, 'image/png'))
-    }
-    if (!pngBlob) return
-    const data = new Uint8Array(await pngBlob.arrayBuffer())
-
-    const tab = store.tabs.value.find(t => t.id === store.activeTabId.value)
-    const name = tab?.fileName.replace(/\.[^.]+$/, '') ?? 'spritesheet'
-
-    const slicerModuleData: SlicerModuleData = {
-      sliceConfig: {
-        detectionMode: store.detectionMode.value,
-        bgRemoverId: store.bgRemoverId.value,
-        bgColor: [...store.bgColor.value],
-        bgTolerance: store.bgTolerance.value,
-        cols: store.cols.value,
-        rows: store.rows.value,
-        gapH: store.gapH.value,
-        gapV: store.gapV.value,
-        marginH: store.marginH.value,
-        marginV: store.marginV.value,
-        stdEnabled: store.stdEnabled.value,
-      },
-      sprites: store.sprites.value.map(s => ({
-        name: s.name,
-        rect: { ...s.rect },
-      })),
-    }
-
-    await saveSpritesheetToWorkspace(
-      `${name}.png`,
-      data,
-      slicerModuleData,
-    )
-    showToast(t('toast.save.spritesheet'), 'success')
-  } catch {
-    showToast(t('toast.save.error'), 'error')
-  } finally {
-    store.saving.value = false
-  }
+function getPrefix(): string {
+  return store.namePrefix.value || 'sprites'
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -303,24 +282,230 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
-async function exportPng() {
-  const data = store.getCleanImageData()
-  if (!data) return
-  const blob = await exporter.exportPng(store.selectedSprites.value, data)
-  downloadBlob(blob, `${store.namePrefix.value || 'sprites'}.png`)
-  showToast(t('toast.export.success'), 'success')
+function generateMetaJson(): Blob {
+  const sprites = store.selectedSprites.value
+  const mode = store.arrangeMode.value
+  const prefix = getPrefix()
+
+  const base: Record<string, any> = {
+    image: `${prefix}.png`,
+    size: { w: store.imgSize.value.w, h: store.imgSize.value.h },
+  }
+
+  if (mode === 'standardize') {
+    const opts = store.stdOptions.value
+    const tw = opts.targetWidth
+    const th = opts.targetHeight
+    base.layout = 'grid'
+    base.cols = opts.cols
+    base.rows = opts.rows
+    base.cellWidth = tw
+    base.cellHeight = th
+    base.sprites = sprites.map(s => {
+      const origW = s._origRect ? s._origRect.w : s.rect.w
+      const origH = s._origRect ? s._origRect.h : s.rect.h
+      return {
+        name: s.name,
+        x: Math.round((tw - origW) / 2),
+        y: Math.round((th - origH) / 2),
+        w: origW,
+        h: origH,
+      }
+    })
+  } else {
+    base.layout = mode === 'bin-pack' ? 'packed' : 'none'
+    base.sprites = sprites.map(s => ({
+      name: s.name,
+      x: s.rect.x,
+      y: s.rect.y,
+      w: s.rect.w,
+      h: s.rect.h,
+    }))
+  }
+
+  return new Blob([JSON.stringify(base, null, 2)], { type: 'application/json' })
 }
 
-async function exportZip() {
-  const blob = await exporter.exportZip(store.selectedSprites.value)
-  downloadBlob(blob, `${store.namePrefix.value || 'sprites'}.zip`)
-  showToast(t('toast.export.success'), 'success')
+async function exportLocal(payload: OutputPayload) {
+  store.saving.value = true
+  try {
+    const prefix = getPrefix()
+    const files: { name: string; blob: Blob }[] = []
+
+    if (payload.composite) {
+      const url = store.cleanImageUrl.value
+      if (url) {
+        const resp = await fetch(url)
+        files.push({ name: `${prefix}.png`, blob: await resp.blob() })
+      }
+    }
+
+    if (payload.sprites) {
+      for (const sprite of store.selectedSprites.value) {
+        const resp = await fetch(sprite.dataUrl)
+        files.push({ name: `sprites/${sprite.name}.png`, blob: await resp.blob() })
+      }
+    }
+
+    if (payload.meta) {
+      files.push({ name: `${prefix}-meta.json`, blob: generateMetaJson() })
+    }
+
+    if (files.length === 0) return
+
+    if (files.length === 1) {
+      downloadBlob(files[0].blob, files[0].name)
+    } else {
+      const JSZip = (await import('jszip')).default
+      const zip = new JSZip()
+      for (const f of files) zip.file(f.name, f.blob)
+      const zipBlob = await zip.generateAsync({ type: 'blob' })
+      downloadBlob(zipBlob, `${prefix}.zip`)
+    }
+  } catch (e) {
+    showToast(t('toast.save.error'), 'error')
+  } finally {
+    store.saving.value = false
+  }
 }
 
-async function exportMeta() {
-  const blob = await exporter.exportMetaJson(store.selectedSprites.value)
-  downloadBlob(blob, `${store.namePrefix.value || 'sprites'}-meta.json`)
-  showToast(t('toast.export.success'), 'success')
+async function saveToWorkspace(payload: OutputPayload) {
+  if (!isWorkspaceConnected()) {
+    showToast(t('slicer.save.needWorkspace'), 'error')
+    return
+  }
+  store.saving.value = true
+  try {
+    await withProgress(
+      t('slicer.save.saving'),
+      t('toast.save.success'),
+      t('toast.save.error'),
+      async () => {
+        const tab = store.tabs.value.find(t => t.id === store.activeTabId.value)
+        const baseName = tab?.fileName.replace(/\.[^.]+$/, '') ?? 'spritesheet'
+        const dir = payload.dir
+        const now = Date.now()
+
+        let sourceUid: string | undefined
+        if (tab?.workspacePath) {
+          const { dir: sourceDirPath, fileName: sourceFileName } = splitPath(tab.workspacePath)
+          try {
+            const sourceDir = sourceDirPath ? await resolveDir(sourceDirPath) : getWorkspaceHandle()!
+            const sourceMeta = await readMetaFile(sourceDir, sourceFileName)
+            if (sourceMeta) sourceUid = sourceMeta.uid
+          } catch { /* source may not exist */ }
+        }
+
+        const derivedRelations = sourceUid
+          ? [{ rel: 'derived-from' as const, uid: sourceUid }]
+          : []
+        const originBase = {
+          source: 'derived' as const,
+          createdBy: 'g-studio' as const,
+          importedAt: now,
+          sourceFiles: sourceUid ? [sourceUid] : undefined,
+        }
+
+        if (payload.composite) {
+          const cleanUrl = store.cleanImageUrl.value
+          let pngBlob: Blob | null = null
+          if (cleanUrl) {
+            const resp = await fetch(cleanUrl)
+            pngBlob = await resp.blob()
+          }
+          if (pngBlob) {
+            const data = new Uint8Array(await pngBlob.arrayBuffer())
+            const slicerModuleData: SlicerModuleData = {
+              sliceConfig: store.getSliceConfig(),
+              sprites: store.getSpriteSnapshot(),
+              isComposite: true,
+            }
+            let compositeName = `${baseName}.png`
+            if (tab?.workspacePath) {
+              const { dir: srcDirPath, fileName: srcFileName } = splitPath(tab.workspacePath)
+              if (srcFileName === compositeName && srcDirPath === dir) {
+                compositeName = `${baseName}-sheet.png`
+              }
+            }
+            await saveFileToWorkspace({
+              fileName: compositeName,
+              data,
+              type: 'spritesheet',
+              dir,
+              tags: payload.tags,
+              openWith: 'sprite-slicer',
+              moduleData: { 'sprite-slicer': slicerModuleData },
+              origin: { ...originBase, method: `sprite-slicer/${store.arrangeMode.value || 'none'}` },
+              pipeline: [{ step: 'save', at: now, detail: 'saved from slicer' }],
+              relations: derivedRelations,
+              sourceUid,
+              skipNotify: true,
+            })
+          }
+        }
+
+        if (payload.sprites) {
+          for (const sprite of store.selectedSprites.value) {
+            const resp = await fetch(sprite.dataUrl)
+            const blob = await resp.blob()
+            const data = new Uint8Array(await blob.arrayBuffer())
+            await saveFileToWorkspace({
+              fileName: `${sprite.name}.png`,
+              data,
+              type: 'generic',
+              dir,
+              tags: payload.tags,
+              origin: { ...originBase, method: 'sprite-slicer/slice' },
+              pipeline: [{ step: 'slice', at: now, detail: 'sliced from spritesheet' }],
+              relations: derivedRelations,
+              sourceUid,
+              skipNotify: true,
+            })
+          }
+        }
+
+        if (payload.meta) {
+          const metaBlob = generateMetaJson()
+          const metaData = new Uint8Array(await metaBlob.arrayBuffer())
+          await saveFileToWorkspace({
+            fileName: `${baseName}-meta.json`,
+            data: metaData,
+            type: 'generic',
+            dir,
+            tags: payload.tags,
+            origin: { ...originBase, method: 'sprite-slicer/meta-export' },
+            pipeline: [{ step: 'meta-export', at: now, detail: 'sprite metadata JSON' }],
+            relations: derivedRelations,
+            sourceUid,
+            skipNotify: true,
+          })
+        }
+
+        if (tab?.workspacePath) {
+          try {
+            const { dir: wbDirPath, fileName: wbFileName } = splitPath(tab.workspacePath)
+            const sourceDir = wbDirPath ? await resolveDir(wbDirPath) : getWorkspaceHandle()!
+            const sourceMeta = await readMetaFile(sourceDir, wbFileName)
+            if (sourceMeta) {
+              sourceMeta.moduleData = sourceMeta.moduleData ?? {}
+              sourceMeta.moduleData['sprite-slicer'] = {
+                sliceConfig: store.getSliceConfig(),
+              }
+              sourceMeta.updatedAt = now
+              await writeMetaFile(sourceDir, wbFileName, sourceMeta)
+            }
+          } catch { /* source meta write-back failed, non-fatal */ }
+        }
+
+        appSettings.spriteSlicer.lastSaveDir = dir
+        appSettings.spriteSlicer.lastTags = [...payload.tags]
+
+        notifyFileChanged()
+      },
+    )
+  } finally {
+    store.saving.value = false
+  }
 }
 
 watch(() => store.bgRemoverId.value, () => {
@@ -349,9 +534,9 @@ watch([() => store.cols.value, () => store.rows.value, () => store.gapH.value, (
   if (store.detectionMode.value === 'grid') store.runDetection()
 })
 
-watch(() => store.stdEnabled.value, () => {
+watch(() => store.arrangeMode.value, () => {
   if (store.isRestoring()) return
-  store.applyStandardize()
+  store.applyArrange()
 })
 
 watch(() => store.namePrefix.value, () => {
@@ -369,12 +554,9 @@ watch(() => store.namePrefix.value, () => {
       :store="store"
       :has-image="!!store.sourceImage.value"
       @file="onFile"
-      @save="(t: string) => saveToResources(t as MetaResourceType)"
-      @save-spritesheet="saveAsSpritesheet"
       @show-anim="showAnimPreview = true"
-      @export-png="exportPng"
-      @export-zip="exportZip"
-      @export-meta="exportMeta"
+      @export-local="exportLocal"
+      @save-workspace="saveToWorkspace"
     />
 
     <div

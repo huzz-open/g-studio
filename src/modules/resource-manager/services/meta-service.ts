@@ -2,6 +2,13 @@ import type { MetaFile, MetaResourceType, MetaOrigin, PipelineStep } from '../in
 import { META_VERSION } from '../interfaces/meta'
 import { generateUid } from './uid'
 import { computeContentHash } from './content-hash'
+import type { FsResult } from '../../../shared/workspace/fs'
+import {
+  readJsonFile,
+  writeJsonFile,
+  deleteFile as fsDeleteFile,
+  classifyError,
+} from '../../../shared/workspace/fs'
 
 function metaFileName(fileName: string): string {
   return `.${fileName}.meta`
@@ -17,40 +24,49 @@ export function isMetaFile(name: string): boolean {
 }
 
 export function isSystemFile(name: string): boolean {
-  return name === 'workspace.json'
-    || name === '.g-studio-registry.json'
-    || name === '.g-studio-registry.json.bak'
-    || name.startsWith('.g-studio')
+  return name.startsWith('.g-studio')
 }
 
 export async function readMetaFile(
   dirHandle: FileSystemDirectoryHandle,
   fileName: string,
 ): Promise<MetaFile | null> {
-  const name = metaFileName(fileName)
-  try {
-    const fileHandle = await dirHandle.getFileHandle(name)
-    const file = await fileHandle.getFile()
-    const text = await file.text()
-    const parsed = JSON.parse(text) as MetaFile
-    if (!parsed.__version || !parsed.uid) return null
-    return parsed
-  } catch {
-    return null
+  const result = await readMetaFileFsResult(dirHandle, fileName)
+  return result.ok ? result.data : null
+}
+
+export async function readMetaFileFsResult(
+  dirHandle: FileSystemDirectoryHandle,
+  fileName: string,
+): Promise<FsResult<MetaFile>> {
+  const result = await readJsonFile<MetaFile>(dirHandle, metaFileName(fileName))
+  if (!result.ok) return result
+  if (!result.data.__version || !result.data.uid) {
+    return { ok: false, error: 'invalid-schema', message: 'Missing __version or uid' }
   }
+  return result
 }
 
 export async function readMetaFileByHandle(
   fileHandle: FileSystemFileHandle,
 ): Promise<MetaFile | null> {
+  const result = await readMetaFileByHandleFsResult(fileHandle)
+  return result.ok ? result.data : null
+}
+
+export async function readMetaFileByHandleFsResult(
+  fileHandle: FileSystemFileHandle,
+): Promise<FsResult<MetaFile>> {
   try {
     const file = await fileHandle.getFile()
     const text = await file.text()
     const parsed = JSON.parse(text) as MetaFile
-    if (!parsed.__version || !parsed.uid) return null
-    return parsed
-  } catch {
-    return null
+    if (!parsed.__version || !parsed.uid) {
+      return { ok: false, error: 'invalid-schema', message: 'Missing __version or uid' }
+    }
+    return { ok: true, data: parsed }
+  } catch (err) {
+    return { ok: false, error: classifyError(err), message: String(err) }
   }
 }
 
@@ -59,23 +75,14 @@ export async function writeMetaFile(
   fileName: string,
   meta: MetaFile,
 ): Promise<void> {
-  const name = metaFileName(fileName)
-  const fileHandle = await dirHandle.getFileHandle(name, { create: true })
-  const writable = await fileHandle.createWritable()
-  await writable.write(JSON.stringify(meta, null, 2))
-  await writable.close()
+  await writeJsonFile(dirHandle, metaFileName(fileName), meta)
 }
 
 export async function deleteMetaFile(
   dirHandle: FileSystemDirectoryHandle,
   fileName: string,
 ): Promise<void> {
-  const name = metaFileName(fileName)
-  try {
-    await dirHandle.removeEntry(name)
-  } catch {
-    /* already gone */
-  }
+  await fsDeleteFile(dirHandle, metaFileName(fileName))
 }
 
 export async function renameMetaFile(

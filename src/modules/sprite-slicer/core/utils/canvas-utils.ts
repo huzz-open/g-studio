@@ -5,7 +5,7 @@ export function createOffscreenCanvas(width: number, height: number): {
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
-  const ctx = canvas.getContext('2d')!
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!
   return { canvas, ctx }
 }
 

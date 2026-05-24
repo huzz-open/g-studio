@@ -230,13 +230,10 @@ async function loadIconsFromResourceService() {
       state.assetsLoaded = true
       return
     }
-    const { getWorkspaceHandle } = await import('../../shared/workspace')
-    const root = getWorkspaceHandle()
-    if (!root) { state.assetsLoaded = true; return }
-
+    const { resolveDir } = await import('../../shared/workspace/fs')
     let iconsDir: FileSystemDirectoryHandle
     try {
-      iconsDir = await root.getDirectoryHandle('icons')
+      iconsDir = await resolveDir('icons')
     } catch {
       state.assetsLoaded = true
       return

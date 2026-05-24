@@ -18,10 +18,9 @@ export const WORKSPACE_DIRS = [
   'tiles',
   'items',
   'maps',
-  'exports',
 ] as const
 
 export type WorkspaceDir = (typeof WORKSPACE_DIRS)[number]
 
-export const WORKSPACE_META_FILE = 'workspace.json'
-export const WORKSPACE_REGISTRY_FILE = '.g-studio-registry.json'
+export const WORKSPACE_SYSTEM_DIR = '.g-studio'
+export const WORKSPACE_CONFIG_FILE = 'config.json'

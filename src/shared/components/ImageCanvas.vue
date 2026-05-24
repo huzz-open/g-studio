@@ -23,6 +23,8 @@ const props = withDefaults(defineProps<{
   overlayTitle?: string
   overlaySubtitle?: string
   keepViewOnSrcChange?: boolean
+  viewportCursor?: string
+  preventEscClose?: boolean
 }>(), {
   src: '',
   checkerBackground: true,
@@ -43,6 +45,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'scale-change', scale: number): void
+  (e: 'ctrl-mousedown', event: MouseEvent): void
 }>()
 
 const containerEl = ref<HTMLElement>()
@@ -89,8 +92,12 @@ function onWheel(e: WheelEvent) {
 
 function onContainerMouseDown(e: MouseEvent) {
   if (e.button === 0) {
-    e.preventDefault()
-    startPan(e.clientX, e.clientY)
+    if (e.ctrlKey) {
+      emit('ctrl-mousedown', e)
+    } else {
+      e.preventDefault()
+      startPan(e.clientX, e.clientY)
+    }
   }
 }
 
@@ -181,7 +188,7 @@ function onKeyDown(e: KeyboardEvent) {
       toggleFullscreen()
       return
     }
-    if (props.overlay) {
+    if (props.overlay && !props.preventEscClose) {
       emit('close')
     }
   }
@@ -281,6 +288,7 @@ defineExpose({
               <SvgIcon name="maximize" :size="12" />
             </button>
           </div>
+          <slot name="overlay-footer" />
         </div>
       </div>
     </div>
@@ -298,6 +306,7 @@ defineExpose({
         ref="containerEl"
         class="ic-viewport"
         :class="{ checker: checkerBackground }"
+        :style="viewportCursor ? { cursor: viewportCursor } : undefined"
         @wheel.prevent="onWheel"
         @mousedown="onContainerMouseDown"
         @contextmenu.prevent

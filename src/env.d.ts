@@ -5,6 +5,7 @@ interface FileSystemDirectoryHandle {
   requestPermission(desc: { mode: 'read' | 'readwrite' }): Promise<PermissionState>
 }
 
+
 interface Window {
   showDirectoryPicker(options?: {
     id?: string

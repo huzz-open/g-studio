@@ -15,12 +15,13 @@ const toasts = ref<ToastItem[]>([])
 let nextId = 0
 const timers = new Map<number, ReturnType<typeof setTimeout>>()
 
-function show(message: string, type: ToastItem['type'] = 'info', duration = 3000, action?: ToastAction) {
+function show(message: string, type: ToastItem['type'] = 'info', duration = 3000, action?: ToastAction): number {
   const id = ++nextId
   toasts.value.push({ id, message, type, leaving: false, action })
 
   const timer = setTimeout(() => dismiss(id), action ? Math.max(duration, 6000) : duration)
   timers.set(id, timer)
+  return id
 }
 
 function dismiss(id: number) {
@@ -44,7 +45,7 @@ onUnmounted(() => {
   timers.clear()
 })
 
-defineExpose({ show })
+defineExpose({ show, dismiss })
 </script>
 
 <template>
@@ -80,7 +81,7 @@ defineExpose({ show })
   top: 52px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 10000;
+  z-index: 100001;
   display: flex;
   flex-direction: column;
   align-items: center;

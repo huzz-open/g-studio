@@ -3,6 +3,7 @@ import { computeContentHash } from './content-hash'
 import { createMetaForFile, writeMetaFile, readMetaFile } from './meta-service'
 import { generateUid } from './uid'
 import { readUidIndex, writeUidIndex, buildUidIndexFromLinked } from './uid-index'
+import { resolveDir, splitPath, readJsonFileOrNull, deleteFile as fsDeleteFile } from '../../../shared/workspace/fs'
 
 export interface ReconciliationReport {
   repaired: number
@@ -55,21 +56,16 @@ export async function reconcile(
 
       const hash = await computeContentHash(await fileObj.arrayBuffer())
       if (hash === orphan.meta.contentHash) {
-        // Repair: write the meta to the correct location
-        const dirPath = file.path.includes('/') ? file.path.substring(0, file.path.lastIndexOf('/')) : ''
-        const dirHandle = dirPath ? await resolveDir(root, dirPath) : root
+        const { dir: dirPath } = splitPath(file.path)
+        const dirHandle = await resolveDir(dirPath)
         orphan.meta.boundFileName = file.name
         orphan.meta.updatedAt = Date.now()
         await writeMetaFile(dirHandle, file.name, orphan.meta)
 
         // Delete old orphaned meta
         try {
-          const oldMetaDir = orphan.path.includes('/')
-            ? await resolveDir(root, orphan.path.substring(0, orphan.path.lastIndexOf('/')))
-            : root
-          const oldMetaName = orphan.path.includes('/')
-            ? orphan.path.substring(orphan.path.lastIndexOf('/') + 1)
-            : orphan.path
+          const { dir: oldMetaDirPath, fileName: oldMetaName } = splitPath(orphan.path)
+          const oldMetaDir = await resolveDir(oldMetaDirPath)
           await oldMetaDir.removeEntry(oldMetaName)
         } catch { /* already gone */ }
 
@@ -107,9 +103,13 @@ export async function reconcile(
       }
     }
 
-    const dirPath = file.path.includes('/') ? file.path.substring(0, file.path.lastIndexOf('/')) : ''
-    const dirHandle = dirPath ? await resolveDir(root, dirPath) : root
+    const { dir: unmatchedDirPath } = splitPath(file.path)
+    const dirHandle = await resolveDir(unmatchedDirPath)
     const buffer = await fileObj.arrayBuffer()
+
+    if (!recoveredUid) {
+      recoveredUid = await tryRecoverUidFromCorrupt(dirHandle, file.name)
+    }
 
     if (recoveredUid) {
       const hash = await computeContentHash(buffer)
@@ -167,9 +167,9 @@ export async function reconcile(
 
     if (needsUpdate) {
       meta.updatedAt = Date.now()
-      const dirPath = file.path.includes('/') ? file.path.substring(0, file.path.lastIndexOf('/')) : ''
-      const dirHandle = dirPath ? await resolveDir(root, dirPath) : root
-      await writeMetaFile(dirHandle, file.name, meta)
+      const { dir: consistencyDirPath } = splitPath(file.path)
+      const consistencyDir = await resolveDir(consistencyDirPath)
+      await writeMetaFile(consistencyDir, file.name, meta)
     }
   }
 
@@ -190,9 +190,9 @@ export async function reconcile(
       dup.meta.relations = dup.meta.relations ?? []
       dup.meta.relations.push({ rel: 'variant-of', uid: originalUid })
       dup.meta.updatedAt = Date.now()
-      const dirPath = dup.file.path.includes('/') ? dup.file.path.substring(0, dup.file.path.lastIndexOf('/')) : ''
-      const dirHandle = dirPath ? await resolveDir(root, dirPath) : root
-      await writeMetaFile(dirHandle, dup.file.name, dup.meta)
+      const { dir: dupDirPath } = splitPath(dup.file.path)
+      const dupDirHandle = await resolveDir(dupDirPath)
+      await writeMetaFile(dupDirHandle, dup.file.name, dup.meta)
       report.duplicateUids++
     }
   }
@@ -204,14 +204,16 @@ export async function reconcile(
   return report
 }
 
-async function resolveDir(
-  root: FileSystemDirectoryHandle,
-  path: string,
-): Promise<FileSystemDirectoryHandle> {
-  const parts = path.split('/').filter(Boolean)
-  let dir = root
-  for (const part of parts) {
-    dir = await dir.getDirectoryHandle(part)
-  }
-  return dir
+async function tryRecoverUidFromCorrupt(
+  dirHandle: FileSystemDirectoryHandle,
+  fileName: string,
+): Promise<string | undefined> {
+  const corruptName = `.${fileName}.meta.corrupt`
+  const data = await readJsonFileOrNull<{ uid?: string }>(dirHandle, corruptName)
+  if (!data?.uid) return undefined
+  try {
+    await fsDeleteFile(dirHandle, corruptName)
+  } catch { /* best effort cleanup */ }
+  return data.uid
 }
+

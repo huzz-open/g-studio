@@ -5,12 +5,15 @@ import { useI18n } from '../../../shared/i18n'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import ConfirmDialog from '../../../shared/components/ConfirmDialog.vue'
 import { showToast } from '../../../shared/components/toast'
+import { prompt } from '../../../shared/components/prompt'
 import { useWorkspace, getWorkspaceHandle } from '../../../shared/workspace'
+import { resolveDir, writeFile as fsWriteFile, listDirs } from '../../../shared/workspace/fs'
 import DirectoryTree from './DirectoryTree.vue'
 import FileGrid from './FileGrid.vue'
 import FilePreview from './FilePreview.vue'
 import type { FsEntry } from '../interfaces/meta'
-import { deleteMetaFile, createMetaForFile } from '../services/meta-service'
+import { createMetaForFile } from '../services/meta-service'
+import { deleteFileFromWorkspace } from '../services/workspace-file-ops'
 import { getWorkspaceCache, smartScan, fullScan, invalidateCache } from '../services/workspace-cache'
 
 const router = useRouter()
@@ -27,18 +30,13 @@ const { scanResult, scanning } = getWorkspaceCache()
 const rootHandle = ref<FileSystemDirectoryHandle | null>(null)
 const selectedDirPath = ref('')
 const expandedPaths = ref<Set<string>>(new Set())
-const showMetaFiles = ref(false)
-
 const wsFiles = computed<FsEntry[]>(() => {
   if (!scanResult.value) return []
   return collectFilesInDir(scanResult.value.tree, selectedDirPath.value)
 })
 
 const filteredWsFiles = computed<FsEntry[]>(() => {
-  let files = wsFiles.value
-  if (!showMetaFiles.value) {
-    files = files.filter(f => f.kind === 'file')
-  }
+  let files = wsFiles.value.filter(f => f.kind === 'file')
   if (keyword.value) {
     const kw = keyword.value.toLowerCase()
     files = files.filter(f => f.name.toLowerCase().includes(kw))
@@ -159,14 +157,12 @@ async function confirmDelete() {
   if (!target || !rootHandle.value) return
 
   try {
-    const dirPath = target.path.includes('/') ? target.path.substring(0, target.path.lastIndexOf('/')) : ''
-    let dirHandle = rootHandle.value
-    if (dirPath) {
-      for (const p of dirPath.split('/')) dirHandle = await dirHandle.getDirectoryHandle(p)
+    const { referencedBy } = await deleteFileFromWorkspace(target.path)
+    if (referencedBy && referencedBy.length > 0) {
+      showToast(`已删除 ${target.name}（${referencedBy.length} 个文件仍引用此资源）`, 'info')
+    } else {
+      showToast(`已删除 ${target.name}`, 'success')
     }
-    await dirHandle.removeEntry(target.name)
-    await deleteMetaFile(dirHandle, target.name)
-    showToast(`已删除 ${target.name}`, 'success')
     selectedFile.value = null
     await loadWorkspace()
   } catch (err) {
@@ -182,17 +178,11 @@ async function onDropFiles(e: DragEvent) {
 
   uploading.value = true
   try {
-    let targetDir = rootHandle.value
-    if (selectedDirPath.value) {
-      for (const p of selectedDirPath.value.split('/')) targetDir = await targetDir.getDirectoryHandle(p, { create: true })
-    }
+    const targetDir = await resolveDir(selectedDirPath.value, true)
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
-      const fh = await targetDir.getFileHandle(file.name, { create: true })
-      const writable = await fh.createWritable()
-      await writable.write(file)
-      await writable.close()
       const buffer = await file.arrayBuffer()
+      await fsWriteFile(targetDir, file.name, new Uint8Array(buffer))
       await createMetaForFile(targetDir, file.name, buffer)
     }
     showToast(`已上传 ${files.length} 个文件`, 'success')
@@ -212,15 +202,9 @@ async function onUploadFile(e: Event) {
 
   uploading.value = true
   try {
-    let targetDir = rootHandle.value
-    if (selectedDirPath.value) {
-      for (const p of selectedDirPath.value.split('/')) targetDir = await targetDir.getDirectoryHandle(p, { create: true })
-    }
-    const fh = await targetDir.getFileHandle(file.name, { create: true })
-    const writable = await fh.createWritable()
-    await writable.write(file)
-    await writable.close()
+    const targetDir = await resolveDir(selectedDirPath.value, true)
     const buffer = await file.arrayBuffer()
+    await fsWriteFile(targetDir, file.name, new Uint8Array(buffer))
     await createMetaForFile(targetDir, file.name, buffer)
     showToast(`已上传 ${file.name}`, 'success')
     await loadWorkspace()
@@ -232,13 +216,15 @@ async function onUploadFile(e: Event) {
 
 async function createFolder() {
   if (!rootHandle.value) return
-  const name = prompt('文件夹名称:')
+  const dirs = await listDirs()
+  const name = await prompt({
+    title: t('resource.newFolderTitle'),
+    placeholder: 'my-folder',
+    suggestions: dirs,
+  })
   if (!name) return
   try {
-    let targetDir = rootHandle.value
-    if (selectedDirPath.value) {
-      for (const p of selectedDirPath.value.split('/')) targetDir = await targetDir.getDirectoryHandle(p)
-    }
+    const targetDir = await resolveDir(selectedDirPath.value)
     await targetDir.getDirectoryHandle(name, { create: true })
     showToast(`已创建文件夹 ${name}`, 'success')
     await loadWorkspace()
@@ -301,10 +287,6 @@ onMounted(() => {
           </span>
         </div>
         <div class="rm-toolbar-right">
-          <label class="meta-toggle">
-            <input type="checkbox" v-model="showMetaFiles" />
-            <span>显示 .meta</span>
-          </label>
           <button class="btn btn-sm" @click="handleRefresh" :disabled="scanning">
             <SvgIcon name="loop" :size="12" />
             {{ scanning ? '扫描中...' : '刷新' }}
@@ -441,15 +423,6 @@ onMounted(() => {
   width: 140px;
 }
 .count { font-size: 11px; color: #888; display: flex; align-items: center; gap: 6px; }
-.meta-toggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: #888;
-  cursor: pointer;
-}
-.meta-toggle input { accent-color: #5577aa; }
 .btn {
   display: flex;
   align-items: center;

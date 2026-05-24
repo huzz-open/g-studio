@@ -1,16 +1,17 @@
 export {
   isWorkspaceConnected,
   saveFileToWorkspace,
-  saveSpritesheetToWorkspace,
   readFileFromWorkspace,
+  deleteFileFromWorkspace,
 } from './services/workspace-file-ops'
 
 export type { SaveFileOptions, SaveResult } from './services/workspace-file-ops'
 
 export { scanWorkspace } from './services/fs-scanner'
+export { readUidIndex } from './services/uid-index'
 export { reconcile } from './services/reconciliation'
-export { migrateFromRegistry } from './services/migration'
-export { createMetaForFile, readMetaFile, writeMetaFile } from './services/meta-service'
+export { createMetaForFile, readMetaFile, readMetaFileFsResult, writeMetaFile } from './services/meta-service'
+export { notifyFileChanged, invalidateCache } from './services/workspace-cache'
 
 export type {
   MetaFile,
@@ -18,4 +19,6 @@ export type {
   ScanResult,
   MetaResourceType,
   SlicerModuleData,
+  SlicerSliceConfig,
+  SlicerSpriteEntry,
 } from './interfaces/meta'

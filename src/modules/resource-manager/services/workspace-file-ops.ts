@@ -1,15 +1,11 @@
-/**
- * High-level workspace file operations for module integration.
- * Writes files + .meta sidecars to the workspace filesystem.
- * Falls back to old IDB-based ResourceService when no workspace.
- */
 import { getWorkspaceHandle } from '../../../shared/workspace'
-import type { MetaFile, MetaResourceType, MetaOrigin, PipelineStep, SlicerModuleData } from '../interfaces/meta'
-import { createMetaForFile, writeMetaFile, readMetaFile } from './meta-service'
+import type { FsResult } from '../../../shared/workspace/fs'
+import type { MetaFile, MetaResourceType, MetaOrigin, PipelineStep, MetaRelation } from '../interfaces/meta'
+import { createMetaForFile, writeMetaFile, readMetaFile, readMetaFileFsResult, deleteMetaFile } from './meta-service'
 import { computeContentHash } from './content-hash'
-import { generateUid } from './uid'
-import { META_VERSION } from '../interfaces/meta'
 import { notifyFileChanged } from './workspace-cache'
+import { readUidIndex, writeUidIndex } from './uid-index'
+import { resolveDir, writeFile as fsWriteFile, readFile as fsReadFile, splitPath, joinPath, classifyError } from '../../../shared/workspace/fs'
 
 export interface SaveFileOptions {
   fileName: string
@@ -22,6 +18,9 @@ export interface SaveFileOptions {
   pipeline?: PipelineStep[]
   moduleData?: MetaFile['moduleData']
   description?: string
+  relations?: MetaRelation[]
+  skipNotify?: boolean
+  sourceUid?: string
 }
 
 export interface SaveResult {
@@ -37,21 +36,42 @@ export async function saveFileToWorkspace(opts: SaveFileOptions): Promise<SaveRe
   const root = getWorkspaceHandle()
   if (!root) throw new Error('No workspace connected')
 
-  let targetDir = root
-  if (opts.dir) {
-    const parts = opts.dir.split('/').filter(Boolean)
-    for (const part of parts) {
-      targetDir = await targetDir.getDirectoryHandle(part, { create: true })
+  const targetDir = opts.dir ? await resolveDir(opts.dir, true) : root
+  const path = joinPath(opts.dir ?? '', opts.fileName)
+
+  await fsWriteFile(targetDir, opts.fileName, opts.data as BlobPart)
+
+  const newHash = await computeContentHash(opts.data.buffer as ArrayBuffer)
+  const existingMeta = await readMetaFile(targetDir, opts.fileName)
+
+  if (existingMeta) {
+    existingMeta.contentHash = newHash
+    existingMeta.fileSize = opts.data.byteLength
+    existingMeta.updatedAt = Date.now()
+    if (opts.type) existingMeta.type = opts.type
+    if (opts.openWith !== undefined) existingMeta.openWith = opts.openWith
+    if (opts.origin) existingMeta.origin = opts.origin
+    if (opts.pipeline) existingMeta.pipeline = [...(existingMeta.pipeline ?? []), ...opts.pipeline]
+    if (opts.moduleData) existingMeta.moduleData = { ...existingMeta.moduleData, ...opts.moduleData }
+    if (opts.tags) existingMeta.tags = opts.tags
+    if (opts.relations) {
+      const existing = existingMeta.relations ?? []
+      for (const newRel of opts.relations) {
+        const idx = existing.findIndex(r => r.rel === newRel.rel && r.uid === newRel.uid)
+        if (idx >= 0) existing[idx] = newRel
+        else existing.push(newRel)
+      }
+      existingMeta.relations = existing
     }
+    await writeMetaFile(targetDir, opts.fileName, existingMeta)
+    await syncUidIndex(root, existingMeta.uid, path)
+    if (opts.sourceUid) {
+      await addProducesRelation(root, opts.sourceUid, existingMeta.uid)
+    }
+    if (!opts.skipNotify) notifyFileChanged()
+    return { uid: existingMeta.uid, path }
   }
 
-  // Write the file
-  const fileHandle = await targetDir.getFileHandle(opts.fileName, { create: true })
-  const writable = await fileHandle.createWritable()
-  await writable.write(new Blob([opts.data as BlobPart]))
-  await writable.close()
-
-  // Create .meta
   const meta = await createMetaForFile(targetDir, opts.fileName, opts.data.buffer as ArrayBuffer, {
     type: opts.type,
     origin: opts.origin,
@@ -60,95 +80,108 @@ export async function saveFileToWorkspace(opts: SaveFileOptions): Promise<SaveRe
     tags: opts.tags,
     moduleData: opts.moduleData,
   })
-
-  const path = opts.dir ? `${opts.dir}/${opts.fileName}` : opts.fileName
-  notifyFileChanged()
+  if (opts.relations && opts.relations.length > 0) {
+    meta.relations = opts.relations
+    await writeMetaFile(targetDir, opts.fileName, meta)
+  }
+  await syncUidIndex(root, meta.uid, path)
+  if (opts.sourceUid) {
+    await addProducesRelation(root, opts.sourceUid, meta.uid)
+  }
+  if (!opts.skipNotify) notifyFileChanged()
   return { uid: meta.uid, path }
 }
 
-/**
- * Save a spritesheet with full slicer metadata.
- */
-export async function saveSpritesheetToWorkspace(
-  fileName: string,
-  data: Uint8Array,
-  slicerData: SlicerModuleData,
-  extraMeta?: { width?: number; height?: number; description?: string },
-): Promise<SaveResult> {
+async function addProducesRelation(root: FileSystemDirectoryHandle, sourceUid: string, producedUid: string): Promise<void> {
+  try {
+    const index = await readUidIndex(root)
+    const sourcePath = index[sourceUid]
+    if (!sourcePath) return
+    const { dir: srcDir, fileName: srcFile } = splitPath(sourcePath)
+    const dirHandle = srcDir ? await resolveDir(srcDir) : root
+    const sourceMeta = await readMetaFile(dirHandle, srcFile)
+    if (!sourceMeta) return
+    const rels = sourceMeta.relations ?? []
+    if (rels.some(r => r.rel === 'produces' && r.uid === producedUid)) return
+    rels.push({ rel: 'produces', uid: producedUid })
+    sourceMeta.relations = rels
+    sourceMeta.updatedAt = Date.now()
+    await writeMetaFile(dirHandle, srcFile, sourceMeta)
+  } catch { /* non-fatal */ }
+}
+
+export type ReadFileResult = FsResult<{ data: Uint8Array; meta: MetaFile | null }>
+
+export async function readFileFromWorkspace(
+  filePath: string,
+): Promise<ReadFileResult> {
+  const root = getWorkspaceHandle()
+  if (!root) return { ok: false, error: 'not-found', message: 'No workspace connected' }
+
+  const { dir: dirPath, fileName } = splitPath(filePath)
+
+  try {
+    const dir = dirPath ? await resolveDir(dirPath) : root
+    const data = await fsReadFile(dir, fileName)
+    const metaResult = await readMetaFileFsResult(dir, fileName)
+    const meta = metaResult.ok ? metaResult.data : null
+    return { ok: true, data: { data, meta } }
+  } catch (err) {
+    return { ok: false, error: classifyError(err), message: String(err) }
+  }
+}
+
+async function syncUidIndex(root: FileSystemDirectoryHandle, uid: string, path: string): Promise<void> {
+  const index = await readUidIndex(root)
+  index[uid] = path
+  await writeUidIndex(root, index)
+}
+
+export async function deleteFileFromWorkspace(
+  filePath: string,
+): Promise<{ deletedUid?: string; referencedBy?: string[] }> {
   const root = getWorkspaceHandle()
   if (!root) throw new Error('No workspace connected')
 
-  const dir = await root.getDirectoryHandle('spritesheets', { create: true })
+  const { dir: dirPath, fileName } = splitPath(filePath)
+  const dirHandle = dirPath ? await resolveDir(dirPath) : root
+  const meta = await readMetaFile(dirHandle, fileName)
+  const deletedUid = meta?.uid
 
-  const fileHandle = await dir.getFileHandle(fileName, { create: true })
-  const writable = await fileHandle.createWritable()
-  await writable.write(new Blob([data as BlobPart]))
-  await writable.close()
-
-  const now = Date.now()
-  const contentHash = await computeContentHash(data.buffer as ArrayBuffer)
-
-  const meta: MetaFile = {
-    __version: META_VERSION,
-    uid: generateUid(),
-    boundFileName: fileName,
-    contentHash,
-    fileSize: data.byteLength,
-    type: 'spritesheet',
-    tags: [],
-    description: extraMeta?.description,
-    openWith: 'sprite-slicer',
-    origin: {
-      source: 'derived',
-      method: 'sprite-slicer/standardize',
-      createdBy: 'g-studio',
-      importedAt: now,
-    },
-    pipeline: [
-      { step: 'save', at: now, detail: 'saved as spritesheet from slicer' },
-    ],
-    relations: [],
-    moduleData: {
-      'sprite-slicer': slicerData,
-    },
-    createdAt: now,
-    updatedAt: now,
+  let referencedBy: string[] | undefined
+  if (deletedUid) {
+    referencedBy = await findRelationReferences(root, deletedUid)
   }
 
-  await writeMetaFile(dir, fileName, meta)
+  await dirHandle.removeEntry(fileName)
+  await deleteMetaFile(dirHandle, fileName)
+
+  if (deletedUid) {
+    const index = await readUidIndex(root)
+    delete index[deletedUid]
+    await writeUidIndex(root, index)
+  }
+
   notifyFileChanged()
-  return { uid: meta.uid, path: `spritesheets/${fileName}` }
+  return { deletedUid, referencedBy }
 }
 
-/**
- * Read a file + meta from workspace by path.
- */
-export async function readFileFromWorkspace(
-  filePath: string,
-): Promise<{ data: Uint8Array; meta: MetaFile | null } | null> {
-  const root = getWorkspaceHandle()
-  if (!root) return null
-
-  const parts = filePath.split('/')
-  const fileName = parts.pop()!
-  let dir = root
-  for (const part of parts) {
-    try {
-      dir = await dir.getDirectoryHandle(part)
-    } catch {
-      return null
-    }
-  }
-
+async function findRelationReferences(root: FileSystemDirectoryHandle, uid: string): Promise<string[]> {
+  const refs: string[] = []
   try {
-    const fh = await dir.getFileHandle(fileName)
-    const file = await fh.getFile()
-    const data = new Uint8Array(await file.arrayBuffer())
-    const meta = await readMetaFile(dir, fileName)
-    return { data, meta }
-  } catch {
-    return null
-  }
+    const index = await readUidIndex(root)
+    for (const [, path] of Object.entries(index)) {
+      try {
+        const { dir: d, fileName: f } = splitPath(path)
+        const dh = d ? await resolveDir(d) : root
+        const m = await readMetaFile(dh, f)
+        if (m?.relations?.some(r => r.uid === uid)) {
+          refs.push(path)
+        }
+      } catch { /* skip inaccessible */ }
+    }
+  } catch { /* uid-index read failure */ }
+  return refs
 }
 
 export function isWorkspaceConnected(): boolean {

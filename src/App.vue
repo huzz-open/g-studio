@@ -3,28 +3,31 @@ import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from './shared/i18n'
 import SvgIcon from './shared/icons/SvgIcon.vue'
-import SavePromptDialog from './shared/workspace/SavePromptDialog.vue'
 import { useWorkspace } from './shared/workspace'
-import { useStorageMode, useSyncStatus, clearCache } from './shared/storage'
+import type { SavedWorkspace } from './shared/workspace'
 import ConfirmDialog from './shared/components/ConfirmDialog.vue'
+import PromptDialog from './shared/components/PromptDialog.vue'
+import SettingsDialog from './shared/components/SettingsDialog.vue'
 import AppToast from './shared/components/AppToast.vue'
-import { registerToast } from './shared/components/toast'
+import { registerToast, showToast } from './shared/components/toast'
 import { registerConfirm } from './shared/components/confirm'
+import { registerPrompt } from './shared/components/prompt'
+import { loadSettings } from './shared/settings'
 
 const router = useRouter()
 const route = useRoute()
 const { t, locale, setLocale, availableLocales } = useI18n()
-const { isOpen: wsOpen, workspaceName, openWorkspace, closeWorkspace, tryRestoreWorkspace, reconnectWorkspace, hasSavedHandle } = useWorkspace()
-const { storageMode } = useStorageMode()
-const { status: syncStatus } = useSyncStatus()
+const { isOpen: wsOpen, workspaceName, openWorkspace, closeWorkspace, tryRestoreWorkspace, reconnectWorkspace, hasSavedHandle, listSavedWorkspaces, removeSavedWorkspace } = useWorkspace()
+
+const recentWorkspaces = ref<SavedWorkspace[]>([])
 
 const isDashboard = computed(() => route.path === '/')
-const showSavePrompt = ref(false)
 const wsDropdownOpen = ref(false)
-const showClearCacheConfirm = ref(false)
 const showDisconnectConfirm = ref(false)
+const showSettings = ref(false)
 const toastRef = ref<InstanceType<typeof AppToast> | null>(null)
 const confirmDialogRef = ref<InstanceType<typeof ConfirmDialog> | null>(null)
+const promptDialogRef = ref<InstanceType<typeof PromptDialog> | null>(null)
 
 const navItems = [
   { route: '/resource-manager', labelKey: 'nav.resourceManager', icon: 'folder-open' },
@@ -32,19 +35,12 @@ const navItems = [
   { route: '/map-editor', labelKey: 'nav.mapEditor', icon: 'map' },
 ]
 
-const syncDotClass = computed(() => {
-  switch (syncStatus.value) {
-    case 'synced': return 'dot-synced'
-    case 'syncing': return 'dot-syncing'
-    case 'error': return 'dot-error'
-    default: return 'dot-disconnected'
-  }
-})
-
 onMounted(async () => {
   if (toastRef.value) registerToast(toastRef.value)
   if (confirmDialogRef.value) registerConfirm(confirmDialogRef.value)
+  if (promptDialogRef.value) registerPrompt(promptDialogRef.value)
   await tryRestoreWorkspace()
+  await loadSettings()
   document.addEventListener('keydown', handleGlobalKeydown)
   document.addEventListener('click', handleClickOutside)
 })
@@ -57,9 +53,6 @@ onUnmounted(() => {
 function handleGlobalKeydown(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
     e.preventDefault()
-    if (storageMode.value === 'browser') {
-      showSavePrompt.value = true
-    }
   }
 }
 
@@ -73,17 +66,23 @@ function toggleLocale() {
   setLocale(next)
 }
 
-function toggleDropdown() {
+async function toggleDropdown() {
   wsDropdownOpen.value = !wsDropdownOpen.value
+  if (wsDropdownOpen.value) {
+    recentWorkspaces.value = await listSavedWorkspaces()
+  }
 }
 
 async function handleOpenWorkspace() {
-  showSavePrompt.value = false
   wsDropdownOpen.value = false
   try {
     await openWorkspace()
-  } catch {
-    /* user cancelled */
+    await loadSettings()
+  } catch (e: any) {
+    if (e?.name !== 'AbortError') {
+      console.error('[App] openWorkspace failed:', e)
+      showToast(String(e?.message || e), 'error')
+    }
   }
 }
 
@@ -91,8 +90,12 @@ async function handleSwitchWorkspace() {
   wsDropdownOpen.value = false
   try {
     await openWorkspace()
-  } catch {
-    /* user cancelled */
+    await loadSettings()
+  } catch (e: any) {
+    if (e?.name !== 'AbortError') {
+      console.error('[App] switchWorkspace failed:', e)
+      showToast(String(e?.message || e), 'error')
+    }
   }
 }
 
@@ -110,25 +113,34 @@ async function handleReconnect() {
   wsDropdownOpen.value = false
   try {
     await reconnectWorkspace()
-  } catch {
-    /* permission denied or user cancelled */
+    await loadSettings()
+  } catch (e: any) {
+    if (e?.name !== 'AbortError') {
+      console.error('[App] reconnect failed:', e)
+      showToast(String(e?.message || e), 'error')
+    }
   }
 }
 
-function handleSaveBrowser() {
-  showSavePrompt.value = false
-}
-
-function handleClearCacheRequest() {
+async function handleSwitchToRecent(ws: SavedWorkspace) {
   wsDropdownOpen.value = false
-  showClearCacheConfirm.value = true
+  try {
+    await openWorkspace(ws.handle)
+    await loadSettings()
+  } catch (e: any) {
+    if (e?.name !== 'AbortError') {
+      console.error('[App] switchToRecent failed:', e)
+      showToast(String(e?.message || e), 'error')
+    }
+  }
 }
 
-async function handleClearCacheConfirm() {
-  showClearCacheConfirm.value = false
-  await clearCache()
-  window.location.reload()
+async function handleRemoveRecent(e: Event, ws: SavedWorkspace) {
+  e.stopPropagation()
+  await removeSavedWorkspace(ws.name)
+  recentWorkspaces.value = recentWorkspaces.value.filter((w) => w.name !== ws.name)
 }
+
 </script>
 
 <template>
@@ -162,55 +174,87 @@ async function handleClearCacheConfirm() {
             <button class="storage-badge workspace" @click="toggleDropdown">
               <SvgIcon name="folder-open" :size="12" />
               <span>{{ workspaceName }}</span>
-              <span class="sync-dot" :class="syncDotClass" />
             </button>
           </template>
           <template v-else>
-            <button class="storage-badge browser" @click="toggleDropdown">
+            <button class="storage-badge no-workspace" @click="toggleDropdown">
               <SvgIcon name="globe" :size="12" />
-              <span>{{ t('storage.browserMode') }}</span>
-              <span class="warning-dot" />
+              <span>{{ t('workspace.lightweight') }}</span>
             </button>
           </template>
 
           <div v-if="wsDropdownOpen" class="ws-dropdown">
             <template v-if="wsOpen">
-              <div class="ws-dropdown-status">
-                <span class="sync-dot" :class="syncDotClass" />
-                <span>{{ t(`workspace.syncStatus.${syncStatus === 'disconnected' ? 'synced' : syncStatus}`) }}</span>
-              </div>
               <button class="ws-dropdown-item" @click="handleSwitchWorkspace">
                 <SvgIcon name="folder-open" :size="14" />
                 {{ t('workspace.switchOther') }}
               </button>
+              <template v-if="recentWorkspaces.length > 1">
+                <div class="ws-dropdown-sep" />
+                <div class="ws-dropdown-hint">{{ t('workspace.recentList') }}</div>
+                <template v-for="ws in recentWorkspaces" :key="ws.name">
+                  <div
+                    v-if="ws.name !== workspaceName"
+                    class="ws-dropdown-item ws-recent-item"
+                    @click="handleSwitchToRecent(ws)"
+                  >
+                    <SvgIcon name="folder-open" :size="14" />
+                    <span class="ws-recent-name">{{ ws.name }}</span>
+                    <span
+                      class="ws-recent-remove"
+                      role="button"
+                      :title="t('workspace.removeFromList')"
+                      @click="handleRemoveRecent($event, ws)"
+                    >
+                      <SvgIcon name="close" :size="10" />
+                    </span>
+                  </div>
+                </template>
+              </template>
               <div class="ws-dropdown-sep" />
               <button class="ws-dropdown-item danger" @click="handleDisconnectRequest">
                 <SvgIcon name="close" :size="14" />
-                {{ t('workspace.disconnect') }}
-              </button>
-              <button class="ws-dropdown-item danger" @click="handleClearCacheRequest">
-                <SvgIcon name="trash" :size="14" />
-                {{ t('storage.clearCache') }}
+                {{ t('workspace.close') }}
               </button>
             </template>
             <template v-else>
-              <div class="ws-dropdown-hint">{{ t('workspace.browserHint') }}</div>
+              <div class="ws-dropdown-hint">{{ t('workspace.lightweightHint') }}</div>
               <button v-if="hasSavedHandle()" class="ws-dropdown-item" @click="handleReconnect">
                 <SvgIcon name="loop" :size="14" />
                 {{ t('workspace.reconnect') }} ({{ workspaceName }})
               </button>
+              <template v-if="recentWorkspaces.length > 0">
+                <div class="ws-dropdown-sep" />
+                <div class="ws-dropdown-hint">{{ t('workspace.recentList') }}</div>
+                <div
+                  v-for="ws in recentWorkspaces"
+                  :key="ws.name"
+                  class="ws-dropdown-item ws-recent-item"
+                  @click="handleSwitchToRecent(ws)"
+                >
+                  <SvgIcon name="folder-open" :size="14" />
+                  <span class="ws-recent-name">{{ ws.name }}</span>
+                  <span
+                    class="ws-recent-remove"
+                    role="button"
+                    :title="t('workspace.removeFromList')"
+                    @click="handleRemoveRecent($event, ws)"
+                  >
+                    <SvgIcon name="close" :size="10" />
+                  </span>
+                </div>
+              </template>
               <button class="ws-dropdown-item" @click="handleOpenWorkspace">
                 <SvgIcon name="folder-open" :size="14" />
                 {{ t('storage.openWorkspace') }}
               </button>
-              <div class="ws-dropdown-sep" />
-              <button class="ws-dropdown-item danger" @click="handleClearCacheRequest">
-                <SvgIcon name="trash" :size="14" />
-                {{ t('storage.clearCache') }}
-              </button>
             </template>
           </div>
         </div>
+
+        <button class="top-btn" @click="showSettings = true" :title="t('settings.title')">
+          <SvgIcon name="settings" :size="14" />
+        </button>
 
         <button class="locale-btn" @click="toggleLocale" :title="t('common.language')">
           <SvgIcon name="globe" :size="14" />
@@ -222,38 +266,23 @@ async function handleClearCacheConfirm() {
       <router-view />
     </main>
 
-    <SavePromptDialog
-      :visible="showSavePrompt"
-      @save-browser="handleSaveBrowser"
-      @open-workspace="handleOpenWorkspace"
-      @cancel="showSavePrompt = false"
-    />
-
     <AppToast ref="toastRef" />
 
     <ConfirmDialog
       :visible="showDisconnectConfirm"
-      :title="t('workspace.disconnectTitle')"
-      :message="t('workspace.disconnectMsg')"
-      :confirm-text="t('workspace.disconnect')"
+      :title="t('workspace.closeTitle')"
+      :message="t('workspace.closeMsg')"
+      :confirm-text="t('workspace.close')"
       :cancel-text="t('common.cancel')"
       :danger="true"
       @confirm="handleDisconnectConfirm"
       @cancel="showDisconnectConfirm = false"
     />
 
-    <ConfirmDialog
-      :visible="showClearCacheConfirm"
-      :title="t('storage.clearCacheTitle')"
-      :message="t('storage.clearCacheMsg')"
-      :confirm-text="t('storage.clearCache')"
-      :cancel-text="t('common.cancel')"
-      :danger="true"
-      @confirm="handleClearCacheConfirm"
-      @cancel="showClearCacheConfirm = false"
-    />
-
     <ConfirmDialog ref="confirmDialogRef" />
+    <PromptDialog ref="promptDialogRef" />
+
+    <SettingsDialog :visible="showSettings" @close="showSettings = false" />
   </div>
 </template>
 
@@ -364,35 +393,14 @@ html, body, #app {
   border-color: #5a9a6a;
   color: #acd;
 }
-.storage-badge.browser {
-  background: #3a3020;
-  border-color: #5a4a2a;
-  color: #c9a84c;
+.storage-badge.no-workspace {
+  background: #333;
+  border-color: #555;
+  color: #aaa;
 }
-.storage-badge.browser:hover {
-  border-color: #8a7a3a;
-  color: #e0c060;
-}
-.sync-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.dot-synced { background: #5a9; }
-.dot-syncing { background: #5a9; animation: pulse-dot 1s ease-in-out infinite; }
-.dot-error { background: #e55; }
-.dot-disconnected { background: #888; }
-.warning-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #e8a030;
-  animation: pulse-dot 2s ease-in-out infinite;
-}
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+.storage-badge.no-workspace:hover {
+  border-color: #777;
+  color: #ccc;
 }
 .ws-dropdown {
   position: absolute;
@@ -452,6 +460,51 @@ html, body, #app {
   height: 1px;
   background: #3a3a3a;
   margin: 4px 0;
+}
+.ws-recent-item {
+  position: relative;
+}
+.ws-recent-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-recent-remove {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.ws-recent-remove:hover {
+  color: #e08080;
+  background: #3a2828;
+}
+.ws-recent-item:hover .ws-recent-remove {
+  display: flex;
+}
+.top-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid #444;
+  color: #999;
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.top-btn:hover {
+  border-color: #666;
+  color: #ddd;
 }
 .locale-btn {
   display: flex;

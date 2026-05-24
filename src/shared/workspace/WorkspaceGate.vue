@@ -16,7 +16,6 @@ const dirStructure = [
   { dir: 'tiles', key: 'workspace.dir.tiles', icon: 'grid' },
   { dir: 'items', key: 'workspace.dir.items', icon: 'layers' },
   { dir: 'maps', key: 'workspace.dir.maps', icon: 'map' },
-  { dir: 'exports', key: 'workspace.dir.exports', icon: 'download' },
 ]
 
 async function handleOpen() {

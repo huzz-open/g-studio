@@ -1,8 +1,22 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from '../../../shared/i18n'
+import { useSettings } from '../../../shared/settings'
+import { useWorkspace } from '../../../shared/workspace'
+import { listDirs, resolveDir } from '../../../shared/workspace/fs'
+import { prompt } from '../../../shared/components/prompt'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import FileDropZone from '../../../shared/components/FileDropZone.vue'
+import SegmentedControl from '../../../shared/components/SegmentedControl.vue'
+import InlineSwitch from '../../../shared/components/InlineSwitch.vue'
+
+export interface OutputPayload {
+  composite: boolean
+  sprites: boolean
+  meta: boolean
+  tags: string[]
+  dir: string
+}
 
 const props = defineProps<{
   store: ReturnType<typeof import('../store').useSlicerStore>
@@ -11,17 +25,91 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   file: [file: File]
-  save: [type: string]
-  'save-spritesheet': []
   'show-anim': []
-  'export-png': []
-  'export-zip': []
-  'export-meta': []
+  'export-local': [payload: OutputPayload]
+  'save-workspace': [payload: OutputPayload]
 }>()
 
 const { t } = useI18n()
+const { settings } = useSettings()
+const { isOpen: wsOpen } = useWorkspace()
 
-const saveType = ref<string>('generic')
+const workspaceDirs = ref<string[]>([])
+const saveDir = ref(settings.spriteSlicer.lastSaveDir ?? 'spritesheets')
+const tags = ref<string[]>([...(settings.spriteSlicer.lastTags ?? [])])
+const tagInput = ref('')
+
+const exportOpts = ref({ ...settings.spriteSlicer.defaults.exportOptions })
+
+const hasAnyImage = computed(() => exportOpts.value.composite || exportOpts.value.sprites)
+const outputDisabled = computed(() =>
+  !props.hasImage || !hasAnyImage.value || props.store.selectedSprites.value.length === 0,
+)
+
+async function refreshDirs() {
+  workspaceDirs.value = await listDirs()
+}
+
+onMounted(() => {
+  if (wsOpen.value) refreshDirs()
+})
+
+watch(wsOpen, (open) => {
+  if (open) refreshDirs()
+})
+
+function addTag() {
+  const v = tagInput.value.trim()
+  if (v && !tags.value.includes(v)) {
+    tags.value.push(v)
+  }
+  tagInput.value = ''
+}
+
+function removeTag(tag: string) {
+  tags.value = tags.value.filter(t => t !== tag)
+}
+
+function onTagKeydown(e: KeyboardEvent) {
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    addTag()
+  }
+}
+
+async function onNewFolder() {
+  const name = await prompt({
+    title: t('slicer.save.newFolder'),
+    message: t('slicer.save.newFolderPrompt'),
+    placeholder: 'characters/hero',
+    suggestions: workspaceDirs.value,
+  })
+  if (!name) return
+  const cleaned = name.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
+  if (!cleaned) return
+  try {
+    await resolveDir(cleaned, true)
+    await refreshDirs()
+    saveDir.value = cleaned
+  } catch {
+    /* ignore */
+  }
+}
+
+function onMetaChange(checked: boolean) {
+  if (!exportOpts.value.composite) return
+  exportOpts.value.meta = checked
+}
+
+function getPayload(): OutputPayload {
+  return {
+    composite: exportOpts.value.composite,
+    sprites: exportOpts.value.sprites,
+    meta: exportOpts.value.composite ? exportOpts.value.meta : false,
+    tags: [...tags.value],
+    dir: saveDir.value,
+  }
+}
 
 function rgbToHex(c: [number, number, number]): string {
   return '#' + c.map(v => v.toString(16).padStart(2, '0')).join('')
@@ -40,10 +128,46 @@ function onBgColorChange(e: Event) {
   const hex = (e.target as HTMLInputElement).value
   props.store.bgColor.value = hexToRgb(hex)
 }
+
+const arrangeModeOptions = [
+  { value: 'none', labelKey: 'slicer.arrangeMode.none' },
+  { value: 'standardize', labelKey: 'slicer.arrangeMode.standardize' },
+  { value: 'bin-pack', labelKey: 'slicer.arrangeMode.binPack' },
+]
+
+const sidebarWidth = ref(300)
+const MIN_WIDTH = 220
+const MAX_WIDTH = 500
+let dragging = false
+
+function onResizeStart(e: MouseEvent) {
+  e.preventDefault()
+  dragging = true
+  document.addEventListener('mousemove', onResizeMove)
+  document.addEventListener('mouseup', onResizeEnd)
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+function onResizeMove(e: MouseEvent) {
+  if (!dragging) return
+  sidebarWidth.value = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, e.clientX))
+}
+function onResizeEnd() {
+  dragging = false
+  document.removeEventListener('mousemove', onResizeMove)
+  document.removeEventListener('mouseup', onResizeEnd)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+}
+
+onUnmounted(() => {
+  document.removeEventListener('mousemove', onResizeMove)
+  document.removeEventListener('mouseup', onResizeEnd)
+})
 </script>
 
 <template>
-  <aside class="sidebar">
+  <aside class="sidebar" :style="{ width: sidebarWidth + 'px', minWidth: sidebarWidth + 'px' }">
     <!-- Source / Upload -->
     <div class="sidebar-section">
       <h4>{{ t('slicer.source') }}</h4>
@@ -131,7 +255,7 @@ function onBgColorChange(e: Event) {
         <span class="range-val">{{ store.mergeGap.value }}px</span>
       </div>
       <div class="param-row slider-row">
-        <label class="slider-label">{{ t('slicer.detection.minArea') }}</label>
+        <label class="slider-label" :title="t('slicer.detection.minArea.tip')">{{ t('slicer.detection.minArea') }}</label>
         <input type="range" v-model.number="store.minArea.value" min="10" max="500" class="slider" :disabled="!hasImage" />
         <span class="range-val">{{ store.minArea.value }}px</span>
       </div>
@@ -154,15 +278,15 @@ function onBgColorChange(e: Event) {
       </div>
     </div>
 
-    <!-- Standardize -->
+    <!-- Arrange Mode -->
     <div class="sidebar-section">
-      <div class="section-header-row">
-        <h4>{{ t('slicer.standardize') }}</h4>
-        <label class="switch" :title="t('slicer.standardize.tooltip')">
-          <input type="checkbox" v-model="store.stdEnabled.value" :disabled="!hasImage" />
-          <span class="switch-slider" />
-        </label>
-      </div>
+      <h4>{{ t('slicer.arrangeMode') }}</h4>
+      <SegmentedControl
+        :model-value="store.arrangeMode.value"
+        :options="arrangeModeOptions"
+        :disabled="!hasImage"
+        @update:model-value="store.arrangeMode.value = $event as any"
+      />
     </div>
 
     <!-- Naming -->
@@ -180,67 +304,84 @@ function onBgColorChange(e: Event) {
       </button>
     </div>
 
-    <!-- Export -->
+    <!-- Output -->
     <div class="sidebar-section">
-      <h4>{{ t('common.export') }}</h4>
-      <div class="actions">
-        <button class="btn btn-sm" :disabled="!hasImage || store.selectedSprites.value.length === 0" @click="emit('export-png')">
-          <SvgIcon name="download" :size="12" />
-          {{ t('slicer.export.png') }}
-        </button>
-        <button class="btn btn-sm" :disabled="!hasImage || store.selectedSprites.value.length === 0" @click="emit('export-zip')">
-          <SvgIcon name="download" :size="12" />
-          {{ t('slicer.export.zip') }}
-        </button>
-        <button class="btn btn-sm" :disabled="!hasImage || store.selectedSprites.value.length === 0" @click="emit('export-meta')">
-          <SvgIcon name="download" :size="12" />
-          {{ t('slicer.export.meta') }}
-        </button>
-      </div>
-    </div>
+      <h4>{{ t('slicer.output') }}</h4>
 
-    <!-- Save as Spritesheet -->
-    <div class="sidebar-section">
-      <h4>{{ t('slicer.save.asSpritesheet') }}</h4>
-      <button
-        class="btn btn-sm"
-        :disabled="!hasImage || store.sprites.value.length === 0 || store.saving.value"
-        @click="emit('save-spritesheet')"
-        :title="t('slicer.save.asSpritesheetHint')"
-      >
-        <SvgIcon name="save" :size="12" />
-        {{ t('slicer.save.asSpritesheet') }}
-      </button>
-    </div>
-
-    <!-- Save Actions -->
-    <div class="sidebar-section actions">
       <div class="param-row" style="margin-bottom:6px">
-        <label>{{ t('slicer.save.resourceType') }}
-          <select v-model="saveType" :disabled="!hasImage" class="select-input">
-            <option value="generic">{{ t('resource.type.generic') }}</option>
-            <option value="animation">{{ t('resource.type.animation') }}</option>
-            <option value="icon">{{ t('resource.type.icon') }}</option>
-            <option value="item">{{ t('resource.type.item') }}</option>
-          </select>
+        <label>{{ t('slicer.save.saveDir') }}
+          <div class="dir-picker">
+            <select v-model="saveDir" :disabled="!hasImage" class="select-input">
+              <option v-for="d in workspaceDirs" :key="d" :value="d">{{ d }}</option>
+              <option v-if="!workspaceDirs.includes(saveDir)" :value="saveDir">{{ saveDir }}</option>
+            </select>
+            <button class="btn-new-folder" :disabled="!hasImage" @click="onNewFolder" :title="t('slicer.save.newFolder')">+</button>
+          </div>
         </label>
       </div>
-      <button
-        class="btn btn-accent"
-        @click="emit('save', saveType)"
-        :disabled="!hasImage || store.selectedSprites.value.length === 0 || store.saving.value"
-      >
-        <SvgIcon name="save" :size="14" />
-        {{ store.saving.value ? t('slicer.save.saving') : t('slicer.save.count', { count: store.selectedSprites.value.length }) }}
-      </button>
+
+      <div class="param-row tag-section" style="margin-bottom:6px">
+        <label>{{ t('slicer.save.tags') }}
+          <div class="tag-input-area">
+            <span v-for="tag in tags" :key="tag" class="tag-chip">
+              {{ tag }}
+              <button class="tag-remove" @click="removeTag(tag)">&times;</button>
+            </span>
+            <input
+              type="text"
+              v-model="tagInput"
+              class="tag-text-input"
+              :placeholder="t('slicer.save.tagPlaceholder')"
+              :disabled="!hasImage"
+              @keydown="onTagKeydown"
+              @blur="addTag"
+            />
+          </div>
+        </label>
+      </div>
+
+      <div class="cb-pair">
+        <label class="cb-row">
+          <input type="checkbox" v-model="exportOpts.composite" :disabled="!hasImage" />
+          <span>{{ t('slicer.output.composite') }}</span>
+        </label>
+        <InlineSwitch
+          :model-value="exportOpts.meta"
+          label=""
+          :tooltip="t('slicer.output.metaTip')"
+          :disabled="!hasImage || !exportOpts.composite"
+          @update:model-value="onMetaChange($event)"
+        />
+      </div>
+      <label class="cb-row">
+        <input type="checkbox" v-model="exportOpts.sprites" :disabled="!hasImage" />
+        <span>{{ t('slicer.output.sprites') }}</span>
+      </label>
+      <div class="output-btns">
+        <button
+          class="btn btn-sm"
+          :disabled="outputDisabled || store.saving.value"
+          @click="emit('export-local', getPayload())"
+        >
+          <SvgIcon name="download" :size="12" />
+          {{ t('slicer.output.exportLocal') }}
+        </button>
+        <button
+          class="btn btn-sm btn-accent"
+          :disabled="outputDisabled || store.saving.value"
+          @click="emit('save-workspace', getPayload())"
+        >
+          <SvgIcon name="save" :size="12" />
+          {{ store.saving.value ? t('slicer.save.saving') : t('slicer.output.saveWorkspace') }}
+        </button>
+      </div>
     </div>
   </aside>
+  <div class="resize-handle" @mousedown="onResizeStart" />
 </template>
 
 <style scoped>
 .sidebar {
-  width: 230px;
-  min-width: 230px;
   background: #252525;
   border-right: 1px solid #3a3a3a;
   padding: 12px;
@@ -249,6 +390,14 @@ function onBgColorChange(e: Event) {
   flex-direction: column;
   gap: 2px;
 }
+.resize-handle {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.resize-handle:hover { background: #5577aa44; }
 .sidebar-section {
   padding-bottom: 10px;
   margin-bottom: 6px;
@@ -403,4 +552,96 @@ function onBgColorChange(e: Event) {
 .btn-accent { background: #3a6a5a; color: #d0f0e0; }
 .btn-accent:hover:not(:disabled) { background: #4a7a6a; }
 .actions { padding-top: 4px; display: flex; flex-direction: column; gap: 6px; }
+.cb-pair {
+  display: flex;
+  gap: 12px;
+}
+.cb-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #bbb;
+  cursor: pointer;
+  padding: 3px 0;
+}
+.cb-row input[type="checkbox"] {
+  accent-color: #5577aa;
+  cursor: pointer;
+  margin: 0;
+}
+.cb-row input:disabled { opacity: 0.4; cursor: default; }
+.cb-row input:disabled + span { opacity: 0.4; }
+.output-btns {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.output-btns .btn { flex: 1; }
+.dir-picker {
+  display: flex;
+  gap: 4px;
+  align-items: stretch;
+}
+.dir-picker .select-input { flex: 1; min-width: 0; }
+.btn-new-folder {
+  width: 28px;
+  background: #3a5070;
+  color: #dde4f0;
+  border: 1px solid #555;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+.btn-new-folder:hover:not(:disabled) { background: #4a6080; }
+.btn-new-folder:disabled { opacity: 0.4; cursor: not-allowed; }
+.tag-section label { flex: 1; }
+.tag-input-area {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 6px;
+  background: #333;
+  border: 1px solid #555;
+  border-radius: 4px;
+  min-height: 28px;
+  align-items: center;
+}
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  background: #3a5070;
+  color: #dde4f0;
+  border-radius: 3px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.tag-remove {
+  background: none;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 2px;
+  line-height: 1;
+}
+.tag-remove:hover { color: #ff9999; }
+.tag-text-input {
+  flex: 1;
+  min-width: 50px;
+  background: none;
+  border: none;
+  color: #eee;
+  font-size: 11px;
+  outline: none;
+  padding: 2px 0;
+}
 </style>
