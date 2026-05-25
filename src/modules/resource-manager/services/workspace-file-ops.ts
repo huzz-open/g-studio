@@ -92,6 +92,133 @@ export async function saveFileToWorkspace(opts: SaveFileOptions): Promise<SaveRe
   return { uid: meta.uid, path }
 }
 
+/**
+ * Save multiple files in a batch, sharing a single uid-index read/write cycle.
+ */
+export interface BatchOptions {
+  files: SaveFileOptions[]
+  sourceMetaUpdate?: (meta: MetaFile) => void
+}
+
+export async function saveFileBatch(filesOrOpts: SaveFileOptions[] | BatchOptions): Promise<SaveResult[]> {
+  const { files, sourceMetaUpdate } = Array.isArray(filesOrOpts)
+    ? { files: filesOrOpts, sourceMetaUpdate: undefined }
+    : filesOrOpts
+
+  const root = getWorkspaceHandle()
+  if (!root) throw new Error('No workspace connected')
+
+  const index = await readUidIndex(root)
+  const producesQueue: Array<{ sourceUid: string; producedUid: string }> = []
+
+  async function saveOne(opts: SaveFileOptions): Promise<SaveResult> {
+    const targetDir = opts.dir ? await resolveDir(opts.dir, true) : root
+    const path = joinPath(opts.dir ?? '', opts.fileName)
+
+    const [, newHash] = await Promise.all([
+      fsWriteFile(targetDir, opts.fileName, opts.data as BlobPart),
+      computeContentHash(opts.data.buffer as ArrayBuffer),
+    ])
+
+    const existingMeta = await readMetaFile(targetDir, opts.fileName)
+
+    let uid: string
+    if (existingMeta) {
+      existingMeta.contentHash = newHash
+      existingMeta.fileSize = opts.data.byteLength
+      existingMeta.updatedAt = Date.now()
+      if (opts.type) existingMeta.type = opts.type
+      if (opts.openWith !== undefined) existingMeta.openWith = opts.openWith
+      if (opts.origin) existingMeta.origin = opts.origin
+      if (opts.pipeline) existingMeta.pipeline = [...(existingMeta.pipeline ?? []), ...opts.pipeline]
+      if (opts.moduleData) existingMeta.moduleData = { ...existingMeta.moduleData, ...opts.moduleData }
+      if (opts.tags) existingMeta.tags = opts.tags
+      if (opts.relations) {
+        const existing = existingMeta.relations ?? []
+        for (const newRel of opts.relations) {
+          const idx = existing.findIndex(r => r.rel === newRel.rel && r.uid === newRel.uid)
+          if (idx >= 0) existing[idx] = newRel
+          else existing.push(newRel)
+        }
+        existingMeta.relations = existing
+      }
+      await writeMetaFile(targetDir, opts.fileName, existingMeta)
+      uid = existingMeta.uid
+    } else {
+      const meta = await createMetaForFile(targetDir, opts.fileName, opts.data.buffer as ArrayBuffer, {
+        type: opts.type,
+        origin: opts.origin,
+        pipeline: opts.pipeline,
+        openWith: opts.openWith,
+        tags: opts.tags,
+        moduleData: opts.moduleData,
+      })
+      if (opts.relations && opts.relations.length > 0) {
+        meta.relations = opts.relations
+        await writeMetaFile(targetDir, opts.fileName, meta)
+      }
+      uid = meta.uid
+    }
+
+    index[uid] = path
+    if (opts.sourceUid) {
+      producesQueue.push({ sourceUid: opts.sourceUid, producedUid: uid })
+    }
+    return { uid, path }
+  }
+
+  const results = await Promise.all(files.map(saveOne))
+
+  const grouped = new Map<string, string[]>()
+  for (const { sourceUid, producedUid } of producesQueue) {
+    const list = grouped.get(sourceUid) ?? []
+    list.push(producedUid)
+    grouped.set(sourceUid, list)
+  }
+  for (const [sourceUid, producedUids] of grouped) {
+    const sourcePath = index[sourceUid]
+    if (!sourcePath) continue
+    try {
+      const { dir: srcDir, fileName: srcFile } = splitPath(sourcePath)
+      const dirHandle = srcDir ? await resolveDir(srcDir) : root
+      const sourceMeta = await readMetaFile(dirHandle, srcFile)
+      if (!sourceMeta) continue
+      const rels = sourceMeta.relations ?? []
+      for (const uid of producedUids) {
+        if (!rels.some(r => r.rel === 'produces' && r.uid === uid)) {
+          rels.push({ rel: 'produces', uid })
+        }
+      }
+      sourceMeta.relations = rels
+      sourceMeta.updatedAt = Date.now()
+      if (sourceMetaUpdate) sourceMetaUpdate(sourceMeta)
+      await writeMetaFile(dirHandle, srcFile, sourceMeta)
+    } catch { /* non-fatal */ }
+  }
+
+  if (grouped.size === 0 && sourceMetaUpdate) {
+    const allSourceUids = new Set(files.map(f => f.sourceUid).filter(Boolean) as string[])
+    for (const sourceUid of allSourceUids) {
+      const sourcePath = index[sourceUid]
+      if (!sourcePath) continue
+      try {
+        const { dir: srcDir, fileName: srcFile } = splitPath(sourcePath)
+        const dirHandle = srcDir ? await resolveDir(srcDir) : root
+        const sourceMeta = await readMetaFile(dirHandle, srcFile)
+        if (!sourceMeta) continue
+        sourceMeta.updatedAt = Date.now()
+        sourceMetaUpdate(sourceMeta)
+        await writeMetaFile(dirHandle, srcFile, sourceMeta)
+      } catch { /* non-fatal */ }
+    }
+  }
+
+  writeUidIndex(root, index).catch(() => {})
+
+  notifyFileChanged()
+  return results
+}
+
 async function addProducesRelation(root: FileSystemDirectoryHandle, sourceUid: string, producedUid: string): Promise<void> {
   try {
     const index = await readUidIndex(root)

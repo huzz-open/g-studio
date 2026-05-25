@@ -6,11 +6,12 @@ import { useSlicerStore } from '../store'
 import { useWorkspace } from '../../../shared/workspace'
 import {
   saveFileToWorkspace,
+  saveFileBatch,
   readFileFromWorkspace,
   readMetaFile,
-  writeMetaFile,
   isWorkspaceConnected,
 } from '../../resource-manager'
+import type { SaveFileOptions } from '../../resource-manager'
 import type { SlicerModuleData } from '../../resource-manager'
 import { notifyFileChanged } from '../../resource-manager'
 import { resolveDir, splitPath } from '../../../shared/workspace/fs'
@@ -406,6 +407,8 @@ async function saveToWorkspace(payload: OutputPayload) {
           sourceFiles: sourceUid ? [sourceUid] : undefined,
         }
 
+        const batchFiles: SaveFileOptions[] = []
+
         if (payload.composite) {
           const cleanUrl = store.cleanImageUrl.value
           let pngBlob: Blob | null = null
@@ -427,7 +430,7 @@ async function saveToWorkspace(payload: OutputPayload) {
                 compositeName = `${baseName}-sheet.png`
               }
             }
-            await saveFileToWorkspace({
+            batchFiles.push({
               fileName: compositeName,
               data,
               type: 'spritesheet',
@@ -439,7 +442,6 @@ async function saveToWorkspace(payload: OutputPayload) {
               pipeline: [{ step: 'save', at: now, detail: 'saved from slicer' }],
               relations: derivedRelations,
               sourceUid,
-              skipNotify: true,
             })
           }
         }
@@ -449,7 +451,7 @@ async function saveToWorkspace(payload: OutputPayload) {
             const resp = await fetch(sprite.dataUrl)
             const blob = await resp.blob()
             const data = new Uint8Array(await blob.arrayBuffer())
-            await saveFileToWorkspace({
+            batchFiles.push({
               fileName: `${sprite.name}.png`,
               data,
               type: 'generic',
@@ -459,7 +461,6 @@ async function saveToWorkspace(payload: OutputPayload) {
               pipeline: [{ step: 'slice', at: now, detail: 'sliced from spritesheet' }],
               relations: derivedRelations,
               sourceUid,
-              skipNotify: true,
             })
           }
         }
@@ -467,7 +468,7 @@ async function saveToWorkspace(payload: OutputPayload) {
         if (payload.meta) {
           const metaBlob = generateMetaJson()
           const metaData = new Uint8Array(await metaBlob.arrayBuffer())
-          await saveFileToWorkspace({
+          batchFiles.push({
             fileName: `${baseName}-meta.json`,
             data: metaData,
             type: 'generic',
@@ -477,24 +478,18 @@ async function saveToWorkspace(payload: OutputPayload) {
             pipeline: [{ step: 'meta-export', at: now, detail: 'sprite metadata JSON' }],
             relations: derivedRelations,
             sourceUid,
-            skipNotify: true,
           })
         }
 
-        if (tab?.workspacePath) {
-          try {
-            const { dir: wbDirPath, fileName: wbFileName } = splitPath(tab.workspacePath)
-            const sourceDir = wbDirPath ? await resolveDir(wbDirPath) : getWorkspaceHandle()!
-            const sourceMeta = await readMetaFile(sourceDir, wbFileName)
-            if (sourceMeta) {
-              sourceMeta.moduleData = sourceMeta.moduleData ?? {}
-              sourceMeta.moduleData['sprite-slicer'] = {
-                sliceConfig: store.getSliceConfig(),
-              }
-              sourceMeta.updatedAt = now
-              await writeMetaFile(sourceDir, wbFileName, sourceMeta)
-            }
-          } catch { /* source meta write-back failed, non-fatal */ }
+        if (batchFiles.length > 0) {
+          const sliceConfig = store.getSliceConfig()
+          await saveFileBatch({
+            files: batchFiles,
+            sourceMetaUpdate: (meta) => {
+              meta.moduleData = meta.moduleData ?? {}
+              meta.moduleData['sprite-slicer'] = { sliceConfig }
+            },
+          })
         }
 
         appSettings.spriteSlicer.lastSaveDir = dir
