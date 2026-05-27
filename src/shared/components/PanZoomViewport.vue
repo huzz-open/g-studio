@@ -18,9 +18,11 @@ const props = withDefaults(defineProps<{
   pixelated?: boolean
   showControls?: boolean
   controlsPosition?: ControlsPosition
+  controlsDirection?: 'horizontal' | 'vertical'
   viewportCursor?: string
   showZoomLabel?: boolean
   fullscreenToggle?: boolean
+  customFitToView?: () => void
 }>(), {
   minScale: 0.1,
   maxScale: 16,
@@ -30,6 +32,7 @@ const props = withDefaults(defineProps<{
   pixelated: true,
   showControls: true,
   controlsPosition: 'bottom-left',
+  controlsDirection: 'horizontal',
   showZoomLabel: true,
   fullscreenToggle: false,
 })
@@ -39,6 +42,7 @@ const emit = defineEmits<{
   'pan-change': [x: number, y: number]
   'ctrl-mousedown': [event: MouseEvent]
   'resize': [width: number, height: number]
+  'fullscreen-toggle': []
 }>()
 
 const containerEl = ref<HTMLElement>()
@@ -57,6 +61,28 @@ let resizeObserver: ResizeObserver | null = null
 let resizeDebounceTimer = 0
 
 const zoomPercent = computed(() => Math.round(scale.value * 100))
+
+const isEditingZoom = ref(false)
+const editZoomValue = ref('')
+const zoomInputEl = ref<HTMLInputElement>()
+
+function startEditZoom() {
+  editZoomValue.value = String(zoomPercent.value)
+  isEditingZoom.value = true
+  nextTick(() => zoomInputEl.value?.select())
+}
+
+function applyEditZoom() {
+  isEditingZoom.value = false
+  const val = parseInt(editZoomValue.value, 10)
+  if (isNaN(val) || val <= 0) return
+  setScaleCentered(val / 100)
+}
+
+function onEditZoomKeyDown(e: KeyboardEvent) {
+  if (e.key === 'Enter') { e.preventDefault(); applyEditZoom() }
+  if (e.key === 'Escape') { e.preventDefault(); isEditingZoom.value = false }
+}
 
 function clampScale(v: number): number {
   return Math.min(props.maxScale, Math.max(props.minScale, v))
@@ -150,6 +176,11 @@ function fitToView() {
   panY.value = (vh - ch * s) / 2
   emit('scale-change', s)
   emit('pan-change', panX.value, panY.value)
+}
+
+function handleFitToView() {
+  if (props.customFitToView) props.customFitToView()
+  else fitToView()
 }
 
 function zoomIn() {
@@ -289,13 +320,25 @@ defineExpose({
     />
 
     <!-- Zoom controls -->
-    <div v-if="showControls" class="pzv-controls" :class="`pos-${controlsPosition}`">
-      <span v-if="showZoomLabel" class="pzv-ctrl-zoom">{{ zoomPercent }}%</span>
-      <button class="pzv-ctrl-btn" @click="fitToView" :title="t('common.fitView')">
+    <div v-if="showControls" class="pzv-controls" :class="[`pos-${controlsPosition}`, controlsDirection === 'vertical' ? 'dir-vertical' : '']">
+      <span v-if="showZoomLabel && !isEditingZoom" class="pzv-ctrl-zoom" @click="startEditZoom">{{ zoomPercent }}%</span>
+      <input
+        v-if="showZoomLabel && isEditingZoom"
+        ref="zoomInputEl"
+        v-model="editZoomValue"
+        class="pzv-ctrl-zoom-input"
+        @keydown="onEditZoomKeyDown"
+        @blur="applyEditZoom"
+      />
+      <button class="pzv-ctrl-btn" @click="setScaleCentered(1)" :title="t('common.zoom100')">1:1</button>
+      <button class="pzv-ctrl-btn" @click="handleFitToView" :title="t('common.fitView')">
         <SvgIcon name="fit-view" :size="12" />
       </button>
       <button class="pzv-ctrl-btn" @click="zoomIn" :title="t('common.zoomIn')">+</button>
       <button class="pzv-ctrl-btn" @click="zoomOut" :title="t('common.zoomOut')">−</button>
+      <button v-if="fullscreenToggle" class="pzv-ctrl-btn" @click="emit('fullscreen-toggle')" :title="t('common.fullscreen')">
+        <SvgIcon name="maximize" :size="12" />
+      </button>
       <slot name="controls-extra" />
     </div>
 
@@ -344,6 +387,7 @@ defineExpose({
 .pzv-controls.pos-bottom-right { bottom: 10px; right: 10px; }
 .pzv-controls.pos-top-left { top: 10px; left: 10px; }
 .pzv-controls.pos-top-right { top: 10px; right: 10px; }
+.pzv-controls.dir-vertical { flex-direction: column; }
 
 .pzv-ctrl-zoom {
   font-size: 10px;
@@ -356,6 +400,30 @@ defineExpose({
   justify-content: center;
   padding: 0 4px;
   user-select: none;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.pzv-ctrl-zoom:hover {
+  background: rgba(60, 60, 60, 0.6);
+}
+.pzv-ctrl-zoom-input {
+  width: 42px;
+  background: rgba(40, 40, 40, 0.9);
+  border: 1px solid #8ab4f8;
+  border-radius: 3px;
+  color: #8ab4f8;
+  font-size: 10px;
+  text-align: center;
+  padding: 0 2px;
+  height: 20px;
+  outline: none;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+}
+.pzv-ctrl-zoom-input::-webkit-inner-spin-button,
+.pzv-ctrl-zoom-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 .pzv-ctrl-btn {
   background: rgba(60, 60, 60, 0.6);

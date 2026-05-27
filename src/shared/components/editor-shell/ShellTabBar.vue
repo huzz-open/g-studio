@@ -13,6 +13,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   switch: [id: string]
   close: [id: string]
+  addEmpty: []
   addFile: [file: File]
 }>()
 

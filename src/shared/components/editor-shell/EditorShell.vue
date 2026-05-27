@@ -86,12 +86,12 @@ function onViewportDrop(files: File[], modifiers: DropModifiers) {
     <!-- Center: tab bar + viewport -->
     <div class="shell-center">
       <ShellTabBar
-        v-if="tabs.length > 0"
         :tabs="tabs"
         :active-id="activeTabId"
         :accept="tabAccept"
         @switch="emit('tab-switch', $event)"
         @close="emit('tab-close', $event)"
+        @add-empty="emit('tab-add-empty')"
         @add-file="emit('tab-add-file', $event)"
       />
 

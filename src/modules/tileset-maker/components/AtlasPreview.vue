@@ -73,8 +73,9 @@ function onSvgMouseLeave() {
       :src="atlasBlobUrl"
       :pixelated="true"
       :checker-background="true"
-      :min-scale="0.5"
+      :min-scale="0.25"
       :max-scale="16"
+      :keep-view-on-src-change="true"
       show-info-bar
       controls-position="bottom-right"
     >

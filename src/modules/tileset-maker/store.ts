@@ -3,7 +3,6 @@ import type { EdgeProfile, GenerationMode, LayoutName, TileSize, TilesetLayout }
 import { getProfile } from './core/sdf/profiles'
 import { getLayout } from './core/layouts'
 import { generateTileset } from './core/generator'
-import { createTerrainGrid, TerrainHistory } from './core/preview'
 import { translate } from '../../shared/i18n'
 
 export interface TilesetMakerState {
@@ -29,8 +28,6 @@ export interface TilesetMakerState {
   atlasTileH: number
   isGenerating: boolean
   generateError: string | null
-  terrainName: string
-  terrainGrid: boolean[][]
   isDirty: boolean
   resourceUid: string | null
   showPainter: boolean
@@ -60,14 +57,11 @@ export function createTilesetInstance(id: string) {
     atlasTileH: 0,
     isGenerating: false,
     generateError: null,
-    terrainName: 'Terrain',
-    terrainGrid: createTerrainGrid(11, 14),
     isDirty: false,
     resourceUid: null,
     showPainter: false,
   })
 
-  const history = new TerrainHistory(50)
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
   const currentLayout = computed<TilesetLayout>(() => getLayout(state.layout))
@@ -75,12 +69,14 @@ export function createTilesetInstance(id: string) {
     if (state.mode === 'sdf') return state.texturePixels !== null
     return state.nineGridPixels !== null
   })
-  const canUndo = computed(() => history.canUndo)
-  const canRedo = computed(() => history.canRedo)
 
-  function regenerate() {
+  function regenerate(immediate = false) {
     if (debounceTimer) clearTimeout(debounceTimer)
-    debounceTimer = setTimeout(doGenerate, 150)
+    if (immediate) {
+      doGenerate()
+    } else {
+      debounceTimer = setTimeout(doGenerate, 150)
+    }
   }
 
   function doGenerate() {
@@ -135,7 +131,8 @@ export function createTilesetInstance(id: string) {
     const ctx = canvas.getContext('2d', { willReadFrequently: true })!
     ctx.drawImage(bitmap, 0, 0, state.tileSize, state.tileSize)
     state.texturePixels = ctx.getImageData(0, 0, state.tileSize, state.tileSize).data
-    regenerate()
+    state.isGenerating = true
+    regenerate(true)
   }
 
   function setTextureFromPixels(pixels: Uint8ClampedArray, size: number, name: string, uid?: string) {
@@ -143,7 +140,8 @@ export function createTilesetInstance(id: string) {
     state.tileSize = size as TileSize
     state.textureFileName = name
     state.textureUid = uid || null
-    regenerate()
+    state.isGenerating = true
+    regenerate(true)
   }
 
   async function loadNineGrid(file: File) {
@@ -164,7 +162,8 @@ export function createTilesetInstance(id: string) {
     ctx.drawImage(bitmap, 0, 0)
     state.nineGridPixels = ctx.getImageData(0, 0, w, h).data
     state.generateError = null
-    regenerate()
+    state.isGenerating = true
+    regenerate(true)
   }
 
   function setMode(mode: GenerationMode) {
@@ -208,45 +207,11 @@ export function createTilesetInstance(id: string) {
     regenerate()
   }
 
-  function terrainDraw(x: number, y: number, value: boolean) {
-    if (y < 0 || y >= state.terrainGrid.length) return
-    if (x < 0 || x >= state.terrainGrid[0].length) return
-    if (state.terrainGrid[y][x] === value) return
-    history.push(state.terrainGrid)
-    state.terrainGrid[y][x] = value
-  }
-
-  function terrainUndo() {
-    const prev = history.undo(state.terrainGrid)
-    if (prev) state.terrainGrid = prev
-  }
-
-  function terrainRedo() {
-    const next = history.redo(state.terrainGrid)
-    if (next) state.terrainGrid = next
-  }
-
-  function resizeTerrain(cols: number, rows: number) {
-    const oldGrid = state.terrainGrid
-    const newGrid = createTerrainGrid(cols, rows)
-    const copyRows = Math.min(rows, oldGrid.length)
-    const copyCols = Math.min(cols, oldGrid[0].length)
-    for (let r = 0; r < copyRows; r++) {
-      for (let c = 0; c < copyCols; c++) {
-        newGrid[r][c] = oldGrid[r][c]
-      }
-    }
-    history.push(oldGrid)
-    state.terrainGrid = newGrid
-  }
-
   return {
     id,
     state,
     currentLayout,
     hasSource,
-    canUndo,
-    canRedo,
     regenerate,
     loadTexture,
     setTextureFromPixels,
@@ -258,21 +223,39 @@ export function createTilesetInstance(id: string) {
     setTileSize,
     setMagenta,
     setMagentaTolerance,
-    terrainDraw,
-    terrainUndo,
-    terrainRedo,
-    resizeTerrain,
   }
 }
 
 export type TilesetInstance = ReturnType<typeof createTilesetInstance>
 
 import { createInstanceRegistry } from '../../shared/components/editor-shell/createInstanceRegistry'
+import { useEditorTabs, type UseEditorTabsReturn } from '../../shared/components/editor-shell'
+import { createSharedTerrainState, type SharedTerrainState } from './terrain-state'
 
 const registry = createInstanceRegistry(createTilesetInstance)
 export const getTilesetInstance = registry.get
 export const removeTilesetInstance = registry.remove
 
-export function useTilesetStore(): TilesetInstance {
-  return getTilesetInstance('__default__')
+let _tabs: UseEditorTabsReturn<TilesetInstance> | null = null
+
+export function useTilesetTabs(): UseEditorTabsReturn<TilesetInstance> {
+  if (!_tabs) {
+    _tabs = useEditorTabs<TilesetInstance>({
+      prefix: 'tileset',
+      factory: getTilesetInstance,
+      destroy: removeTilesetInstance,
+    })
+  }
+  return _tabs
 }
+
+let _terrain: SharedTerrainState | null = null
+
+export function useTilesetTerrain(): SharedTerrainState {
+  if (!_terrain) {
+    const { instances } = useTilesetTabs()
+    _terrain = createSharedTerrainState(instances)
+  }
+  return _terrain
+}
+

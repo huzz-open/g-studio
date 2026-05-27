@@ -2,21 +2,26 @@ import type { Peering } from './types'
 import { TILE_PEERINGS, peeringToBitmask } from './peerings'
 import type { TilesetLayout } from './types'
 
+export type TerrainCell = string | null
+export type TerrainGrid = TerrainCell[][]
+
 /**
  * Compute 8-neighbor peering for a cell in the terrain grid.
- * Corner bits only matter when both adjacent sides are connected (Godot rule).
+ * Only cells with the same tilesetId are considered neighbors (Godot terrain rule).
+ * Corner bits only matter when both adjacent sides are connected.
  */
 export function computePeering(
-  grid: boolean[][],
+  grid: TerrainGrid,
   x: number,
   y: number,
   rows: number,
   cols: number,
+  tilesetId: string,
 ): Peering {
   const at = (dx: number, dy: number) =>
     x + dx >= 0 && x + dx < cols &&
     y + dy >= 0 && y + dy < rows &&
-    grid[y + dy]?.[x + dx] === true
+    grid[y + dy]?.[x + dx] === tilesetId
 
   const t = at(0, -1)
   const r = at(1, 0)
@@ -69,43 +74,50 @@ export function findTilePosition(
   return best
 }
 
-/** Create an empty terrain grid */
-export function createTerrainGrid(cols: number, rows: number): boolean[][] {
-  return Array.from({ length: rows }, () => Array(cols).fill(false))
+export function createTerrainGrid(cols: number, rows: number): TerrainGrid {
+  return Array.from({ length: rows }, () => Array<TerrainCell>(cols).fill(null))
 }
 
-/** Deep clone a terrain grid */
-export function cloneGrid(grid: boolean[][]): boolean[][] {
+function cloneGrid(grid: TerrainGrid): TerrainGrid {
   return grid.map(row => [...row])
 }
 
-/** Terrain preview undo/redo manager */
+export interface TerrainSnapshot {
+  grid: TerrainGrid
+  originX: number
+  originY: number
+}
+
+function cloneSnapshot(s: TerrainSnapshot): TerrainSnapshot {
+  return { grid: cloneGrid(s.grid), originX: s.originX, originY: s.originY }
+}
+
 export class TerrainHistory {
-  private undoStack: boolean[][][] = []
-  private redoStack: boolean[][][] = []
+  private undoStack: TerrainSnapshot[] = []
+  private redoStack: TerrainSnapshot[] = []
   private maxSize: number
 
   constructor(maxSize = 50) {
     this.maxSize = maxSize
   }
 
-  push(grid: boolean[][]): void {
-    this.undoStack.push(cloneGrid(grid))
+  push(snapshot: TerrainSnapshot): void {
+    this.undoStack.push(cloneSnapshot(snapshot))
     if (this.undoStack.length > this.maxSize) {
       this.undoStack.shift()
     }
     this.redoStack = []
   }
 
-  undo(current: boolean[][]): boolean[][] | null {
+  undo(current: TerrainSnapshot): TerrainSnapshot | null {
     if (this.undoStack.length === 0) return null
-    this.redoStack.push(cloneGrid(current))
+    this.redoStack.push(cloneSnapshot(current))
     return this.undoStack.pop()!
   }
 
-  redo(current: boolean[][]): boolean[][] | null {
+  redo(current: TerrainSnapshot): TerrainSnapshot | null {
     if (this.redoStack.length === 0) return null
-    this.undoStack.push(cloneGrid(current))
+    this.undoStack.push(cloneSnapshot(current))
     return this.redoStack.pop()!
   }
 

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import SvgIcon from '../icons/SvgIcon.vue'
 import { useI18n } from '../i18n'
 import PanZoomViewport from './PanZoomViewport.vue'
 
@@ -58,12 +57,7 @@ const imageReady = ref(false)
 const scale = computed(() => pzvRef.value?.scale ?? 1)
 const panX = computed(() => pzvRef.value?.panX ?? 0)
 const panY = computed(() => pzvRef.value?.panY ?? 0)
-const zoomPercent = computed(() => Math.round(scale.value * 100))
 const showPzvControls = computed(() => props.controlsPosition !== 'none')
-const controlsClass = computed(() => [
-  `pos-${props.controlsPosition}`,
-  `dir-${props.controlsDirection}`,
-])
 
 const pzvControlsPosition = computed(() => {
   if (props.controlsPosition === 'none') return 'bottom-left'
@@ -139,10 +133,13 @@ function isInFullscreen(): boolean {
   return isFullscreen.value
 }
 
+const imageError = ref(false)
+
 function onImageLoad(e: Event) {
   const img = e.target as HTMLImageElement
   imgNaturalW.value = img.naturalWidth
   imgNaturalH.value = img.naturalHeight
+  imageError.value = false
   if (props.keepViewOnSrcChange && imageReady.value) return
   nextTick(() => {
     fitToView()
@@ -150,7 +147,13 @@ function onImageLoad(e: Event) {
   })
 }
 
+function onImageError() {
+  imageError.value = true
+  imageReady.value = true
+}
+
 watch(() => props.src, () => {
+  imageError.value = false
   if (!props.keepViewOnSrcChange) {
     imageReady.value = false
   }
@@ -199,37 +202,30 @@ defineExpose({
           :content-height="imgNaturalH"
           :checker-background="checkerBackground"
           :pixelated="pixelated"
-          :show-controls="false"
+          :show-controls="showPzvControls"
+          :controls-position="pzvControlsPosition"
+          :controls-direction="controlsDirection"
+          :show-zoom-label="showZoomLabel"
+          :fullscreen-toggle="fullscreenToggle"
           @scale-change="onScaleChange"
           @ctrl-mousedown="onCtrlMouseDown"
+          @fullscreen-toggle="toggleFullscreen"
         >
           <template #default="slotProps">
             <div :style="{ visibility: imageReady ? 'visible' : 'hidden' }">
               <img
-                v-if="src"
+                v-if="src && !imageError"
                 :src="src"
                 class="ic-image"
                 :class="{ pixelated }"
                 draggable="false"
                 @load="onImageLoad"
+                @error="onImageError"
               />
               <slot :scale="slotProps.scale" :panX="slotProps.panX" :panY="slotProps.panY" />
             </div>
           </template>
         </PanZoomViewport>
-
-        <!-- Custom controls for overlay (with fullscreen toggle) -->
-        <div v-if="showPzvControls" class="ic-controls ic-controls-overlay" :class="controlsClass">
-          <span v-if="showZoomLabel" class="ic-ctrl-zoom">{{ zoomPercent }}%</span>
-          <button class="ic-ctrl-btn" @click="fitToView" :title="t('common.fitView')">
-            <SvgIcon name="fit-view" :size="12" />
-          </button>
-          <button class="ic-ctrl-btn" @click="zoomIn" :title="t('common.zoomIn')">+</button>
-          <button class="ic-ctrl-btn" @click="zoomOut" :title="t('common.zoomOut')">−</button>
-          <button v-if="fullscreenToggle" class="ic-ctrl-btn" @click="toggleFullscreen" :title="t('common.fullscreen')">
-            <SvgIcon name="maximize" :size="12" />
-          </button>
-        </div>
         <slot name="overlay-footer" />
       </div>
     </div>
@@ -253,38 +249,31 @@ defineExpose({
         :content-height="imgNaturalH"
         :checker-background="checkerBackground"
         :pixelated="pixelated"
-        :show-controls="false"
+        :show-controls="showPzvControls"
+        :controls-position="pzvControlsPosition"
+        :controls-direction="controlsDirection"
+        :show-zoom-label="showZoomLabel"
+        :fullscreen-toggle="fullscreenToggle"
         :viewport-cursor="viewportCursor"
         @scale-change="onScaleChange"
         @ctrl-mousedown="onCtrlMouseDown"
+        @fullscreen-toggle="toggleFullscreen"
       >
         <template #default="slotProps">
           <div :style="{ visibility: imageReady ? 'visible' : 'hidden' }">
             <img
-              v-if="src"
+              v-if="src && !imageError"
               :src="src"
               class="ic-image"
               :class="{ pixelated }"
               draggable="false"
               @load="onImageLoad"
+              @error="onImageError"
             />
             <slot :scale="slotProps.scale" :panX="slotProps.panX" :panY="slotProps.panY" />
           </div>
         </template>
       </PanZoomViewport>
-
-      <!-- Custom controls for inline (with fullscreen toggle) -->
-      <div v-if="showPzvControls" class="ic-controls" :class="controlsClass">
-        <span v-if="showZoomLabel" class="ic-ctrl-zoom">{{ zoomPercent }}%</span>
-        <button class="ic-ctrl-btn" @click="fitToView" :title="t('common.fitView')">
-          <SvgIcon name="fit-view" :size="12" />
-        </button>
-        <button class="ic-ctrl-btn" @click="zoomIn" :title="t('common.zoomIn')">+</button>
-        <button class="ic-ctrl-btn" @click="zoomOut" :title="t('common.zoomOut')">−</button>
-        <button v-if="fullscreenToggle" class="ic-ctrl-btn" @click="toggleFullscreen" :title="t('common.fullscreen')">
-          <SvgIcon name="maximize" :size="12" />
-        </button>
-      </div>
     </div>
   </template>
 </template>
@@ -318,56 +307,6 @@ defineExpose({
   -webkit-user-drag: none;
 }
 .ic-image.pixelated { image-rendering: pixelated; }
-
-.ic-controls {
-  position: absolute;
-  display: flex;
-  gap: 3px;
-  padding: 4px;
-  background: rgba(30, 30, 30, 0.75);
-  border-radius: 6px;
-  backdrop-filter: blur(6px);
-  z-index: 10;
-  pointer-events: auto;
-}
-.ic-controls.pos-bottom-left { bottom: 10px; left: 10px; }
-.ic-controls.pos-bottom-right { bottom: 10px; right: 10px; }
-.ic-controls.pos-top-left { top: 10px; left: 10px; }
-.ic-controls.pos-top-right { top: 10px; right: 10px; }
-.ic-controls.dir-vertical { flex-direction: column; }
-.ic-controls-overlay {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-}
-.ic-ctrl-zoom {
-  font-size: 10px;
-  color: #8ab4f8;
-  font-variant-numeric: tabular-nums;
-  min-width: 32px;
-  text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 4px;
-  user-select: none;
-}
-.ic-ctrl-btn {
-  background: rgba(60, 60, 60, 0.6);
-  color: #bbb;
-  border: 1px solid rgba(100, 100, 100, 0.4);
-  border-radius: 4px;
-  padding: 0;
-  font-size: 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 22px;
-  transition: all 0.15s;
-}
-.ic-ctrl-btn:hover { background: rgba(80, 80, 80, 0.8); color: #fff; border-color: rgba(140, 140, 140, 0.5); }
 
 /* Overlay mode */
 .ic-overlay {

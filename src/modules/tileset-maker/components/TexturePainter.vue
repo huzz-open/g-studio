@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue'
 import { useI18n } from '../../../shared/i18n'
-import { useTilesetStore } from '../store'
+import type { TilesetInstance } from '../store'
 
 const { t } = useI18n()
-const store = useTilesetStore()
+const props = defineProps<{ store: TilesetInstance }>()
 
 const emit = defineEmits<{ close: [] }>()
 
@@ -149,7 +149,7 @@ function floodFill(sx: number, sy: number, rgba: [number, number, number, number
 
 function useTexture() {
   const sz = canvasSize.value
-  store.setTextureFromPixels(new Uint8ClampedArray(pixels.value), sz, `drawn-${sz}x${sz}.png`)
+  props.store.setTextureFromPixels(new Uint8ClampedArray(pixels.value), sz, `drawn-${sz}x${sz}.png`)
   emit('close')
 }
 </script>
