@@ -368,7 +368,7 @@ onUnmounted(() => {
         </button>
         <button
           class="btn btn-sm btn-accent"
-          :disabled="outputDisabled || store.saving.value"
+          :disabled="outputDisabled || store.saving.value || !wsOpen.value"
           @click="emit('save-workspace', getPayload())"
         >
           <SvgIcon name="save" :size="12" />

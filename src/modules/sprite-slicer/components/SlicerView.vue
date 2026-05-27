@@ -371,10 +371,7 @@ async function exportLocal(payload: OutputPayload) {
 }
 
 async function saveToWorkspace(payload: OutputPayload) {
-  if (!isWorkspaceConnected()) {
-    showToast(t('slicer.save.needWorkspace'), 'error')
-    return
-  }
+  if (!isWorkspaceConnected()) return
   store.saving.value = true
   try {
     await withProgress(
