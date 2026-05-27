@@ -1,0 +1,59 @@
+---
+description: 向设置面板添加配置项时，复用已有的共享组件
+globs: "**/SettingsDialog.vue,**/settings-store.ts"
+alwaysApply: false
+---
+
+# 设置面板 — 复用共享组件
+
+## 原则
+
+设置面板（`SettingsDialog.vue`）中的控件与模块内使用的配置 UI **必须是同一个组件**，不允许分别实现两套。
+
+## 已有的共享设置组件
+
+| 组件 | 路径 | 用途 | SettingItem type |
+|------|------|------|------------------|
+| `GridSizeInput` | `src/shared/components/GridSizeInput.vue` | 列×行网格尺寸 | `grid-size` |
+| `SegmentedControl` | `src/shared/components/SegmentedControl.vue` | 多选一分段控件 | `segmented` |
+| `InlineSwitch` | `src/shared/components/InlineSwitch.vue` | 行内开关 | `inline-switch` |
+
+## scope — 设置值的生效范围
+
+每个 `SettingItem` 必须标注 `scope` 字段，取值为 `'new-only'` 或 `'immediate'`：
+
+| scope | 含义 | 消费端写法 |
+|-------|------|-----------|
+| `new-only` | 仅对新建内容生效，已有内容不受影响 | 创建/初始化时**快照读取一次**，之后实例自身持有值 |
+| `immediate` | 修改后立刻影响当前屏幕上的所有内容 | 通过 `computed` / `watch` / 函数调用**实时读取** settings |
+
+- 未指定 `scope` 时默认视为 `new-only`
+- `new-only` 项在设置面板中会自动显示灰色提示"仅对新建内容生效"
+- 判断标准：**修改设置后，已存在的内容是否自动受影响？** 用户主动触发的操作（如"清空地形"）不算 `immediate`
+
+## 添加新设置项的流程
+
+1. **先检查是否已有共享组件**可复用
+2. 如果需要新控件：先在 `src/shared/components/` 创建独立组件，再在 `SettingsDialog.vue` 的 `SettingItem.type` 中注册新类型
+3. 在 `settings-store.ts` 的 `SettingsData` 接口和 `DEFAULTS` 中添加对应字段
+4. 在 `SettingsDialog.vue` 的 `categories` 数组中添加配置项，**必须标注 `scope`**
+5. 在 `zh-CN.ts` 和 `en-US.ts` 中添加 i18n key
+
+## grid-size 类型示例
+
+`SettingItem` 使用 `get/set` 对应第一个值（cols），`getAux/setAux` 对应第二个值（rows）：
+
+```typescript
+{
+  key: 'tileset.defaults.terrainSize',
+  type: 'grid-size',
+  get: () => settings.tilesetMaker.defaults.terrainCols,
+  set: (v: number) => { settings.tilesetMaker.defaults.terrainCols = v },
+  getAux: () => settings.tilesetMaker.defaults.terrainRows,
+  setAux: (v: number) => { settings.tilesetMaker.defaults.terrainRows = v },
+  min: 1, max: 100,
+  minAux: 1, maxAux: 100,
+  defaultVal: DEFAULTS.tilesetMaker.defaults.terrainCols,
+  defaultValAux: DEFAULTS.tilesetMaker.defaults.terrainRows,
+}
+```

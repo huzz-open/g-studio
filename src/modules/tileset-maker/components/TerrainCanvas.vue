@@ -118,6 +118,18 @@ function onCellMove(x: number, y: number) {
   }
 }
 
+function onRectFill(x1: number, y1: number, x2: number, y2: number, button: number) {
+  const erasing = button === 2
+  const tsId = erasing ? null : (props.terrain.activeTileset.value?.id ?? null)
+  if (!erasing && !tsId) return
+  props.terrain.beginStroke()
+  for (let y = y1; y <= y2; y++) {
+    for (let x = x1; x <= x2; x++) {
+      props.terrain.terrainDraw(x, y, tsId)
+    }
+  }
+}
+
 function onClear() {
   props.terrain.clearTerrain()
   gridRef.value?.requestRender()
@@ -144,6 +156,7 @@ function onKeydown(e: KeyboardEvent) {
     :paint-cells="paintCells"
     @cell-down="onCellDown"
     @cell-move="onCellMove"
+    @rect-fill="onRectFill"
     @keydown="onKeydown"
     @contextmenu.prevent
   >

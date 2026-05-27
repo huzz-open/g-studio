@@ -4,6 +4,7 @@ import { getProfile } from './core/sdf/profiles'
 import { getLayout } from './core/layouts'
 import { generateTileset } from './core/generator'
 import { translate } from '../../shared/i18n'
+import { useSettings } from '../../shared/settings'
 
 export interface TilesetMakerState {
   mode: GenerationMode
@@ -34,13 +35,14 @@ export interface TilesetMakerState {
 }
 
 export function createTilesetInstance(id: string) {
+  const { settings } = useSettings()
   const state = reactive<TilesetMakerState>({
     mode: 'sdf',
     texture: null,
     texturePixels: null,
     textureFileName: '',
     textureUid: null,
-    tileSize: 32,
+    tileSize: settings.tilesetMaker.defaults.tileSize as TileSize,
     profile: getProfile('stone'),
     nineGridImage: null,
     nineGridPixels: null,
@@ -49,7 +51,7 @@ export function createTilesetInstance(id: string) {
     nineGridFileName: '',
     useMagenta: false,
     magentaTolerance: 30,
-    layout: '8x6',
+    layout: settings.tilesetMaker.defaults.layout as LayoutName,
     atlasPixels: null,
     atlasWidth: 0,
     atlasHeight: 0,

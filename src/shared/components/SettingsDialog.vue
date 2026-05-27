@@ -5,6 +5,7 @@ import { useSettings } from '../settings'
 import SvgIcon from '../icons/SvgIcon.vue'
 import SegmentedControl from './SegmentedControl.vue'
 import InlineSwitch from './InlineSwitch.vue'
+import GridSizeInput from './GridSizeInput.vue'
 
 const props = defineProps<{ visible: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
@@ -16,14 +17,20 @@ interface SettingItem {
   key: string
   labelKey: string
   descKey?: string
-  type: 'boolean' | 'number' | 'string' | 'select' | 'segmented' | 'inline-switch'
+  scope?: 'new-only' | 'immediate'
+  type: 'boolean' | 'number' | 'string' | 'select' | 'segmented' | 'inline-switch' | 'grid-size'
   get: () => any
   set: (v: any) => void
+  getAux?: () => any
+  setAux?: (v: any) => void
   min?: number
   max?: number
   step?: number
+  minAux?: number
+  maxAux?: number
   options?: { value: any; labelKey: string }[]
   defaultVal: any
+  defaultValAux?: any
 }
 
 interface Category {
@@ -35,6 +42,65 @@ interface Category {
 }
 
 const categories: Category[] = [
+  {
+    id: 'tileset',
+    labelKey: 'settings.cat.tileset',
+    icon: 'layers',
+    children: [
+      {
+        id: 'tileset.defaults',
+        labelKey: 'settings.cat.tileset.defaults',
+        icon: 'wand',
+        items: [
+          {
+            key: 'tileset.defaults.tileSize',
+            labelKey: 'settings.tileset.tileSize',
+            descKey: 'settings.tileset.tileSize.desc',
+            scope: 'new-only',
+            type: 'segmented',
+            options: [
+              { value: 16, labelKey: 'settings.tileset.tileSize.16' },
+              { value: 24, labelKey: 'settings.tileset.tileSize.24' },
+              { value: 32, labelKey: 'settings.tileset.tileSize.32' },
+              { value: 64, labelKey: 'settings.tileset.tileSize.64' },
+            ],
+            get: () => settings.tilesetMaker.defaults.tileSize,
+            set: (v: number) => { settings.tilesetMaker.defaults.tileSize = v },
+            defaultVal: DEFAULTS.tilesetMaker.defaults.tileSize,
+          },
+          {
+            key: 'tileset.defaults.layout',
+            labelKey: 'settings.tileset.layout',
+            descKey: 'settings.tileset.layout.desc',
+            scope: 'new-only',
+            type: 'segmented',
+            options: [
+              { value: '8x6', labelKey: 'settings.tileset.layout.8x6' },
+              { value: '11x5', labelKey: 'settings.tileset.layout.11x5' },
+            ],
+            get: () => settings.tilesetMaker.defaults.layout,
+            set: (v: string) => { settings.tilesetMaker.defaults.layout = v },
+            defaultVal: DEFAULTS.tilesetMaker.defaults.layout,
+          },
+          {
+            key: 'tileset.defaults.terrainSize',
+            labelKey: 'settings.tileset.terrainSize',
+            descKey: 'settings.tileset.terrainSize.desc',
+            scope: 'new-only',
+            type: 'grid-size',
+            get: () => settings.tilesetMaker.defaults.terrainCols,
+            set: (v: number) => { settings.tilesetMaker.defaults.terrainCols = v },
+            getAux: () => settings.tilesetMaker.defaults.terrainRows,
+            setAux: (v: number) => { settings.tilesetMaker.defaults.terrainRows = v },
+            min: 1, max: 100,
+            minAux: 1, maxAux: 100,
+            defaultVal: DEFAULTS.tilesetMaker.defaults.terrainCols,
+            defaultValAux: DEFAULTS.tilesetMaker.defaults.terrainRows,
+          },
+        ],
+      },
+    ],
+  },
   {
     id: 'slicer',
     labelKey: 'settings.cat.slicer',
@@ -49,6 +115,7 @@ const categories: Category[] = [
             key: 'slicer.defaults.detectionMode',
             labelKey: 'settings.slicer.detectionMode',
             descKey: 'settings.slicer.detectionMode.desc',
+            scope: 'new-only',
             type: 'select',
             options: [
               { value: 'auto', labelKey: 'slicer.detection.auto' },
@@ -62,6 +129,7 @@ const categories: Category[] = [
             key: 'slicer.defaults.bgRemoval',
             labelKey: 'settings.slicer.bgRemoval',
             descKey: 'settings.slicer.bgRemoval.desc',
+            scope: 'new-only',
             type: 'select',
             options: [
               { value: 'auto', labelKey: 'slicer.bgRemoval.auto' },
@@ -75,6 +143,7 @@ const categories: Category[] = [
             key: 'slicer.defaults.minArea',
             labelKey: 'settings.slicer.minArea',
             descKey: 'settings.slicer.minArea.desc',
+            scope: 'new-only',
             type: 'number',
             get: () => settings.spriteSlicer.defaults.minArea,
             set: (v: number) => { settings.spriteSlicer.defaults.minArea = v },
@@ -85,6 +154,7 @@ const categories: Category[] = [
             key: 'slicer.defaults.mergeGap',
             labelKey: 'settings.slicer.mergeGap',
             descKey: 'settings.slicer.mergeGap.desc',
+            scope: 'new-only',
             type: 'number',
             get: () => settings.spriteSlicer.defaults.mergeGap,
             set: (v: number) => { settings.spriteSlicer.defaults.mergeGap = v },
@@ -95,6 +165,7 @@ const categories: Category[] = [
             key: 'slicer.defaults.namePrefix',
             labelKey: 'settings.slicer.namePrefix',
             descKey: 'settings.slicer.namePrefix.desc',
+            scope: 'new-only',
             type: 'string',
             get: () => settings.spriteSlicer.defaults.namePrefix,
             set: (v: string) => { settings.spriteSlicer.defaults.namePrefix = v },
@@ -104,6 +175,7 @@ const categories: Category[] = [
             key: 'slicer.defaults.arrangeMode',
             labelKey: 'settings.slicer.arrangeMode',
             descKey: 'settings.slicer.arrangeMode.desc',
+            scope: 'new-only',
             type: 'segmented',
             options: [
               { value: 'none', labelKey: 'slicer.arrangeMode.none' },
@@ -118,6 +190,7 @@ const categories: Category[] = [
             key: 'slicer.defaults.snapDistance',
             labelKey: 'settings.slicer.snapDistance',
             descKey: 'settings.slicer.snapDistance.desc',
+            scope: 'immediate',
             type: 'number',
             get: () => settings.spriteSlicer.defaults.snapDistance,
             set: (v: number) => { settings.spriteSlicer.defaults.snapDistance = v },
@@ -128,6 +201,7 @@ const categories: Category[] = [
             key: 'slicer.defaults.exportComposite',
             labelKey: 'settings.slicer.exportComposite',
             descKey: 'settings.slicer.exportComposite.desc',
+            scope: 'new-only',
             type: 'inline-switch',
             get: () => settings.spriteSlicer.defaults.exportOptions.composite,
             set: (v: boolean) => { settings.spriteSlicer.defaults.exportOptions.composite = v },
@@ -137,6 +211,7 @@ const categories: Category[] = [
             key: 'slicer.defaults.exportSprites',
             labelKey: 'settings.slicer.exportSprites',
             descKey: 'settings.slicer.exportSprites.desc',
+            scope: 'new-only',
             type: 'inline-switch',
             get: () => settings.spriteSlicer.defaults.exportOptions.sprites,
             set: (v: boolean) => { settings.spriteSlicer.defaults.exportOptions.sprites = v },
@@ -146,6 +221,7 @@ const categories: Category[] = [
             key: 'slicer.defaults.exportMeta',
             labelKey: 'settings.slicer.exportMeta',
             descKey: 'settings.slicer.exportMeta.desc',
+            scope: 'new-only',
             type: 'inline-switch',
             get: () => settings.spriteSlicer.defaults.exportOptions.meta,
             set: (v: boolean) => { settings.spriteSlicer.defaults.exportOptions.meta = v },
@@ -191,11 +267,16 @@ function onResetAll() {
 }
 
 function isModified(item: SettingItem): boolean {
-  return item.get() !== item.defaultVal
+  if (item.get() !== item.defaultVal) return true
+  if (item.getAux && item.defaultValAux !== undefined && item.getAux() !== item.defaultValAux) return true
+  return false
 }
 
 function resetItem(item: SettingItem) {
   item.set(item.defaultVal)
+  if (item.setAux && item.defaultValAux !== undefined) {
+    item.setAux(item.defaultValAux)
+  }
 }
 </script>
 
@@ -246,6 +327,7 @@ function resetItem(item: SettingItem) {
                 </button>
               </div>
               <p v-if="item.descKey" class="sd-desc">{{ t(item.descKey) }}</p>
+              <p v-if="item.scope !== 'immediate'" class="sd-scope-hint">{{ t('settings.scope.newOnly') }}</p>
 
               <!-- Boolean -->
               <label v-if="item.type === 'boolean'" class="sd-toggle">
@@ -307,6 +389,19 @@ function resetItem(item: SettingItem) {
                 :label="''"
                 :tooltip="item.descKey ? t(item.descKey) : undefined"
                 @update:model-value="item.set($event)"
+              />
+
+              <!-- Grid Size -->
+              <GridSizeInput
+                v-if="item.type === 'grid-size' && item.getAux && item.setAux"
+                :cols="item.get()"
+                :rows="item.getAux()"
+                :min-cols="item.min"
+                :max-cols="item.max"
+                :min-rows="item.minAux"
+                :max-rows="item.maxAux"
+                @update:cols="item.set($event)"
+                @update:rows="item.setAux!($event)"
               />
             </div>
 
@@ -464,6 +559,13 @@ function resetItem(item: SettingItem) {
   color: #888;
   margin: 2px 0 8px;
   line-height: 1.4;
+}
+.sd-scope-hint {
+  font-size: 10px;
+  color: #666;
+  margin: 0 0 6px;
+  line-height: 1.3;
+  font-style: italic;
 }
 
 /* Toggle */

@@ -23,6 +23,7 @@ const emit = defineEmits<{
   'cell-down': [x: number, y: number, button: number]
   'cell-move': [x: number, y: number]
   'cell-up': []
+  'rect-fill': [x1: number, y1: number, x2: number, y2: number, button: number]
 }>()
 
 const pzvRef = ref<InstanceType<typeof PanZoomViewport>>()
@@ -77,6 +78,13 @@ function render() {
     ctx.restore()
   }
 
+  if (isRectDragging && rectStartCell && rectEndCell) {
+    ctx.save()
+    ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * px, dpr * py)
+    renderRectOverlay(ctx)
+    ctx.restore()
+  }
+
   // Grid lines in screen coordinates — always 1px
   const visLeft = -px / s
   const visTop = -py / s
@@ -121,6 +129,7 @@ onMounted(() => {
 onUnmounted(() => {
   if (rafId) cancelAnimationFrame(rafId)
   cleanupDragListeners()
+  cleanupRectListeners()
 })
 
 // --- Custom fitToView accounting for origin ---
@@ -153,6 +162,12 @@ function fitToView() {
 // --- Cell interaction with Bresenham interpolation ---
 let isCellDragging = false
 let lastCell: { x: number; y: number } | null = null
+
+// --- Ctrl + rect drag state ---
+let isRectDragging = false
+let rectStartCell: { x: number; y: number } | null = null
+let rectEndCell: { x: number; y: number } | null = null
+let rectButton = 0
 
 function getCellFromEvent(e: MouseEvent): { x: number; y: number } | null {
   const pzv = pzvRef.value
@@ -188,9 +203,43 @@ function bresenhamLine(x0: number, y0: number, x1: number, y1: number) {
   return cells
 }
 
+function renderRectOverlay(ctx: CanvasRenderingContext2D) {
+  if (!rectStartCell || !rectEndCell) return
+  const cs = props.cellSize
+  const x1 = Math.min(rectStartCell.x, rectEndCell.x)
+  const y1 = Math.min(rectStartCell.y, rectEndCell.y)
+  const x2 = Math.max(rectStartCell.x, rectEndCell.x)
+  const y2 = Math.max(rectStartCell.y, rectEndCell.y)
+  const px = x1 * cs
+  const py = y1 * cs
+  const pw = (x2 - x1 + 1) * cs
+  const ph = (y2 - y1 + 1) * cs
+  ctx.fillStyle = rectButton === 2 ? 'rgba(255,80,80,0.18)' : 'rgba(80,180,255,0.18)'
+  ctx.fillRect(px, py, pw, ph)
+  ctx.strokeStyle = rectButton === 2 ? 'rgba(255,80,80,0.6)' : 'rgba(80,180,255,0.6)'
+  ctx.lineWidth = 1
+  ctx.strokeRect(px + 0.5, py + 0.5, pw - 1, ph - 1)
+}
+
 function onCanvasPointerDown(e: PointerEvent) {
   if (e.button === 1) return
-  if (e.button === 0 && (e.altKey || e.ctrlKey)) return
+  if (e.altKey) return
+
+  if (e.ctrlKey && (e.button === 0 || e.button === 2)) {
+    const cell = getCellFromEvent(e)
+    if (!cell) return
+    e.preventDefault()
+    isRectDragging = true
+    rectStartCell = cell
+    rectEndCell = cell
+    rectButton = e.button
+    scheduleRender()
+    document.addEventListener('pointermove', onRectPointerMove)
+    document.addEventListener('pointerup', onRectPointerUp)
+    document.addEventListener('pointercancel', onRectPointerUp)
+    return
+  }
+
   const cell = getCellFromEvent(e)
   if (!cell) return
   e.preventDefault()
@@ -200,6 +249,36 @@ function onCanvasPointerDown(e: PointerEvent) {
   document.addEventListener('pointermove', onDocPointerMove)
   document.addEventListener('pointerup', onDocPointerUp)
   document.addEventListener('pointercancel', onDocPointerUp)
+}
+
+function onRectPointerMove(e: PointerEvent) {
+  if (!isRectDragging) return
+  const cell = getCellFromEvent(e)
+  if (!cell) return
+  rectEndCell = cell
+  scheduleRender()
+}
+
+function onRectPointerUp() {
+  if (!isRectDragging) return
+  isRectDragging = false
+  if (rectStartCell && rectEndCell) {
+    const x1 = Math.min(rectStartCell.x, rectEndCell.x)
+    const y1 = Math.min(rectStartCell.y, rectEndCell.y)
+    const x2 = Math.max(rectStartCell.x, rectEndCell.x)
+    const y2 = Math.max(rectStartCell.y, rectEndCell.y)
+    emit('rect-fill', x1, y1, x2, y2, rectButton)
+  }
+  rectStartCell = null
+  rectEndCell = null
+  scheduleRender()
+  cleanupRectListeners()
+}
+
+function cleanupRectListeners() {
+  document.removeEventListener('pointermove', onRectPointerMove)
+  document.removeEventListener('pointerup', onRectPointerUp)
+  document.removeEventListener('pointercancel', onRectPointerUp)
 }
 
 function onDocPointerMove(e: PointerEvent) {

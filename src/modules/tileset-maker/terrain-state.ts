@@ -3,6 +3,7 @@ import type { LayoutName } from './core/types'
 import type { TilesetInstance } from './store'
 import type { TerrainGrid, TerrainSnapshot } from './core/preview'
 import { createTerrainGrid, TerrainHistory } from './core/preview'
+import { useSettings } from '../../shared/settings'
 
 export interface TilesetRef {
   id: string
@@ -24,8 +25,12 @@ interface TerrainState {
 }
 
 export function createSharedTerrainState(instancesRef: Ref<TilesetInstance[]>) {
+  const { settings } = useSettings()
+  const defaultCols = settings.tilesetMaker.defaults.terrainCols
+  const defaultRows = settings.tilesetMaker.defaults.terrainRows
+
   const state = reactive<TerrainState>({
-    terrainGrid: createTerrainGrid(11, 14),
+    terrainGrid: createTerrainGrid(defaultCols, defaultRows),
     terrainName: 'Terrain',
     activeTilesetId: null,
     originX: 0,
@@ -126,9 +131,28 @@ export function createSharedTerrainState(instancesRef: Ref<TilesetInstance[]>) {
     }
   }
 
+  function resizeTerrain(newCols: number, newRows: number) {
+    history.push(snapshot())
+    const oldGrid = state.terrainGrid
+    const oldRows = oldGrid.length
+    const oldCols = oldGrid[0]?.length ?? 0
+    const grid = createTerrainGrid(newCols, newRows)
+    const copyRows = Math.min(oldRows, newRows)
+    const copyCols = Math.min(oldCols, newCols)
+    for (let r = 0; r < copyRows; r++) {
+      for (let c = 0; c < copyCols; c++) {
+        grid[r][c] = oldGrid[r][c]
+      }
+    }
+    state.terrainGrid = grid
+  }
+
   function clearTerrain() {
     history.push(snapshot())
-    state.terrainGrid = createTerrainGrid(11, 14)
+    state.terrainGrid = createTerrainGrid(
+      settings.tilesetMaker.defaults.terrainCols,
+      settings.tilesetMaker.defaults.terrainRows,
+    )
     state.originX = 0
     state.originY = 0
   }
@@ -146,6 +170,7 @@ export function createSharedTerrainState(instancesRef: Ref<TilesetInstance[]>) {
     setActiveTileset,
     beginStroke,
     terrainDraw,
+    resizeTerrain,
     terrainUndo,
     terrainRedo,
     clearTerrain,

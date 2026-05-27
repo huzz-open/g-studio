@@ -24,6 +24,7 @@ const recentWorkspaces = ref<SavedWorkspace[]>([])
 const isDashboard = computed(() => route.path === '/')
 const wsDropdownOpen = ref(false)
 const showDisconnectConfirm = ref(false)
+const appReady = ref(false)
 const showSettings = ref(false)
 const toastRef = ref<InstanceType<typeof AppToast> | null>(null)
 const confirmDialogRef = ref<InstanceType<typeof ConfirmDialog> | null>(null)
@@ -42,6 +43,7 @@ onMounted(async () => {
   if (promptDialogRef.value) registerPrompt(promptDialogRef.value)
   await tryRestoreWorkspace()
   await loadSettings()
+  appReady.value = true
   document.addEventListener('keydown', handleGlobalKeydown)
   document.addEventListener('click', handleClickOutside)
 })
@@ -264,7 +266,7 @@ async function handleRemoveRecent(e: Event, ws: SavedWorkspace) {
       </div>
     </header>
     <main class="main-content">
-      <router-view />
+      <router-view v-if="appReady" />
     </main>
 
     <AppToast ref="toastRef" />

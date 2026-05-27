@@ -17,9 +17,10 @@ function onSlider(key: string, e: Event) {
   props.store.setProfileParam(key as any, val)
 }
 
-function onTileSize(e: Event) {
-  const val = parseInt((e.target as HTMLSelectElement).value) as TileSize
-  props.store.setTileSize(val)
+const TILE_SIZES: TileSize[] = [16, 24, 32, 64]
+
+function onTileSize(size: TileSize) {
+  props.store.setTileSize(size)
 }
 </script>
 
@@ -44,11 +45,31 @@ function onTileSize(e: Event) {
 
     <div class="section">
       <label class="section-title">{{ t('tileset.tileSize') }}</label>
-      <select :value="props.store.state.tileSize" @change="onTileSize" class="select-sm">
-        <option :value="16">16px</option>
-        <option :value="32">32px</option>
-        <option :value="64">64px</option>
-      </select>
+      <div class="option-chips">
+        <button
+          v-for="size in TILE_SIZES"
+          :key="size"
+          class="chip"
+          :class="{ active: props.store.state.tileSize === size }"
+          @click="onTileSize(size)"
+        >{{ size }}px</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <label class="section-title">{{ t('tileset.layout') }}</label>
+      <div class="option-chips">
+        <button
+          :class="{ active: props.store.state.layout === '8x6' }"
+          @click="props.store.setLayout('8x6')"
+          class="chip"
+        >8×6</button>
+        <button
+          :class="{ active: props.store.state.layout === '11x5' }"
+          @click="props.store.setLayout('11x5')"
+          class="chip"
+        >11×5</button>
+      </div>
     </div>
 
     <div class="section">
@@ -111,15 +132,7 @@ function onTileSize(e: Event) {
   cursor: pointer;
 }
 .btn-sm:hover { border-color: #888; color: #eee; }
-.select-sm {
-  width: 100%;
-  padding: 4px 8px;
-  background: #2a2a2a;
-  border: 1px solid #444;
-  border-radius: 4px;
-  color: #ccc;
-  font-size: 12px;
-}
+.option-chips,
 .style-chips {
   display: flex;
   flex-wrap: wrap;

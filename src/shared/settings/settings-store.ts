@@ -21,11 +21,21 @@ export interface SlicerDefaults {
   exportOptions: ExportOptions
 }
 
+export interface TilesetMakerDefaults {
+  tileSize: number
+  layout: string
+  terrainCols: number
+  terrainRows: number
+}
+
 export interface SettingsData {
   spriteSlicer: {
     defaults: SlicerDefaults
     lastSaveDir?: string
     lastTags?: string[]
+  }
+  tilesetMaker: {
+    defaults: TilesetMakerDefaults
   }
 }
 
@@ -40,6 +50,14 @@ const DEFAULTS: SettingsData = {
       arrangeMode: 'none' as const,
       snapDistance: 5,
       exportOptions: { composite: true, sprites: false, meta: true },
+    },
+  },
+  tilesetMaker: {
+    defaults: {
+      tileSize: 32,
+      layout: '11x5',
+      terrainCols: 11,
+      terrainRows: 5,
     },
   },
 }

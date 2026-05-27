@@ -79,20 +79,6 @@ function onSvgMouseLeave() {
       show-info-bar
       controls-position="bottom-right"
     >
-      <template #toolbar-left>
-        <div class="layout-buttons">
-          <span class="layout-label">{{ t('tileset.layout') }}:</span>
-          <button
-            :class="{ active: props.store.state.layout === '8x6' }"
-            @click="props.store.setLayout('8x6')"
-          >8×6</button>
-          <button
-            :class="{ active: props.store.state.layout === '11x5' }"
-            @click="props.store.setLayout('11x5')"
-          >11×5</button>
-        </div>
-      </template>
-
       <template #toolbar-right>
         <span v-if="hoverTile" class="tile-info">
           {{ t('tileset.atlas.tileInfo', { idx: hoverTile.idx, col: hoverTile.col, row: hoverTile.row }) }}
@@ -149,22 +135,5 @@ function onSvgMouseLeave() {
   width: 100%;
   height: 100%;
 }
-.layout-buttons {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.layout-label { font-size: 11px; color: #888; margin-right: 2px; }
-.layout-buttons button {
-  padding: 2px 6px;
-  font-size: 10px;
-  border: 1px solid #444;
-  border-radius: 3px;
-  background: #2a2a2a;
-  color: #aaa;
-  cursor: pointer;
-}
-.layout-buttons button.active { border-color: #6a8; color: #ade; background: #2a3a2e; }
-.layout-buttons button:hover { border-color: #666; }
 .tile-info { font-size: 11px; color: #888; }
 </style>

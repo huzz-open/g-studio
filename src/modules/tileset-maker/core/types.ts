@@ -53,4 +53,4 @@ export interface EdgeProfile {
 
 export type GenerationMode = 'sdf' | 'subtile'
 export type LayoutName = '8x6' | '11x5'
-export type TileSize = 16 | 32 | 64
+export type TileSize = 16 | 24 | 32 | 64
