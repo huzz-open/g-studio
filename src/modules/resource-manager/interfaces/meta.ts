@@ -54,6 +54,30 @@ export interface SlicerModuleData {
   isComposite?: boolean
 }
 
+export interface TilesetMakerModuleData {
+  mode: 'sdf' | 'subtile'
+  layout: '8x6' | '11x5'
+  terrainName: string
+  sdfConfig?: {
+    textureUid: string
+    tileSize: number
+    profile: {
+      style: string
+      edgeOffset: number
+      cornerRadius: number
+      innerDepth: number
+      noiseAmp: number
+      haloWidth: number
+      borderWidth: number
+      borderDarken: number
+    }
+  }
+  subtileConfig?: {
+    useMagenta: boolean
+    magentaTolerance: number
+  }
+}
+
 export interface MetaFile {
   __version: number
   uid: string
@@ -75,6 +99,7 @@ export interface MetaFile {
   moduleData?: {
     'sprite-slicer'?: SlicerModuleData
     'map-editor'?: Record<string, unknown>
+    'tileset-maker'?: TilesetMakerModuleData
     [key: string]: unknown
   }
 

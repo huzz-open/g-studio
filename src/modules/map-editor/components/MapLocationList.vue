@@ -1,15 +1,53 @@
 <script setup lang="ts">
+import { computed, toRef } from 'vue'
 import { useI18n } from '../../../shared/i18n'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
-import { state, selectLocation, groupedLocations, stats } from '../store'
+import type { MapEditorInstance } from '../store'
 import { getLocationStatus, REALM_ORDER } from '../types'
+import type { MapLocation } from '../types'
 
+const props = defineProps<{ store: MapEditorInstance }>()
 const { t } = useI18n()
+
+const state = toRef(props.store, 'state')
+
+const stats = computed(() => {
+  const mapData = state.value.mapData
+  if (!mapData) return { total: 0, placed: 0, positioned: 0, pending: 0 }
+  const locs = mapData.locations
+  let placed = 0, positioned = 0, pending = 0
+  for (const loc of locs) {
+    const s = getLocationStatus(loc)
+    if (s === 'placed') placed++
+    else if (s === 'positioned') positioned++
+    else pending++
+  }
+  return { total: locs.length, placed, positioned, pending }
+})
+
+const groupedLocations = computed(() => {
+  const mapData = state.value.mapData
+  if (!mapData) return {} as Record<string, MapLocation[]>
+  const locs = state.value.realmFilter
+    ? mapData.locations.filter(l => l.realm === state.value.realmFilter)
+    : mapData.locations
+  const groups: Record<string, MapLocation[]> = {}
+  for (const realm of REALM_ORDER) groups[realm] = []
+  for (const loc of locs) {
+    if (!groups[loc.realm]) groups[loc.realm] = []
+    groups[loc.realm].push(loc)
+  }
+  return groups
+})
 
 const statusIcons: Record<string, string> = {
   placed: 'check',
   positioned: 'location',
   pending: 'minus',
+}
+
+function selectLocation(id: number) {
+  props.store.selectLocation(id)
 }
 </script>
 
@@ -17,7 +55,7 @@ const statusIcons: Record<string, string> = {
   <div class="location-list">
     <div class="list-header">
       <h3>{{ t('mapEditor.locations') }}</h3>
-      <div class="stats">{{ t('mapEditor.locations.placed', { placed: stats.placed, total: stats.total }) }}</div>
+      <div class="stat-line">{{ t('mapEditor.locations.placed', { placed: stats.placed, total: stats.total }) }}</div>
     </div>
     <div class="filter-row">
       <select v-model="state.realmFilter">
@@ -45,10 +83,10 @@ const statusIcons: Record<string, string> = {
 </template>
 
 <style scoped>
-.location-list { width: 220px; display: flex; flex-direction: column; background: #252525; border-right: 1px solid #3a3a3a; overflow: hidden; }
+.location-list { display: flex; flex-direction: column; overflow: hidden; height: 100%; }
 .list-header { padding: 12px; border-bottom: 1px solid #3a3a3a; }
 .list-header h3 { margin: 0 0 4px; font-size: 14px; color: #eee; }
-.stats { font-size: 11px; color: #aaa; }
+.stat-line { font-size: 11px; color: #aaa; }
 .filter-row { padding: 8px 12px; border-bottom: 1px solid #333; }
 .filter-row select { width: 100%; background: #333; color: #eee; border: 1px solid #555; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
 .list-body { flex: 1; overflow-y: auto; padding: 4px 0; }

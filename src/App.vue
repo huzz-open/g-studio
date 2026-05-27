@@ -33,6 +33,7 @@ const navItems = [
   { route: '/resource-manager', labelKey: 'nav.resourceManager', icon: 'folder-open' },
   { route: '/sprite-slicer', labelKey: 'nav.spriteSlicer', icon: 'scissors' },
   { route: '/map-editor', labelKey: 'nav.mapEditor', icon: 'map' },
+  { route: '/tileset-maker', labelKey: 'nav.tilesetMaker', icon: 'grid' },
 ]
 
 onMounted(async () => {

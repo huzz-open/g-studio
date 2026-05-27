@@ -1,0 +1,56 @@
+/** 8 neighbor connectivity: [T, TR, R, BR, B, BL, L, TL], 0=connected -1=not */
+export type Peering = [number, number, number, number, number, number, number, number]
+
+/** Sub-tile coordinate in the 6x6 grid (row 0-5, col 0-5) */
+export interface SubTileCoord {
+  row: number
+  col: number
+}
+
+/** One output tile composed from 4 quadrant sub-tiles */
+export interface TileComposition {
+  tl: SubTileCoord
+  tr: SubTileCoord
+  bl: SubTileCoord
+  br: SubTileCoord
+}
+
+/** Result of slicing a 3Wx3H source into 6x6 sub-tiles */
+export interface SubTileGrid {
+  tiles: Uint8ClampedArray[]
+  halfW: number
+  halfH: number
+  tileW: number
+  tileH: number
+}
+
+/** A tile position within a layout atlas */
+export interface TilePosition {
+  col: number
+  row: number
+  peeringIndex: number
+}
+
+/** Atlas layout definition */
+export interface TilesetLayout {
+  name: string
+  cols: number
+  rows: number
+  tiles: TilePosition[]
+}
+
+/** Edge profile for SDF-based generation */
+export interface EdgeProfile {
+  style: string
+  edgeOffset: number
+  cornerRadius: number
+  innerDepth: number
+  noiseAmp: number
+  haloWidth: number
+  borderWidth: number
+  borderDarken: number
+}
+
+export type GenerationMode = 'sdf' | 'subtile'
+export type LayoutName = '8x6' | '11x5'
+export type TileSize = 16 | 32 | 64

@@ -28,6 +28,13 @@ const modules = [
     descKey: 'dashboard.mapEditor.desc',
     color: '#aa7744',
   },
+  {
+    route: '/tileset-maker',
+    icon: 'grid',
+    titleKey: 'dashboard.tilesetMaker.title',
+    descKey: 'dashboard.tilesetMaker.desc',
+    color: '#6a8a5a',
+  },
 ]
 </script>
 

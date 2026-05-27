@@ -1,36 +1,42 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, toRef } from 'vue'
 import { useI18n } from '../../../shared/i18n'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
-import {
-  state, selectedLocation, updateLocationPosition,
-  updateLocationIcon, assignLibraryIcon,
-  beginEditTransaction, endEditTransaction,
-} from '../store'
+import type { MapEditorInstance } from '../store'
+import type { MapLocation } from '../types'
 
+const props = defineProps<{ store: MapEditorInstance }>()
 const { t } = useI18n()
 const iconInput = ref<HTMLInputElement>()
 
+const state = toRef(props.store, 'state')
+
+const selectedLocation = computed<MapLocation | null>(() => {
+  const s = state.value
+  if (!s.mapData || s.selectedLocationId === null) return null
+  return s.mapData.locations.find(l => l.id === s.selectedLocationId) ?? null
+})
+
 const libraryIcons = computed(() =>
-  [...state.iconLibrary.entries()].map(([name, dataUrl]) => ({ name, dataUrl })),
+  [...state.value.iconLibrary.entries()].map(([name, dataUrl]) => ({ name, dataUrl })),
 )
 
 const currentIconUrl = computed(() => {
   if (!selectedLocation.value) return null
-  return state.iconImages.get(selectedLocation.value.id) ?? null
+  return state.value.iconImages.get(selectedLocation.value.id) ?? null
 })
 
 function onIconUpload(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file || !selectedLocation.value) return
   const reader = new FileReader()
-  reader.onload = () => updateLocationIcon(selectedLocation.value!.id, reader.result as string)
+  reader.onload = () => props.store.updateLocationIcon(selectedLocation.value!.id, reader.result as string)
   reader.readAsDataURL(file)
 }
 
 function pickLibraryIcon(iconName: string) {
   if (!selectedLocation.value) return
-  assignLibraryIcon(selectedLocation.value.id, iconName)
+  props.store.assignLibraryIcon(selectedLocation.value.id, iconName)
 }
 
 function onPositionChange(axis: 'x' | 'y', val: string) {
@@ -38,8 +44,11 @@ function onPositionChange(axis: 'x' | 'y', val: string) {
   const num = parseInt(val)
   if (isNaN(num)) return
   const loc = selectedLocation.value
-  updateLocationPosition(loc.id, axis === 'x' ? num : (loc.position.x ?? 0), axis === 'y' ? num : (loc.position.y ?? 0))
+  props.store.updateLocationPosition(loc.id, axis === 'x' ? num : (loc.position.x ?? 0), axis === 'y' ? num : (loc.position.y ?? 0))
 }
+
+function beginTransaction() { props.store.beginEditTransaction() }
+function endTransaction() { props.store.endEditTransaction() }
 </script>
 
 <template>
@@ -57,11 +66,11 @@ function onPositionChange(axis: 'x' | 'y', val: string) {
         <div class="coord-row">
           <label>X</label>
           <input type="number" :value="selectedLocation.position.x ?? ''"
-            @focus="beginEditTransaction" @blur="endEditTransaction"
+            @focus="beginTransaction" @blur="endTransaction"
             @input="onPositionChange('x', ($event.target as HTMLInputElement).value)" min="0" max="1280" />
           <label>Y</label>
           <input type="number" :value="selectedLocation.position.y ?? ''"
-            @focus="beginEditTransaction" @blur="endEditTransaction"
+            @focus="beginTransaction" @blur="endTransaction"
             @input="onPositionChange('y', ($event.target as HTMLInputElement).value)" min="0" max="960" />
         </div>
       </div>
@@ -97,7 +106,7 @@ function onPositionChange(axis: 'x' | 'y', val: string) {
 </template>
 
 <style scoped>
-.property-panel { width: 260px; background: #252525; border-left: 1px solid #3a3a3a; overflow-y: auto; padding: 12px; }
+.property-panel { overflow-y: auto; padding: 12px; height: 100%; }
 .section { margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #333; }
 .section h4 { margin: 0 0 8px; font-size: 13px; color: #eee; display: flex; align-items: center; justify-content: space-between; }
 .meta-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; }

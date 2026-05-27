@@ -8,6 +8,8 @@ import { showToast } from '../../../shared/components/toast'
 import { prompt } from '../../../shared/components/prompt'
 import { useWorkspace, getWorkspaceHandle } from '../../../shared/workspace'
 import { resolveDir, writeFile as fsWriteFile, listDirs } from '../../../shared/workspace/fs'
+import { EditorShell } from '../../../shared/components/editor-shell'
+import type { PanelConfig, DropModifiers } from '../../../shared/components/editor-shell'
 import DirectoryTree from './DirectoryTree.vue'
 import FileGrid from './FileGrid.vue'
 import FilePreview from './FilePreview.vue'
@@ -25,11 +27,24 @@ const showDeleteConfirm = ref(false)
 const deleteTarget = ref<FsEntry | null>(null)
 const keyword = ref('')
 const uploading = ref(false)
+const leftCollapsed = ref(false)
+const rightCollapsed = ref(false)
 
 const { scanResult, scanning } = getWorkspaceCache()
 const rootHandle = ref<FileSystemDirectoryHandle | null>(null)
 const selectedDirPath = ref('')
 const expandedPaths = ref<Set<string>>(new Set())
+
+const leftPanelConfig: PanelConfig = {
+  width: { default: 240, min: 180, max: 480 },
+  persistKey: 'rm-tree-width',
+}
+
+const rightPanelConfig: PanelConfig = {
+  width: { default: 260, min: 180, max: 480 },
+  persistKey: 'rm-preview-width',
+}
+
 const wsFiles = computed<FsEntry[]>(() => {
   if (!scanResult.value) return []
   return collectFilesInDir(scanResult.value.tree, selectedDirPath.value)
@@ -143,6 +158,8 @@ function handleFileOpen(entry: FsEntry) {
   if (!entry.meta) return
   if (entry.meta.openWith === 'sprite-slicer' || entry.meta.type === 'spritesheet') {
     router.push({ path: '/sprite-slicer', query: { resource: entry.meta.uid, path: entry.path } })
+  } else if (entry.meta.openWith === 'tileset-maker' || entry.meta.type === 'tile') {
+    router.push({ path: '/tileset-maker', query: { resource: entry.meta.uid, path: entry.path } })
   }
 }
 
@@ -171,16 +188,13 @@ async function confirmDelete() {
   }
 }
 
-async function onDropFiles(e: DragEvent) {
-  e.preventDefault()
-  const files = e.dataTransfer?.files
-  if (!files || files.length === 0 || !rootHandle.value) return
+async function onViewportDrop(files: File[], _modifiers: DropModifiers) {
+  if (!rootHandle.value || files.length === 0) return
 
   uploading.value = true
   try {
     const targetDir = await resolveDir(selectedDirPath.value, true)
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
+    for (const file of files) {
       const buffer = await file.arrayBuffer()
       await fsWriteFile(targetDir, file.name, new Uint8Array(buffer))
       await createMetaForFile(targetDir, file.name, buffer)
@@ -245,6 +259,8 @@ watch(wsOpen, (open) => {
 onMounted(() => {
   if (wsOpen.value) loadWorkspace()
 })
+
+const showRightPanel = computed(() => !!selectedFile.value)
 </script>
 
 <template>
@@ -262,82 +278,98 @@ onMounted(() => {
       </div>
     </template>
 
-    <!-- Workspace connected: file system browser -->
+    <!-- Workspace connected: EditorShell layout -->
     <template v-else>
-      <div class="rm-toolbar">
-        <div class="rm-toolbar-left">
-          <button
-            class="btn btn-sm"
-            @click="handleShowRoot"
-            :class="{ active: selectedDirPath === '' }"
-          >
-            <SvgIcon name="home" :size="12" />
-            根目录
-          </button>
-          <div class="search-box">
-            <SvgIcon name="search" :size="14" />
-            <input
-              type="text"
-              v-model="keyword"
-              :placeholder="t('common.search') + '...'"
+      <EditorShell
+        :tabs="[]"
+        :active-tab-id="null"
+        :left-panel="leftPanelConfig"
+        :right-panel="showRightPanel ? rightPanelConfig : undefined"
+        :left-collapsed="leftCollapsed"
+        :right-collapsed="rightCollapsed"
+        :viewport="{ accept: '*/*', dropOverlayText: '拖放文件到此处上传' }"
+        @viewport-drop="onViewportDrop"
+        @update:left-collapsed="leftCollapsed = $event"
+        @update:right-collapsed="rightCollapsed = $event"
+      >
+        <!-- Left: directory tree -->
+        <template #left>
+          <div class="rm-tree-panel">
+            <div class="tree-header">
+              <button
+                class="tree-root-btn"
+                :class="{ active: selectedDirPath === '' }"
+                @click="handleShowRoot"
+              >
+                <SvgIcon name="home" :size="11" />
+                根目录
+              </button>
+              <span class="tree-stats">{{ stats.total }} 文件</span>
+            </div>
+            <DirectoryTree
+              v-if="treeEntries.length > 0"
+              :entries="treeEntries"
+              :selected-path="selectedDirPath"
+              :expanded-paths="expandedPaths"
+              @select="(p: string) => handleTreeSelect(p)"
+              @toggle="(p: string) => handleTreeToggle(p)"
             />
           </div>
-          <span class="count">
-            {{ stats.total }} 个文件 · {{ stats.dirs }} 个目录
-          </span>
-        </div>
-        <div class="rm-toolbar-right">
-          <button class="btn btn-sm" @click="handleRefresh" :disabled="scanning">
-            <SvgIcon name="loop" :size="12" />
-            {{ scanning ? '扫描中...' : '刷新' }}
-          </button>
-          <button class="btn btn-sm" @click="createFolder">
-            <SvgIcon name="folder" :size="12" />
-            新建文件夹
-          </button>
-          <label class="btn btn-sm">
-            <SvgIcon name="upload" :size="12" />
-            上传
-            <input type="file" style="display:none" @change="onUploadFile" accept="*/*" />
-          </label>
-        </div>
-      </div>
+        </template>
 
-      <div
-        class="rm-body"
-        @dragover.prevent
-        @drop="onDropFiles"
-      >
-        <div class="rm-sidebar" v-if="treeEntries.length > 0">
-          <DirectoryTree
-            :entries="treeEntries"
-            :selected-path="selectedDirPath"
-            :expanded-paths="expandedPaths"
-            @select="(p: string) => handleTreeSelect(p)"
-            @toggle="(p: string) => handleTreeToggle(p)"
-          />
-        </div>
-
-        <div class="rm-content">
-          <div v-if="(scanning || uploading) && filteredWsFiles.length === 0" class="rm-loading">
-            <SvgIcon name="loop" :size="24" />
-            <span>正在扫描工作区...</span>
+        <!-- Center: toolbar + file grid -->
+        <template #viewport>
+          <div class="rm-viewport-content">
+            <div class="rm-toolbar">
+              <div class="search-box">
+                <SvgIcon name="search" :size="14" />
+                <input
+                  type="text"
+                  v-model="keyword"
+                  :placeholder="t('common.search') + '...'"
+                />
+              </div>
+              <div class="rm-toolbar-right">
+                <button class="btn btn-sm" @click="handleRefresh" :disabled="scanning">
+                  <SvgIcon name="loop" :size="12" />
+                  {{ scanning ? '扫描中...' : '刷新' }}
+                </button>
+                <button class="btn btn-sm" @click="createFolder">
+                  <SvgIcon name="folder" :size="12" />
+                  新建
+                </button>
+                <label class="btn btn-sm">
+                  <SvgIcon name="upload" :size="12" />
+                  上传
+                  <input type="file" style="display:none" @change="onUploadFile" accept="*/*" />
+                </label>
+              </div>
+            </div>
+            <div class="rm-grid-area">
+              <div v-if="(scanning || uploading) && filteredWsFiles.length === 0" class="rm-loading">
+                <SvgIcon name="loop" :size="24" />
+                <span>正在扫描工作区...</span>
+              </div>
+              <FileGrid
+                v-else
+                :files="filteredWsFiles"
+                :selected-file="selectedFile"
+                @select="handleFileSelect"
+                @open="handleFileOpen"
+              />
+            </div>
           </div>
-          <FileGrid
-            v-else
-            :files="filteredWsFiles"
-            :selected-file="selectedFile"
-            @select="handleFileSelect"
-            @open="handleFileOpen"
-          />
-        </div>
+        </template>
 
-        <FilePreview
-          v-if="selectedFile"
-          :file="selectedFile"
-          @delete="requestDelete"
-        />
-      </div>
+        <!-- Right: file preview -->
+        <template #right>
+          <FilePreview
+            v-if="selectedFile"
+            :file="selectedFile"
+            @delete="requestDelete"
+          />
+        </template>
+      </EditorShell>
     </template>
 
     <ConfirmDialog
@@ -371,101 +403,26 @@ onMounted(() => {
   text-align: center;
   padding: 40px;
 }
-.rm-guide h3 {
-  color: #ccc;
-  font-size: 18px;
-  margin: 0;
-}
-.rm-guide p {
-  font-size: 13px;
-  line-height: 1.6;
-  max-width: 360px;
-  white-space: pre-line;
-}
-.btn-primary {
-  background: #3a7050;
-  color: #e0f0e8;
-  padding: 8px 20px;
-  font-size: 13px;
-}
+.rm-guide h3 { color: #ccc; font-size: 18px; margin: 0; }
+.rm-guide p { font-size: 13px; line-height: 1.6; max-width: 360px; white-space: pre-line; }
+.btn-primary { background: #3a7050; color: #e0f0e8; padding: 8px 20px; font-size: 13px; border: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
 .btn-primary:hover { background: #4a8060; }
-.rm-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  border-bottom: 1px solid #3a3a3a;
-  background: #252525;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.rm-toolbar-left, .rm-toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.search-box {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: #333;
-  border: 1px solid #555;
-  border-radius: 4px;
-  padding: 3px 8px;
-  color: #aaa;
-}
-.search-box input {
-  background: none;
-  border: none;
-  color: #eee;
-  font-size: 12px;
-  outline: none;
-  width: 140px;
-}
-.count { font-size: 11px; color: #888; display: flex; align-items: center; gap: 6px; }
-.btn {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
-  background: #3a5070;
-  color: #dde4f0;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 11px;
-  transition: background 0.15s;
-}
+
+.rm-tree-panel { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.tree-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid #333; }
+.tree-root-btn { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #aaa; background: none; border: none; cursor: pointer; padding: 3px 6px; border-radius: 3px; }
+.tree-root-btn:hover { background: #333; color: #ddd; }
+.tree-root-btn.active { background: #3a3a5a; color: #fff; }
+.tree-stats { font-size: 10px; color: #666; }
+
+.rm-viewport-content { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+.rm-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid #333; gap: 8px; flex-shrink: 0; }
+.rm-toolbar-right { display: flex; align-items: center; gap: 6px; }
+.search-box { display: flex; align-items: center; gap: 6px; background: #333; border: 1px solid #555; border-radius: 4px; padding: 3px 8px; color: #aaa; }
+.search-box input { background: none; border: none; color: #eee; font-size: 12px; outline: none; width: 140px; }
+.btn { display: flex; align-items: center; gap: 5px; padding: 4px 10px; background: #3a5070; color: #dde4f0; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; transition: background 0.15s; }
 .btn:hover { background: #4a6080; }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.btn.active { background: #4a6080; }
-.rm-body {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-}
-.rm-sidebar {
-  width: 220px;
-  border-right: 1px solid #3a3a3a;
-  overflow-y: auto;
-  padding: 8px;
-  background: #232323;
-  flex-shrink: 0;
-}
-.rm-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.rm-loading {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  color: #888;
-  font-size: 13px;
-}
+.rm-grid-area { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+.rm-loading { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #888; font-size: 13px; }
 </style>

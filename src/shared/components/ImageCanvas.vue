@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import SvgIcon from '../icons/SvgIcon.vue'
 import { useI18n } from '../i18n'
+import PanZoomViewport from './PanZoomViewport.vue'
 
 const { t } = useI18n()
 
@@ -48,125 +49,65 @@ const emit = defineEmits<{
   (e: 'ctrl-mousedown', event: MouseEvent): void
 }>()
 
-const containerEl = ref<HTMLElement>()
-const scale = ref(1)
-const panX = ref(0)
-const panY = ref(0)
-let isPanning = false
-let panStartX = 0
-let panStartY = 0
-let panStartPanX = 0
-let panStartPanY = 0
+const pzvRef = ref<InstanceType<typeof PanZoomViewport>>()
 const isFullscreen = ref(false)
 const imgNaturalW = ref(0)
 const imgNaturalH = ref(0)
 const imageReady = ref(false)
 
+const scale = computed(() => pzvRef.value?.scale ?? 1)
+const panX = computed(() => pzvRef.value?.panX ?? 0)
+const panY = computed(() => pzvRef.value?.panY ?? 0)
 const zoomPercent = computed(() => Math.round(scale.value * 100))
-const showControls = computed(() => props.controlsPosition !== 'none')
+const showPzvControls = computed(() => props.controlsPosition !== 'none')
 const controlsClass = computed(() => [
   `pos-${props.controlsPosition}`,
   `dir-${props.controlsDirection}`,
 ])
 
-function onWheel(e: WheelEvent) {
-  e.preventDefault()
-  const container = containerEl.value
-  if (!container) return
+const pzvControlsPosition = computed(() => {
+  if (props.controlsPosition === 'none') return 'bottom-left'
+  return props.controlsPosition as 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+})
 
-  const rect = container.getBoundingClientRect()
-  const cursorX = e.clientX - rect.left
-  const cursorY = e.clientY - rect.top
-
-  const worldX = (cursorX - panX.value) / scale.value
-  const worldY = (cursorY - panY.value) / scale.value
-
-  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15
-  const newScale = Math.min(props.maxScale, Math.max(props.minScale, scale.value * factor))
-
-  panX.value = cursorX - worldX * newScale
-  panY.value = cursorY - worldY * newScale
-  scale.value = newScale
-  emit('scale-change', newScale)
+function onScaleChange(s: number) {
+  emit('scale-change', s)
 }
 
-function onContainerMouseDown(e: MouseEvent) {
-  if (e.button === 0) {
-    if (e.ctrlKey) {
-      emit('ctrl-mousedown', e)
-    } else {
-      e.preventDefault()
-      startPan(e.clientX, e.clientY)
-    }
-  }
-}
-
-function startPan(clientX: number, clientY: number) {
-  isPanning = true
-  panStartX = clientX
-  panStartY = clientY
-  panStartPanX = panX.value
-  panStartPanY = panY.value
-  document.body.style.cursor = 'grabbing'
-}
-
-function onDocMouseMove(e: MouseEvent) {
-  if (!isPanning) return
-  panX.value = panStartPanX + (e.clientX - panStartX)
-  panY.value = panStartPanY + (e.clientY - panStartY)
-}
-
-function onDocMouseUp() {
-  if (isPanning) {
-    isPanning = false
-    document.body.style.cursor = ''
-  }
+function onCtrlMouseDown(e: MouseEvent) {
+  emit('ctrl-mousedown', e)
 }
 
 function fitToView() {
-  const container = containerEl.value
-  if (!container || !imgNaturalW.value || !imgNaturalH.value) return
-  const rect = container.getBoundingClientRect()
-  const vw = rect.width, vh = rect.height
-  if (vw === 0 || vh === 0) return
-  const iw = imgNaturalW.value, ih = imgNaturalH.value
-  const margin = props.overlay ? 0.85 : 0.95
-  let s = Math.min(vw / iw, vh / ih) * margin
-  if (props.overlay) s = Math.min(s, 4)
-  const clamped = Math.min(props.maxScale, Math.max(props.minScale, s))
-  scale.value = clamped
-  panX.value = (vw - iw * clamped) / 2
-  panY.value = (vh - ih * clamped) / 2
-  emit('scale-change', clamped)
+  pzvRef.value?.fitToView()
 }
 
 function zoomIn() {
-  setScaleCentered(scale.value * 1.4)
+  pzvRef.value?.zoomIn()
 }
 
 function zoomOut() {
-  setScaleCentered(scale.value / 1.4)
+  pzvRef.value?.zoomOut()
 }
 
 function setScaleCentered(newVal: number) {
-  const container = containerEl.value
-  if (!container) { scale.value = newVal; return }
-  const rect = container.getBoundingClientRect()
-  const cx = rect.width / 2, cy = rect.height / 2
-  const worldX = (cx - panX.value) / scale.value
-  const worldY = (cy - panY.value) / scale.value
-  const clamped = Math.min(props.maxScale, Math.max(props.minScale, newVal))
-  panX.value = cx - worldX * clamped
-  panY.value = cy - worldY * clamped
-  scale.value = clamped
-  emit('scale-change', clamped)
+  pzvRef.value?.setScaleCentered(newVal)
+}
+
+function saveState() {
+  return pzvRef.value?.saveState() ?? { scale: 1, panX: 0, panY: 0 }
+}
+
+function restoreState(s: { scale: number; panX: number; panY: number }) {
+  pzvRef.value?.restoreState(s)
 }
 
 function toggleFullscreen() {
   imageReady.value = false
   isFullscreen.value = !isFullscreen.value
   nextTick(() => {
-    const card = containerEl.value?.closest('.ic-overlay-card') as HTMLElement | null
+    const container = pzvRef.value?.$el
+    const card = container?.closest('.ic-overlay-card') as HTMLElement | null
     if (card) {
       const onEnd = () => {
         card.removeEventListener('transitionend', onEnd)
@@ -216,14 +157,10 @@ watch(() => props.src, () => {
 })
 
 onMounted(() => {
-  document.addEventListener('mousemove', onDocMouseMove)
-  document.addEventListener('mouseup', onDocMouseUp)
   document.addEventListener('keydown', onKeyDown)
 })
 
 onUnmounted(() => {
-  document.removeEventListener('mousemove', onDocMouseMove)
-  document.removeEventListener('mouseup', onDocMouseUp)
   document.removeEventListener('keydown', onKeyDown)
 })
 
@@ -236,6 +173,8 @@ defineExpose({
   zoomOut,
   setScaleCentered,
   isInFullscreen,
+  saveState,
+  restoreState,
 })
 </script>
 
@@ -250,46 +189,48 @@ defineExpose({
           <span class="ic-spacer" />
           <button class="ic-close-btn" @click="emit('close')" :title="t('common.close')">✕</button>
         </div>
-        <div
-          ref="containerEl"
-          class="ic-viewport"
-          :class="{ checker: checkerBackground }"
-          @wheel.prevent="onWheel"
-          @mousedown="onContainerMouseDown"
-          @contextmenu.prevent
+        <PanZoomViewport
+          ref="pzvRef"
+          transform-mode="css"
+          pan-mode="left"
+          :min-scale="minScale"
+          :max-scale="maxScale"
+          :content-width="imgNaturalW"
+          :content-height="imgNaturalH"
+          :checker-background="checkerBackground"
+          :pixelated="pixelated"
+          :show-controls="false"
+          @scale-change="onScaleChange"
+          @ctrl-mousedown="onCtrlMouseDown"
         >
-          <div
-            class="ic-transform"
-            :style="{
-              transform: `translate(${panX}px, ${panY}px) scale(${scale})`,
-              transformOrigin: '0 0',
-              visibility: imageReady ? 'visible' : 'hidden',
-            }"
-          >
-            <img
-              v-if="src"
-              :src="src"
-              class="ic-image"
-              :class="{ pixelated }"
-              draggable="false"
-              @load="onImageLoad"
-            />
-            <slot :scale="scale" :panX="panX" :panY="panY" />
-          </div>
+          <template #default="slotProps">
+            <div :style="{ visibility: imageReady ? 'visible' : 'hidden' }">
+              <img
+                v-if="src"
+                :src="src"
+                class="ic-image"
+                :class="{ pixelated }"
+                draggable="false"
+                @load="onImageLoad"
+              />
+              <slot :scale="slotProps.scale" :panX="slotProps.panX" :panY="slotProps.panY" />
+            </div>
+          </template>
+        </PanZoomViewport>
 
-          <div v-if="showControls" class="ic-controls" :class="controlsClass">
-            <span v-if="showZoomLabel" class="ic-ctrl-zoom">{{ zoomPercent }}%</span>
-            <button class="ic-ctrl-btn" @click="fitToView" :title="t('common.fitView')">
-              <SvgIcon name="fit-view" :size="12" />
-            </button>
-            <button class="ic-ctrl-btn" @click="zoomIn" :title="t('common.zoomIn')">+</button>
-            <button class="ic-ctrl-btn" @click="zoomOut" :title="t('common.zoomOut')">−</button>
-            <button v-if="fullscreenToggle" class="ic-ctrl-btn" @click="toggleFullscreen" :title="t('common.fullscreen')">
-              <SvgIcon name="maximize" :size="12" />
-            </button>
-          </div>
-          <slot name="overlay-footer" />
+        <!-- Custom controls for overlay (with fullscreen toggle) -->
+        <div v-if="showPzvControls" class="ic-controls ic-controls-overlay" :class="controlsClass">
+          <span v-if="showZoomLabel" class="ic-ctrl-zoom">{{ zoomPercent }}%</span>
+          <button class="ic-ctrl-btn" @click="fitToView" :title="t('common.fitView')">
+            <SvgIcon name="fit-view" :size="12" />
+          </button>
+          <button class="ic-ctrl-btn" @click="zoomIn" :title="t('common.zoomIn')">+</button>
+          <button class="ic-ctrl-btn" @click="zoomOut" :title="t('common.zoomOut')">−</button>
+          <button v-if="fullscreenToggle" class="ic-ctrl-btn" @click="toggleFullscreen" :title="t('common.fullscreen')">
+            <SvgIcon name="maximize" :size="12" />
+          </button>
         </div>
+        <slot name="overlay-footer" />
       </div>
     </div>
   </Teleport>
@@ -302,57 +243,59 @@ defineExpose({
         <span class="ic-spacer" />
         <slot name="toolbar-right" />
       </div>
-      <div
-        ref="containerEl"
-        class="ic-viewport"
-        :class="{ checker: checkerBackground }"
-        :style="viewportCursor ? { cursor: viewportCursor } : undefined"
-        @wheel.prevent="onWheel"
-        @mousedown="onContainerMouseDown"
-        @contextmenu.prevent
+      <PanZoomViewport
+        ref="pzvRef"
+        transform-mode="css"
+        pan-mode="left"
+        :min-scale="minScale"
+        :max-scale="maxScale"
+        :content-width="imgNaturalW"
+        :content-height="imgNaturalH"
+        :checker-background="checkerBackground"
+        :pixelated="pixelated"
+        :show-controls="false"
+        :viewport-cursor="viewportCursor"
+        @scale-change="onScaleChange"
+        @ctrl-mousedown="onCtrlMouseDown"
       >
-        <div
-          class="ic-transform"
-          :style="{
-            transform: `translate(${panX}px, ${panY}px) scale(${scale})`,
-            transformOrigin: '0 0',
-            visibility: imageReady ? 'visible' : 'hidden',
-          }"
-        >
-          <img
-            v-if="src"
-            :src="src"
-            class="ic-image"
-            :class="{ pixelated }"
-            draggable="false"
-            @load="onImageLoad"
-          />
-          <slot :scale="scale" :panX="panX" :panY="panY" />
-        </div>
+        <template #default="slotProps">
+          <div :style="{ visibility: imageReady ? 'visible' : 'hidden' }">
+            <img
+              v-if="src"
+              :src="src"
+              class="ic-image"
+              :class="{ pixelated }"
+              draggable="false"
+              @load="onImageLoad"
+            />
+            <slot :scale="slotProps.scale" :panX="slotProps.panX" :panY="slotProps.panY" />
+          </div>
+        </template>
+      </PanZoomViewport>
 
-        <div v-if="showControls" class="ic-controls" :class="controlsClass">
-          <span v-if="showZoomLabel" class="ic-ctrl-zoom">{{ zoomPercent }}%</span>
-          <button class="ic-ctrl-btn" @click="fitToView" :title="t('common.fitView')">
-            <SvgIcon name="fit-view" :size="12" />
-          </button>
-          <button class="ic-ctrl-btn" @click="zoomIn" :title="t('common.zoomIn')">+</button>
-          <button class="ic-ctrl-btn" @click="zoomOut" :title="t('common.zoomOut')">−</button>
-          <button v-if="fullscreenToggle" class="ic-ctrl-btn" @click="toggleFullscreen" :title="t('common.fullscreen')">
-            <SvgIcon name="maximize" :size="12" />
-          </button>
-        </div>
+      <!-- Custom controls for inline (with fullscreen toggle) -->
+      <div v-if="showPzvControls" class="ic-controls" :class="controlsClass">
+        <span v-if="showZoomLabel" class="ic-ctrl-zoom">{{ zoomPercent }}%</span>
+        <button class="ic-ctrl-btn" @click="fitToView" :title="t('common.fitView')">
+          <SvgIcon name="fit-view" :size="12" />
+        </button>
+        <button class="ic-ctrl-btn" @click="zoomIn" :title="t('common.zoomIn')">+</button>
+        <button class="ic-ctrl-btn" @click="zoomOut" :title="t('common.zoomOut')">−</button>
+        <button v-if="fullscreenToggle" class="ic-ctrl-btn" @click="toggleFullscreen" :title="t('common.fullscreen')">
+          <SvgIcon name="maximize" :size="12" />
+        </button>
       </div>
     </div>
   </template>
 </template>
 
 <style scoped>
-/* Inline mode */
 .ic-inline {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
 .ic-inline.fullscreen {
   position: fixed;
@@ -369,22 +312,6 @@ defineExpose({
 }
 .ic-spacer { flex: 1; }
 
-/* Viewport */
-.ic-viewport {
-  flex: 1;
-  overflow: hidden;
-  position: relative;
-  cursor: grab;
-}
-.ic-viewport:active { cursor: grabbing; }
-.ic-viewport.checker {
-  background: repeating-conic-gradient(#3a3a3a 0% 25%, #2a2a2a 0% 50%) 0 0 / 16px 16px;
-}
-.ic-transform {
-  display: inline-block;
-  will-change: transform;
-  position: relative;
-}
 .ic-image {
   display: block;
   user-select: none;
@@ -392,7 +319,6 @@ defineExpose({
 }
 .ic-image.pixelated { image-rendering: pixelated; }
 
-/* Floating controls */
 .ic-controls {
   position: absolute;
   display: flex;
@@ -409,6 +335,11 @@ defineExpose({
 .ic-controls.pos-top-left { top: 10px; left: 10px; }
 .ic-controls.pos-top-right { top: 10px; right: 10px; }
 .ic-controls.dir-vertical { flex-direction: column; }
+.ic-controls-overlay {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+}
 .ic-ctrl-zoom {
   font-size: 10px;
   color: #8ab4f8;
@@ -459,6 +390,7 @@ defineExpose({
   flex-direction: column;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
   transition: all 0.2s;
+  position: relative;
 }
 .ic-overlay-card.fullscreen {
   width: 100vw;

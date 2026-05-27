@@ -1,25 +1,26 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import {
-  state, selectLocation, updateLocationPosition,
-  beginEditTransaction, endEditTransaction, placePendingLocation,
-} from '../store'
+import PanZoomViewport from '../../../shared/components/PanZoomViewport.vue'
+import type { MapEditorInstance } from '../store'
 import type { MapLocation, Region, WaterFeature } from '../types'
 
+const props = defineProps<{ store: MapEditorInstance }>()
+
+const pzvRef = ref<InstanceType<typeof PanZoomViewport>>()
 const canvasRef = ref<HTMLCanvasElement>()
-const containerRef = ref<HTMLDivElement>()
 let ctx: CanvasRenderingContext2D | null = null
 let baseImage: HTMLImageElement | null = null
 let dragTarget: MapLocation | null = null
 let dragOffset = { x: 0, y: 0 }
-let isPanning = false
-let panStart = { x: 0, y: 0 }
 
 const BASE_W = 1280
 const BASE_H = 960
 
 function toWorld(cx: number, cy: number) {
-  return { x: (cx - state.panX) / state.zoom, y: (cy - state.panY) / state.zoom }
+  const scale = pzvRef.value?.scale ?? 1
+  const panX = pzvRef.value?.panX ?? 0
+  const panY = pzvRef.value?.panY ?? 0
+  return { x: (cx - panX) / scale, y: (cy - panY) / scale }
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -30,10 +31,14 @@ function hexToRgba(hex: string, alpha: number): string {
 function draw() {
   if (!canvasRef.value || !ctx) return
   const canvas = canvasRef.value
+  const scale = pzvRef.value?.scale ?? 1
+  const panX = pzvRef.value?.panX ?? 0
+  const panY = pzvRef.value?.panY ?? 0
+
   ctx.clearRect(0, 0, canvas.width, canvas.height)
   ctx.save()
-  ctx.translate(state.panX, state.panY)
-  ctx.scale(state.zoom, state.zoom)
+  ctx.translate(panX, panY)
+  ctx.scale(scale, scale)
 
   if (baseImage) {
     ctx.drawImage(baseImage, 0, 0, BASE_W, BASE_H)
@@ -44,6 +49,7 @@ function draw() {
     ctx.fillText('Load base map from toolbar', BASE_W / 2, BASE_H / 2)
   }
 
+  const state = props.store.state
   if (state.mapData?.regions?.length && state.showRegions) drawRegions(state.mapData.regions)
   if (state.mapData?.waterFeatures?.length && state.showWater) drawWaterFeatures(state.mapData.waterFeatures)
   if (state.showGrid) {
@@ -95,9 +101,9 @@ function drawWaterFeatures(features: WaterFeature[]) {
 }
 
 function drawRoads() {
-  if (!ctx || !state.mapData?.roads?.length) return
-  const locsById = new Map(state.mapData.locations.map(l => [l.id, l]))
-  for (const road of state.mapData.roads) {
+  if (!ctx || !props.store.state.mapData?.roads?.length) return
+  const locsById = new Map(props.store.state.mapData.locations.map(l => [l.id, l]))
+  for (const road of props.store.state.mapData.roads) {
     const a = locsById.get(road.from), b = locsById.get(road.to)
     if (!a || !b) continue
     if (a.position.x === null || a.position.y === null || b.position.x === null || b.position.y === null) continue
@@ -111,6 +117,7 @@ function drawLocation(loc: MapLocation) {
   if (!ctx || loc.position.x === null || loc.position.y === null) return
   const x = loc.position.x, y = loc.position.y
   const w = loc.iconSize.w, h = loc.iconSize.h
+  const state = props.store.state
   const realmColors: Record<string, string> = { human: '#4a9', underground: '#a73', underworld: '#68a', celestial: '#da5' }
   const rc = realmColors[loc.realm] ?? '#888'
   ctx.fillStyle = rc; ctx.globalAlpha = 0.25
@@ -136,9 +143,9 @@ function drawLocation(loc: MapLocation) {
 }
 
 function hitTest(wx: number, wy: number): MapLocation | null {
-  if (!state.mapData) return null
-  for (let i = state.mapData.locations.length - 1; i >= 0; i--) {
-    const loc = state.mapData.locations[i]
+  if (!props.store.state.mapData) return null
+  for (let i = props.store.state.mapData.locations.length - 1; i >= 0; i--) {
+    const loc = props.store.state.mapData.locations[i]
     if (loc.position.x === null || loc.position.y === null) continue
     const r = Math.max(loc.iconSize.w, loc.iconSize.h) / 2 + 4
     if (Math.abs(wx - loc.position.x) <= r && Math.abs(wy - loc.position.y) <= r) return loc
@@ -146,62 +153,68 @@ function hitTest(wx: number, wy: number): MapLocation | null {
   return null
 }
 
-function onMouseDown(e: MouseEvent) {
+function onCanvasMouseDown(e: MouseEvent) {
+  if (e.button !== 0 || e.altKey) return
   const rect = canvasRef.value!.getBoundingClientRect()
   const world = toWorld(e.clientX - rect.left, e.clientY - rect.top)
-  if (e.button === 1 || (e.button === 0 && e.altKey)) {
-    isPanning = true; panStart = { x: e.clientX - state.panX, y: e.clientY - state.panY }; return
-  }
   const hit = hitTest(world.x, world.y)
   if (hit) {
-    selectLocation(hit.id); dragTarget = hit
+    props.store.selectLocation(hit.id)
+    dragTarget = hit
     dragOffset = { x: world.x - (hit.position.x ?? 0), y: world.y - (hit.position.y ?? 0) }
-    beginEditTransaction()
-  } else if (e.button === 0) selectLocation(null)
+    props.store.beginEditTransaction()
+  } else {
+    props.store.selectLocation(null)
+  }
 }
 
-function onMouseMove(e: MouseEvent) {
-  if (isPanning) { state.panX = e.clientX - panStart.x; state.panY = e.clientY - panStart.y; draw(); return }
-  if (dragTarget) {
-    const rect = canvasRef.value!.getBoundingClientRect()
-    const world = toWorld(e.clientX - rect.left, e.clientY - rect.top)
-    updateLocationPosition(dragTarget.id, Math.max(0, Math.min(BASE_W, world.x - dragOffset.x)), Math.max(0, Math.min(BASE_H, world.y - dragOffset.y)))
+function onDocMouseMove(e: MouseEvent) {
+  if (!dragTarget) return
+  const rect = canvasRef.value!.getBoundingClientRect()
+  const world = toWorld(e.clientX - rect.left, e.clientY - rect.top)
+  props.store.updateLocationPosition(
+    dragTarget.id,
+    Math.max(0, Math.min(BASE_W, world.x - dragOffset.x)),
+    Math.max(0, Math.min(BASE_H, world.y - dragOffset.y)),
+  )
+  draw()
+}
+
+function onDocMouseUp() {
+  if (dragTarget) props.store.endEditTransaction()
+  dragTarget = null
+}
+
+function onDblClick(e: MouseEvent) {
+  if (!props.store.state.mapData) return
+  const rect = canvasRef.value!.getBoundingClientRect()
+  const world = toWorld(e.clientX - rect.left, e.clientY - rect.top)
+  if (hitTest(world.x, world.y)) return
+  const pending = props.store.state.mapData.locations.find(l => l.position.x === null || l.position.y === null)
+  if (pending) {
+    props.store.placePendingLocation(pending.id, world.x, world.y)
+    props.store.selectLocation(pending.id)
     draw()
   }
 }
 
-function onMouseUp() {
-  if (dragTarget) endEditTransaction()
-  dragTarget = null; isPanning = false
-}
-
-function onWheel(e: WheelEvent) {
-  const rect = canvasRef.value!.getBoundingClientRect()
-  const cx = e.clientX - rect.left, cy = e.clientY - rect.top
-  const oldZoom = state.zoom
-  state.zoom = Math.max(0.2, Math.min(5, state.zoom * (e.deltaY > 0 ? 0.9 : 1.1)))
-  state.panX = cx - (cx - state.panX) * (state.zoom / oldZoom)
-  state.panY = cy - (cy - state.panY) * (state.zoom / oldZoom)
+function onPanChange() {
   draw()
 }
 
-function onDblClick(e: MouseEvent) {
-  if (!state.mapData) return
-  const rect = canvasRef.value!.getBoundingClientRect()
-  const world = toWorld(e.clientX - rect.left, e.clientY - rect.top)
-  if (hitTest(world.x, world.y)) return
-  const pending = state.mapData.locations.find(l => l.position.x === null || l.position.y === null)
-  if (pending) { placePendingLocation(pending.id, world.x, world.y); selectLocation(pending.id); draw() }
-}
-
-function resize() {
-  if (!canvasRef.value || !containerRef.value) return
-  canvasRef.value.width = containerRef.value.clientWidth
-  canvasRef.value.height = containerRef.value.clientHeight
+function onScaleChange() {
   draw()
 }
 
-watch(() => [state.mapData, state.showLabels, state.showNumbers, state.showGrid, state.showRoads, state.showRegions, state.showWater, state.selectedLocationId, state.iconImages.size, state.assetsLoaded, state.zoom, state.panX, state.panY], () => nextTick(draw))
+function onResize(w: number, h: number) {
+  if (!canvasRef.value) return
+  canvasRef.value.width = w
+  canvasRef.value.height = h
+  draw()
+}
+
+const state = props.store.state
+watch(() => [state.mapData, state.showLabels, state.showNumbers, state.showGrid, state.showRoads, state.showRegions, state.showWater, state.selectedLocationId, state.iconImages.size, state.assetsLoaded], () => nextTick(draw))
 watch(() => state.mapData?.locations.map(l => `${l.id}:${l.position.x},${l.position.y}`).join('|'), () => nextTick(draw))
 watch(() => state.baseMapUrl, (url) => {
   if (!url) { baseImage = null; draw(); return }
@@ -209,21 +222,38 @@ watch(() => state.baseMapUrl, (url) => {
 })
 
 onMounted(() => {
-  ctx = canvasRef.value!.getContext('2d')!; resize()
-  window.addEventListener('resize', resize)
-  window.addEventListener('mousemove', (e) => { if (dragTarget || isPanning) onMouseMove(e) })
-  window.addEventListener('mouseup', onMouseUp)
+  ctx = canvasRef.value!.getContext('2d')!
+  document.addEventListener('mousemove', onDocMouseMove)
+  document.addEventListener('mouseup', onDocMouseUp)
 })
-onUnmounted(() => { window.removeEventListener('resize', resize) })
+onUnmounted(() => {
+  document.removeEventListener('mousemove', onDocMouseMove)
+  document.removeEventListener('mouseup', onDocMouseUp)
+})
 </script>
 
 <template>
-  <div ref="containerRef" class="canvas-container">
-    <canvas ref="canvasRef" @mousedown="onMouseDown" @mousemove="onMouseMove" @mouseup="onMouseUp" @mouseleave="onMouseUp" @wheel.prevent="onWheel" @dblclick="onDblClick" />
-  </div>
+  <PanZoomViewport
+    ref="pzvRef"
+    transform-mode="logical"
+    pan-mode="middle"
+    :content-width="BASE_W"
+    :content-height="BASE_H"
+    :checker-background="false"
+    :min-scale="0.2"
+    :max-scale="5"
+    viewport-cursor="crosshair"
+    @scale-change="onScaleChange"
+    @pan-change="onPanChange"
+    @resize="onResize"
+  >
+    <template #default>
+      <canvas
+        ref="canvasRef"
+        style="position:absolute;inset:0;width:100%;height:100%"
+        @mousedown="onCanvasMouseDown"
+        @dblclick="onDblClick"
+      />
+    </template>
+  </PanZoomViewport>
 </template>
-
-<style scoped>
-.canvas-container { flex: 1; overflow: hidden; background: #1a1a1a; cursor: crosshair; }
-canvas { display: block; width: 100%; height: 100%; }
-</style>

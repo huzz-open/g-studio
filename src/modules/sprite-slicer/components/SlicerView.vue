@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, reactive, onMounted } from 'vue'
+import { ref, watch, reactive, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from '../../../shared/i18n'
 import { useSlicerStore } from '../store'
@@ -22,12 +22,13 @@ import { useSettings } from '../../../shared/settings'
 import type { OutputPayload } from './SlicerSidebar.vue'
 import { showToast, withProgress } from '../../../shared/components/toast'
 import { confirm } from '../../../shared/components/confirm'
-import SvgIcon from '../../../shared/icons/SvgIcon.vue'
-import FileDropZone from '../../../shared/components/FileDropZone.vue'
-import SlicerTabBar from './SlicerTabBar.vue'
+import { EditorShell } from '../../../shared/components/editor-shell'
+import type { TabItem, PanelConfig, DropModifiers } from '../../../shared/components/editor-shell'
 import SlicerSidebar from './SlicerSidebar.vue'
 import SlicerPreview from './SlicerPreview.vue'
 import AnimationPreview from './AnimationPreview.vue'
+import FileDropZone from '../../../shared/components/FileDropZone.vue'
+import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -37,6 +38,22 @@ const { isOpen: wsOpen } = useWorkspace()
 const { settings: appSettings } = useSettings()
 const showAnimPreview = ref(false)
 const loadingResource = ref(false)
+const leftCollapsed = ref(false)
+
+const leftPanelConfig: PanelConfig = {
+  width: { default: 300, min: 180, max: 480 },
+  persistKey: 'slicer-sidebar-width',
+}
+
+const tabs = computed<TabItem[]>(() =>
+  store.tabs.value.map(tab => ({
+    id: tab.id,
+    label: tab.fileName,
+    dirty: store.isTabModified(tab.id),
+  }))
+)
+
+const showEmpty = computed(() => !store.sourceImage.value && !loadingResource.value)
 
 function guessMime(fileName: string): string {
   const ext = fileName.split('.').pop()?.toLowerCase()
@@ -247,29 +264,23 @@ function onAddFile(file: File) {
   offerSaveToWorkspace(file)
 }
 
-const viewportDrag = reactive({ active: false, alt: false })
-function onViewportDragOver(e: DragEvent) {
-  e.preventDefault()
-  viewportDrag.active = true
-  viewportDrag.alt = e.altKey
-}
-function onViewportDragLeave() {
-  viewportDrag.active = false
-  viewportDrag.alt = false
-}
-function onViewportDrop(e: DragEvent) {
-  e.preventDefault()
-  const replace = e.altKey && store.hasActiveTab.value
-  viewportDrag.active = false
-  viewportDrag.alt = false
-  const file = e.dataTransfer?.files?.[0]
-  if (file && file.type.startsWith('image/')) {
-    if (replace) {
-      store.loadFile(file)
-    } else {
-      store.addTab(file)
-    }
+function onViewportDrop(files: File[], modifiers: DropModifiers) {
+  const file = files[0]
+  if (!file || !file.type.startsWith('image/')) return
+  const replace = modifiers.alt && store.hasActiveTab.value
+  if (replace) {
+    store.loadFile(file)
+  } else {
+    store.addTab(file)
   }
+}
+
+function onTabSwitch(id: string) {
+  store.switchTab(id)
+}
+
+function onTabClose(id: string) {
+  store.removeTab(id)
 }
 
 function getPrefix(): string {
@@ -541,114 +552,73 @@ watch(() => store.namePrefix.value, () => {
 </script>
 
 <template>
-  <div class="slicer-view">
-    <SlicerSidebar
-      :store="store"
-      :has-image="!!store.sourceImage.value"
-      @file="onFile"
-      @show-anim="showAnimPreview = true"
-      @export-local="exportLocal"
-      @save-workspace="saveToWorkspace"
-    />
+  <EditorShell
+    :tabs="tabs"
+    :active-tab-id="store.activeTabId.value"
+    tab-accept="image/png,image/jpeg,image/webp"
+    :left-panel="leftPanelConfig"
+    :left-collapsed="leftCollapsed"
+    :show-empty="showEmpty"
+    :loading="loadingResource"
+    :viewport="{ accept: 'image/png,image/jpeg,image/webp', dropOverlayText: t('common.dropToOpen'), altDropOverlayText: t('common.dropToReplace'), emptyState: { icon: 'upload', titleKey: t('slicer.upload.desc'), descKey: t('slicer.upload.hint') } }"
+    @tab-switch="onTabSwitch"
+    @tab-close="onTabClose"
+    @tab-add-file="onAddFile"
+    @viewport-drop="onViewportDrop"
+    @update:left-collapsed="leftCollapsed = $event"
+  >
+    <!-- Left sidebar -->
+    <template #left>
+      <SlicerSidebar
+        :store="store"
+        :has-image="!!store.sourceImage.value"
+        @file="onFile"
+        @show-anim="showAnimPreview = true"
+        @export-local="exportLocal"
+        @save-workspace="saveToWorkspace"
+      />
+    </template>
 
-    <div
-      class="slicer-main"
-      :class="{ 'drop-highlight': viewportDrag.active }"
-      @dragover="onViewportDragOver"
-      @dragleave="onViewportDragLeave"
-      @drop="onViewportDrop"
-    >
+    <!-- Viewport -->
+    <template #viewport>
       <template v-if="loadingResource">
         <div class="resource-loading">
           <SvgIcon name="loop" :size="24" />
           <span>{{ t('slicer.upload.processing') }}</span>
         </div>
       </template>
-      <template v-else>
-        <SlicerTabBar
-          v-if="store.tabs.value.length > 0"
-          :tabs="store.tabs.value"
-          :active-tab-id="store.activeTabId.value"
-          @switch="store.switchTab($event)"
-          @close="store.removeTab($event)"
-          @add-file="onAddFile"
-        />
-
-        <template v-if="store.sourceImage.value">
-          <SlicerPreview :store="store" />
-        </template>
-        <template v-else>
-          <div class="upload-stage">
-            <FileDropZone
-              accept="image/png,image/jpeg,image/webp"
-              :hint="store.loading.value ? t('slicer.upload.processing') : t('slicer.upload.hint')"
-              :description="t('slicer.upload.desc')"
-              :loading="store.loading.value"
-              icon="upload"
-              @file="onAddFile"
-            />
-          </div>
-        </template>
+      <template v-else-if="store.sourceImage.value">
+        <SlicerPreview :store="store" />
       </template>
+      <template v-else-if="!showEmpty">
+        <div class="upload-stage">
+          <FileDropZone
+            accept="image/png,image/jpeg,image/webp"
+            :hint="store.loading.value ? t('slicer.upload.processing') : t('slicer.upload.hint')"
+            :description="t('slicer.upload.desc')"
+            :loading="store.loading.value"
+            icon="upload"
+            @file="onAddFile"
+          />
+        </div>
+      </template>
+    </template>
+  </EditorShell>
 
-      <div v-if="viewportDrag.active" class="drop-overlay" :class="{ replace: viewportDrag.alt }">
-        <span class="drop-overlay-text">{{ viewportDrag.alt ? t('common.dropToReplace') : t('common.dropToOpen') }}</span>
-      </div>
-    </div>
-
-    <AnimationPreview
-      v-if="showAnimPreview"
-      :frames="store.selectedSprites.value"
-      @close="showAnimPreview = false"
-    />
-  </div>
+  <AnimationPreview
+    v-if="showAnimPreview"
+    :frames="store.selectedSprites.value"
+    @close="showAnimPreview = false"
+  />
 </template>
 
 <style scoped>
-.slicer-view {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-}
-.slicer-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  position: relative;
-}
 .upload-stage {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 40px;
-}
-.slicer-main.drop-highlight {
-  position: relative;
-}
-.drop-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 50;
-  background: rgba(30, 50, 80, 0.55);
-  border: 2px dashed #5577aa;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-.drop-overlay.replace {
-  background: rgba(80, 50, 30, 0.55);
-  border-color: #aa7755;
-}
-.drop-overlay-text {
-  font-size: 16px;
-  color: #aac8ee;
-  font-weight: 500;
-  padding: 10px 24px;
-  background: rgba(0,0,0,0.4);
-  border-radius: 8px;
 }
 .resource-loading {
   flex: 1;

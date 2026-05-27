@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import SvgIcon from '../../../shared/icons/SvgIcon.vue'
-import type { SlicerTabInfo } from '../store'
+import SvgIcon from '../../icons/SvgIcon.vue'
+import type { TabItem } from './types'
 
-defineProps<{
-  tabs: SlicerTabInfo[]
-  activeTabId: string | null
+const props = defineProps<{
+  tabs: TabItem[]
+  activeId: string | null
+  accept?: string
 }>()
 
 const emit = defineEmits<{
@@ -42,9 +43,17 @@ function onDrop(e: DragEvent) {
   e.preventDefault()
   dragging.value = false
   const file = e.dataTransfer?.files?.[0]
-  if (file && file.type.startsWith('image/')) {
-    emit('addFile', file)
+  if (!file) return
+  if (props.accept && props.accept !== '*/*') {
+    const exts = props.accept.split(',').map(s => s.trim())
+    const valid = exts.some(ext => {
+      if (ext.startsWith('.')) return file.name.toLowerCase().endsWith(ext)
+      if (ext.endsWith('/*')) return file.type.startsWith(ext.replace('/*', '/'))
+      return file.type === ext
+    })
+    if (!valid) return
   }
+  emit('addFile', file)
 }
 
 function onMiddleClick(id: string, e: MouseEvent) {
@@ -57,7 +66,7 @@ function onMiddleClick(id: string, e: MouseEvent) {
 
 <template>
   <div
-    class="tab-bar"
+    class="shell-tab-bar"
     :class="{ 'drag-over': dragging }"
     @dragover="onDragOver"
     @dragleave="onDragLeave"
@@ -68,16 +77,15 @@ function onMiddleClick(id: string, e: MouseEvent) {
         v-for="tab in tabs"
         :key="tab.id"
         class="tab-item"
-        :class="{ active: tab.id === activeTabId }"
-        :title="tab.fileName"
+        :class="{ active: tab.id === activeId }"
+        :title="tab.label"
         @click="emit('switch', tab.id)"
         @mousedown="onMiddleClick(tab.id, $event)"
       >
-        <span class="tab-name">{{ tab.fileName }}</span>
-        <button
-          class="tab-close"
-          @click.stop="emit('close', tab.id)"
-        >
+        <SvgIcon v-if="tab.icon" :name="tab.icon" :size="11" />
+        <span class="tab-name">{{ tab.label }}</span>
+        <span v-if="tab.dirty" class="tab-dirty">●</span>
+        <button class="tab-close" @click.stop="emit('close', tab.id)">
           <SvgIcon name="close" :size="10" />
         </button>
       </div>
@@ -88,7 +96,7 @@ function onMiddleClick(id: string, e: MouseEvent) {
     <input
       ref="fileInputEl"
       type="file"
-      accept="image/png,image/jpeg,image/webp"
+      :accept="accept || '*/*'"
       style="display:none"
       @change="onFileInput"
     />
@@ -96,7 +104,7 @@ function onMiddleClick(id: string, e: MouseEvent) {
 </template>
 
 <style scoped>
-.tab-bar {
+.shell-tab-bar {
   display: flex;
   align-items: stretch;
   background: #1e1e1e;
@@ -105,7 +113,7 @@ function onMiddleClick(id: string, e: MouseEvent) {
   min-height: 32px;
   user-select: none;
 }
-.tab-bar.drag-over {
+.shell-tab-bar.drag-over {
   background: #2a3a2a;
 }
 .tab-scroll {
@@ -118,7 +126,7 @@ function onMiddleClick(id: string, e: MouseEvent) {
 .tab-item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   padding: 0 10px;
   min-width: 80px;
   max-width: 160px;
@@ -140,6 +148,11 @@ function onMiddleClick(id: string, e: MouseEvent) {
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
+}
+.tab-dirty {
+  color: #8ab4f8;
+  font-size: 8px;
+  flex-shrink: 0;
 }
 .tab-close {
   background: none;

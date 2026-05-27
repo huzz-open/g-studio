@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from '../../../shared/i18n'
 import { useSettings } from '../../../shared/settings'
 import { useWorkspace } from '../../../shared/workspace'
@@ -134,40 +134,10 @@ const arrangeModeOptions = [
   { value: 'standardize', labelKey: 'slicer.arrangeMode.standardize' },
   { value: 'bin-pack', labelKey: 'slicer.arrangeMode.binPack' },
 ]
-
-const sidebarWidth = ref(300)
-const MIN_WIDTH = 220
-const MAX_WIDTH = 500
-let dragging = false
-
-function onResizeStart(e: MouseEvent) {
-  e.preventDefault()
-  dragging = true
-  document.addEventListener('mousemove', onResizeMove)
-  document.addEventListener('mouseup', onResizeEnd)
-  document.body.style.cursor = 'col-resize'
-  document.body.style.userSelect = 'none'
-}
-function onResizeMove(e: MouseEvent) {
-  if (!dragging) return
-  sidebarWidth.value = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, e.clientX))
-}
-function onResizeEnd() {
-  dragging = false
-  document.removeEventListener('mousemove', onResizeMove)
-  document.removeEventListener('mouseup', onResizeEnd)
-  document.body.style.cursor = ''
-  document.body.style.userSelect = ''
-}
-
-onUnmounted(() => {
-  document.removeEventListener('mousemove', onResizeMove)
-  document.removeEventListener('mouseup', onResizeEnd)
-})
 </script>
 
 <template>
-  <aside class="sidebar" :style="{ width: sidebarWidth + 'px', minWidth: sidebarWidth + 'px' }">
+  <div class="sidebar-content">
     <!-- Source / Upload -->
     <div class="sidebar-section">
       <h4>{{ t('slicer.source') }}</h4>
@@ -376,28 +346,18 @@ onUnmounted(() => {
         </button>
       </div>
     </div>
-  </aside>
-  <div class="resize-handle" @mousedown="onResizeStart" />
+  </div>
 </template>
 
 <style scoped>
-.sidebar {
-  background: #252525;
-  border-right: 1px solid #3a3a3a;
+.sidebar-content {
   padding: 12px;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  height: 100%;
+  overflow-y: auto;
 }
-.resize-handle {
-  width: 4px;
-  cursor: col-resize;
-  background: transparent;
-  flex-shrink: 0;
-  transition: background 0.15s;
-}
-.resize-handle:hover { background: #5577aa44; }
 .sidebar-section {
   padding-bottom: 10px;
   margin-bottom: 6px;

@@ -23,6 +23,11 @@ const router = createRouter({
       name: 'map-editor',
       component: () => import('../modules/map-editor/components/MapEditorView.vue'),
     },
+    {
+      path: '/tileset-maker',
+      name: 'tileset-maker',
+      component: () => import('../modules/tileset-maker/components/TilesetMakerView.vue'),
+    },
   ],
 })
 

@@ -1,0 +1,170 @@
+<script setup lang="ts">
+import { ref, computed, watch, onUnmounted } from 'vue'
+import { useI18n } from '../../../shared/i18n'
+import type { TilesetInstance } from '../store'
+import { getLayout } from '../core/layouts'
+import ImageCanvas from '../../../shared/components/ImageCanvas.vue'
+
+const { t } = useI18n()
+const props = defineProps<{ store: TilesetInstance }>()
+const hoverTile = ref<{ col: number; row: number; idx: number } | null>(null)
+const atlasBlobUrl = ref('')
+
+const layout = computed(() => getLayout(props.store.state.layout))
+const tileW = computed(() => props.store.state.atlasTileW)
+const tileH = computed(() => props.store.state.atlasTileH)
+const atlasW = computed(() => props.store.state.atlasWidth)
+const atlasH = computed(() => props.store.state.atlasHeight)
+const layoutCols = computed(() => layout.value.cols)
+const layoutRows = computed(() => layout.value.rows)
+
+watch(() => props.store.state.atlasPixels, (pixels) => {
+  if (!pixels) { atlasBlobUrl.value = ''; return }
+  const w = props.store.state.atlasWidth
+  const h = props.store.state.atlasHeight
+  const canvas = new OffscreenCanvas(w, h)
+  const ctx = canvas.getContext('2d')!
+  ctx.putImageData(new ImageData(new Uint8ClampedArray(pixels), w, h), 0, 0)
+  canvas.convertToBlob({ type: 'image/png' }).then(blob => {
+    if (atlasBlobUrl.value) URL.revokeObjectURL(atlasBlobUrl.value)
+    atlasBlobUrl.value = URL.createObjectURL(blob)
+  })
+}, { immediate: true })
+
+onUnmounted(() => {
+  if (atlasBlobUrl.value) URL.revokeObjectURL(atlasBlobUrl.value)
+})
+
+const gridLines = computed(() => {
+  if (!tileW.value || !tileH.value) return []
+  const lines: { x1: number; y1: number; x2: number; y2: number }[] = []
+  for (let c = 1; c < layoutCols.value; c++) {
+    const x = c * tileW.value
+    lines.push({ x1: x, y1: 0, x2: x, y2: atlasH.value })
+  }
+  for (let r = 1; r < layoutRows.value; r++) {
+    const y = r * tileH.value
+    lines.push({ x1: 0, y1: y, x2: atlasW.value, y2: y })
+  }
+  return lines
+})
+
+function onSvgMouseMove(e: MouseEvent) {
+  const svg = e.currentTarget as SVGSVGElement
+  const pt = svg.createSVGPoint()
+  pt.x = e.clientX
+  pt.y = e.clientY
+  const ctm = svg.getScreenCTM()
+  if (!ctm) return
+  const svgPt = pt.matrixTransform(ctm.inverse())
+  const col = Math.floor(svgPt.x / tileW.value)
+  const row = Math.floor(svgPt.y / tileH.value)
+  const tile = layout.value.tiles.find(t => t.col === col && t.row === row)
+  hoverTile.value = tile ? { col, row, idx: tile.peeringIndex } : null
+}
+
+function onSvgMouseLeave() {
+  hoverTile.value = null
+}
+</script>
+
+<template>
+  <div class="atlas-preview">
+    <ImageCanvas
+      :src="atlasBlobUrl"
+      :pixelated="true"
+      :checker-background="true"
+      :min-scale="0.5"
+      :max-scale="16"
+      show-info-bar
+      controls-position="bottom-right"
+    >
+      <template #toolbar-left>
+        <div class="layout-buttons">
+          <span class="layout-label">{{ t('tileset.layout') }}:</span>
+          <button
+            :class="{ active: props.store.state.layout === '8x6' }"
+            @click="props.store.setLayout('8x6')"
+          >8×6</button>
+          <button
+            :class="{ active: props.store.state.layout === '11x5' }"
+            @click="props.store.setLayout('11x5')"
+          >11×5</button>
+        </div>
+      </template>
+
+      <template #toolbar-right>
+        <span v-if="hoverTile" class="tile-info">
+          Tile #{{ hoverTile.idx }} @ ({{ hoverTile.col }}, {{ hoverTile.row }})
+        </span>
+      </template>
+
+      <template #default>
+        <svg
+          v-if="atlasW && atlasH"
+          class="grid-overlay"
+          :viewBox="`0 0 ${atlasW} ${atlasH}`"
+          preserveAspectRatio="xMidYMid meet"
+          overflow="visible"
+          @mousemove="onSvgMouseMove"
+          @mouseleave="onSvgMouseLeave"
+        >
+          <rect :width="atlasW" :height="atlasH" fill="transparent" />
+
+          <line
+            v-for="(ln, i) in gridLines" :key="i"
+            :x1="ln.x1" :y1="ln.y1" :x2="ln.x2" :y2="ln.y2"
+            stroke="rgba(255,255,255,0.15)" stroke-width="1"
+            shape-rendering="crispEdges"
+            style="pointer-events: none"
+          />
+
+          <rect
+            v-if="hoverTile"
+            :x="hoverTile.col * tileW"
+            :y="hoverTile.row * tileH"
+            :width="tileW"
+            :height="tileH"
+            fill="rgba(106, 154, 226, 0.18)"
+            stroke="rgba(106, 154, 226, 0.7)"
+            stroke-width="1.5"
+            style="pointer-events: none"
+          />
+        </svg>
+      </template>
+    </ImageCanvas>
+  </div>
+</template>
+
+<style scoped>
+.atlas-preview {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.layout-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.layout-label { font-size: 11px; color: #888; margin-right: 2px; }
+.layout-buttons button {
+  padding: 2px 6px;
+  font-size: 10px;
+  border: 1px solid #444;
+  border-radius: 3px;
+  background: #2a2a2a;
+  color: #aaa;
+  cursor: pointer;
+}
+.layout-buttons button.active { border-color: #6a8; color: #ade; background: #2a3a2e; }
+.layout-buttons button:hover { border-color: #666; }
+.tile-info { font-size: 11px; color: #888; }
+</style>

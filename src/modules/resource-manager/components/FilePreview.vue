@@ -39,6 +39,11 @@ function openInSlicer() {
   router.push({ path: '/sprite-slicer', query: { resource: props.file.meta.uid, path: props.file.path } })
 }
 
+function openInTilesetMaker() {
+  if (!props.file?.meta?.uid) return
+  router.push({ path: '/tileset-maker', query: { resource: props.file.meta.uid, path: props.file.path } })
+}
+
 function formatDate(ts?: number): string {
   if (!ts) return '-'
   return new Date(ts).toLocaleString()
@@ -92,6 +97,14 @@ function formatDate(ts?: number): string {
       >
         <SvgIcon name="scissors" :size="12" />
         在切分器中打开
+      </button>
+      <button
+        v-if="file.meta?.openWith === 'tileset-maker' || file.meta?.type === 'tile'"
+        class="btn btn-sm"
+        @click="openInTilesetMaker"
+      >
+        <SvgIcon name="grid" :size="12" />
+        在瓦片集制作中打开
       </button>
       <button class="btn btn-sm btn-danger" @click="emit('delete', file)">
         <SvgIcon name="trash" :size="12" />
