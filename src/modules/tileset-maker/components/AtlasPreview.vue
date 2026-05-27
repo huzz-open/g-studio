@@ -95,7 +95,7 @@ function onSvgMouseLeave() {
 
       <template #toolbar-right>
         <span v-if="hoverTile" class="tile-info">
-          Tile #{{ hoverTile.idx }} @ ({{ hoverTile.col }}, {{ hoverTile.row }})
+          {{ t('tileset.atlas.tileInfo', { idx: hoverTile.idx, col: hoverTile.col, row: hoverTile.row }) }}
         </span>
       </template>
 

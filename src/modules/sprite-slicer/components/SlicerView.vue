@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, reactive, onMounted, computed } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from '../../../shared/i18n'
 import { useSlicerStore } from '../store'
@@ -23,7 +23,7 @@ import type { OutputPayload } from './SlicerSidebar.vue'
 import { showToast, withProgress } from '../../../shared/components/toast'
 import { confirm } from '../../../shared/components/confirm'
 import { EditorShell } from '../../../shared/components/editor-shell'
-import type { TabItem, PanelConfig, DropModifiers } from '../../../shared/components/editor-shell'
+import type { TabItem, PanelConfig } from '../../../shared/components/editor-shell'
 import SlicerSidebar from './SlicerSidebar.vue'
 import SlicerPreview from './SlicerPreview.vue'
 import AnimationPreview from './AnimationPreview.vue'
@@ -48,7 +48,7 @@ const leftPanelConfig: PanelConfig = {
 const tabs = computed<TabItem[]>(() =>
   store.tabs.value.map(tab => ({
     id: tab.id,
-    label: tab.fileName,
+    label: tab.fileName || t('common.newTab'),
     dirty: store.isTabModified(tab.id),
   }))
 )
@@ -259,24 +259,25 @@ async function saveOriginalToWorkspace(file: File) {
 }
 
 function onFile(file: File) {
-  store.addTab(file)
-  offerSaveToWorkspace(file)
-}
-
-function onAddFile(file: File) {
-  store.addTab(file)
-  offerSaveToWorkspace(file)
-}
-
-function onViewportDrop(files: File[], modifiers: DropModifiers) {
-  const file = files[0]
-  if (!file || !file.type.startsWith('image/')) return
-  const replace = modifiers.alt && store.hasActiveTab.value
-  if (replace) {
+  const activeTab = store.tabs.value.find(t => t.id === store.activeTabId.value)
+  if (activeTab && !store.sourceImage.value) {
+    activeTab.fileName = file.name
     store.loadFile(file)
   } else {
     store.addTab(file)
   }
+  offerSaveToWorkspace(file)
+}
+
+function onTabAddFile(file: File) {
+  store.addTab(file)
+  offerSaveToWorkspace(file)
+}
+
+function onTabLoadFile(file: File) {
+  const activeTab = store.tabs.value.find(t => t.id === store.activeTabId.value)
+  if (activeTab) activeTab.fileName = file.name
+  store.loadFile(file)
 }
 
 function onTabSwitch(id: string) {
@@ -565,11 +566,13 @@ watch(() => store.namePrefix.value, () => {
     :left-collapsed="leftCollapsed"
     :show-empty="showEmpty"
     :loading="loadingResource"
+    :auto-empty-tab="!route.query.resource"
     :viewport="{ accept: 'image/png,image/jpeg,image/webp', dropOverlayText: t('common.dropToOpen'), altDropOverlayText: t('common.dropToReplace'), emptyState: { icon: 'upload', titleKey: t('slicer.upload.desc'), descKey: t('slicer.upload.hint') } }"
     @tab-switch="onTabSwitch"
     @tab-close="onTabClose"
-    @tab-add-file="onAddFile"
-    @viewport-drop="onViewportDrop"
+    @tab-add-empty="store.addEmptyTab()"
+    @tab-add-file="onTabAddFile"
+    @tab-load-file="onTabLoadFile"
     @update:left-collapsed="leftCollapsed = $event"
   >
     <!-- Left sidebar -->

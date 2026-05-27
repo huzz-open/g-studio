@@ -90,7 +90,7 @@ const showOverlay = computed(() => dragging.value && (props.dropOverlayText || p
     </Transition>
 
     <!-- Empty state -->
-    <div v-if="showEmpty && !loading" class="empty-state">
+    <div v-if="showEmpty && !loading && !dragging" class="empty-state">
       <SvgIcon v-if="emptyIcon" :name="emptyIcon" :size="48" />
       <p v-if="emptyTitle" class="empty-title">{{ emptyTitle }}</p>
       <p v-if="emptyDesc" class="empty-desc">{{ emptyDesc }}</p>

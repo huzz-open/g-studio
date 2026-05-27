@@ -333,6 +333,24 @@ function createSlicerStore() {
     _origImgSize = null
   }
 
+  function addEmptyTab(): string {
+    const id = `tab-${++tabIdCounter}`
+    const info: SlicerTabInfo = { id, fileName: '' }
+
+    if (activeTabId.value) {
+      const snap = snapshotActive()
+      if (snap) tabSnapshots.set(activeTabId.value, snap)
+    }
+
+    _restoring = true
+    resetWorkingState()
+    tabs.value = [...tabs.value, info]
+    activeTabId.value = id
+    nextTick(() => { _restoring = false })
+
+    return id
+  }
+
   function addTab(file: File, workspacePath?: string, resourceUid?: string): string {
     const id = `tab-${++tabIdCounter}`
     const info: SlicerTabInfo = { id, fileName: file.name, workspacePath, resourceUid }
@@ -714,7 +732,7 @@ function createSlicerStore() {
 
   return {
     tabs, activeTabId, hasActiveTab,
-    addTab, removeTab, switchTab, isRestoring,
+    addEmptyTab, addTab, removeTab, switchTab, isRestoring,
 
     sourceImage, imgSize, loading, saving,
     bgRemoverId, bgColor, bgTolerance, bgSpillStrength,

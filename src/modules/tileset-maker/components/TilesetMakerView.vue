@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from '../../../shared/i18n'
 import { EditorShell, SidebarSection } from '../../../shared/components/editor-shell'
-import type { TabItem, PanelConfig, DropModifiers } from '../../../shared/components/editor-shell'
+import type { TabItem, PanelConfig } from '../../../shared/components/editor-shell'
 import { getTilesetInstance, removeTilesetInstance, type TilesetInstance } from '../store'
 import TextureSourcePanel from './TextureSourcePanel.vue'
 import NineGridSourcePanel from './NineGridSourcePanel.vue'
@@ -25,7 +25,7 @@ let tabCounter = 0
 const tabs = computed<TabItem[]>(() =>
   tabInstances.value.map(inst => ({
     id: inst.id,
-    label: inst.state.textureFileName || inst.state.nineGridFileName || t('tileset.newTab'),
+    label: inst.state.textureFileName || inst.state.nineGridFileName || t('common.newTab'),
     dirty: inst.state.isDirty,
   }))
 )
@@ -73,15 +73,10 @@ function onTabAddFile(file: File) {
   loadFileToInstance(inst, file)
 }
 
-function onViewportDrop(files: File[], _modifiers: DropModifiers) {
-  const file = files[0]
-  if (!file) return
-  if (activeInstance.value) {
-    loadFileToInstance(activeInstance.value, file)
-  } else {
-    const inst = createTab(file.name)
-    loadFileToInstance(inst, file)
-  }
+function onTabLoadFile(file: File) {
+  if (!activeInstance.value) return
+  activeInstance.value.state.textureFileName = file.name
+  loadFileToInstance(activeInstance.value, file)
 }
 
 function loadFileToInstance(inst: TilesetInstance, file: File) {
@@ -110,8 +105,6 @@ onMounted(() => {
   const resourceId = route.query.resource as string | undefined
   if (resourceId) {
     loadFromResource(resourceId)
-  } else {
-    createTab()
   }
 })
 
@@ -133,11 +126,13 @@ const showEmpty = computed(() => !activeInstance.value || !activeInstance.value.
     :right-collapsed="rightCollapsed"
     :show-empty="showEmpty"
     :loading="activeInstance?.state.isGenerating ?? false"
+    :auto-empty-tab="!route.query.resource"
     :viewport="{ accept: 'image/png,image/jpeg,image/webp', dropOverlayText: t('common.dropToOpen'), emptyState: { icon: 'upload', titleKey: t('tileset.empty.title'), descKey: activeInstance?.state.mode === 'sdf' ? t('tileset.empty.sdfHint') : t('tileset.empty.subtileHint') } }"
     @tab-switch="onTabSwitch"
     @tab-close="onTabClose"
+    @tab-add-empty="createTab()"
     @tab-add-file="onTabAddFile"
-    @viewport-drop="onViewportDrop"
+    @tab-load-file="onTabLoadFile"
     @update:left-collapsed="leftCollapsed = $event"
     @update:right-collapsed="rightCollapsed = $event"
   >

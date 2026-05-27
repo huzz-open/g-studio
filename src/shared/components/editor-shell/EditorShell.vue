@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import ShellTabBar from './ShellTabBar.vue'
 import SidePanel from './SidePanel.vue'
 import ViewportArea from './ViewportArea.vue'
@@ -16,18 +17,22 @@ const props = withDefaults(defineProps<{
   viewport?: ViewportConfig
   showEmpty?: boolean
   loading?: boolean
+  autoEmptyTab?: boolean
 }>(), {
   tabAccept: '*/*',
   leftCollapsed: false,
   rightCollapsed: false,
   showEmpty: false,
   loading: false,
+  autoEmptyTab: true,
 })
 
 const emit = defineEmits<{
   'tab-switch': [id: string]
   'tab-close': [id: string]
+  'tab-add-empty': []
   'tab-add-file': [file: File]
+  'tab-load-file': [file: File]
   'viewport-drop': [files: File[], modifiers: DropModifiers]
   'update:leftCollapsed': [val: boolean]
   'update:rightCollapsed': [val: boolean]
@@ -36,6 +41,26 @@ const emit = defineEmits<{
 const shell = useEditorShell()
 shell.leftCollapsed.value = props.leftCollapsed
 shell.rightCollapsed.value = props.rightCollapsed
+
+onMounted(() => {
+  if (props.autoEmptyTab && props.tabs.length === 0) {
+    emit('tab-add-empty')
+  }
+})
+
+function onViewportDrop(files: File[], modifiers: DropModifiers) {
+  emit('viewport-drop', files, modifiers)
+
+  const file = files[0]
+  if (!file) return
+  if (modifiers.alt && props.activeTabId) {
+    emit('tab-load-file', file)
+  } else if (props.showEmpty && props.activeTabId) {
+    emit('tab-load-file', file)
+  } else {
+    emit('tab-add-file', file)
+  }
+}
 </script>
 
 <template>
@@ -75,7 +100,7 @@ shell.rightCollapsed.value = props.rightCollapsed
         :empty-desc="viewport?.emptyState?.descKey"
         :show-empty="showEmpty"
         :loading="loading"
-        @drop="(files, mods) => emit('viewport-drop', files, mods)"
+        @drop="onViewportDrop"
       >
         <slot name="viewport" />
       </ViewportArea>

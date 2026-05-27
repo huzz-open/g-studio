@@ -182,7 +182,7 @@ function useTexture() {
             @pointerup="onPointerUp"
             @pointerleave="onPointerUp"
           />
-          <div class="preview-label">3×3 Tiling</div>
+          <div class="preview-label">{{ t('tileset.painter.tilingPreview') }}</div>
           <canvas ref="previewEl" class="preview-canvas" />
         </div>
       </div>

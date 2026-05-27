@@ -4,6 +4,7 @@ import { getProfile } from './core/sdf/profiles'
 import { getLayout } from './core/layouts'
 import { generateTileset } from './core/generator'
 import { createTerrainGrid, TerrainHistory } from './core/preview'
+import { translate } from '../../shared/i18n'
 
 export interface TilesetMakerState {
   mode: GenerationMode
@@ -150,7 +151,7 @@ export function createTilesetInstance(id: string) {
     const w = bitmap.width
     const h = bitmap.height
     if (w % 6 !== 0 || h % 6 !== 0) {
-      state.generateError = `Image size ${w}×${h} is not divisible by 6`
+      state.generateError = translate('tileset.ninegrid.sizeError', { w, h })
       return
     }
     state.nineGridImage = bitmap

@@ -34,6 +34,17 @@ export function setLocale(code: string) {
   } catch (e) { console.warn('[i18n] localStorage write failed:', e) }
 }
 
+export function translate(key: string, params?: Record<string, string | number>): string {
+  const dict = messages[locale.value] ?? messages['zh-CN']
+  let text = dict[key] ?? key
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      text = text.replace(`{${k}}`, String(v))
+    }
+  }
+  return text
+}
+
 export function useI18n() {
   const t = computed(() => {
     const dict = messages[locale.value] ?? messages['zh-CN']

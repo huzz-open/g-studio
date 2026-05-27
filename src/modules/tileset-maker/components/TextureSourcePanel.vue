@@ -60,7 +60,7 @@ function onTileSize(e: Event) {
           class="chip"
           :class="{ active: props.store.state.profile.style === name }"
           @click="selectStyle(name)"
-        >{{ name }}</button>
+        >{{ t('tileset.profile.' + name) }}</button>
       </div>
     </div>
 
