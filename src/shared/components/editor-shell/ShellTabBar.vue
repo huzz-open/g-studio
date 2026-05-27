@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import SvgIcon from '../../icons/SvgIcon.vue'
+import { matchesAccept } from '../../utils/file-accept'
 import type { TabItem } from './types'
 
 const props = defineProps<{
@@ -44,15 +45,7 @@ function onDrop(e: DragEvent) {
   dragging.value = false
   const file = e.dataTransfer?.files?.[0]
   if (!file) return
-  if (props.accept && props.accept !== '*/*') {
-    const exts = props.accept.split(',').map(s => s.trim())
-    const valid = exts.some(ext => {
-      if (ext.startsWith('.')) return file.name.toLowerCase().endsWith(ext)
-      if (ext.endsWith('/*')) return file.type.startsWith(ext.replace('/*', '/'))
-      return file.type === ext
-    })
-    if (!valid) return
-  }
+  if (!matchesAccept(file, props.accept ?? '*/*')) return
   emit('addFile', file)
 }
 

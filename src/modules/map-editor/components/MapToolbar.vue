@@ -2,6 +2,7 @@
 import { ref, computed, toRef, onMounted, onUnmounted } from 'vue'
 import { useI18n } from '../../../shared/i18n'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
+import { downloadJson } from '../../../shared/utils/download'
 import type { MapEditorInstance } from '../store'
 import type { WorldMapData } from '../types'
 
@@ -38,14 +39,7 @@ function onLoadBaseMap(e: Event) {
 }
 
 function exportJson() {
-  const json = JSON.stringify(state.value.mapData, null, 2)
-  const blob = new Blob([json], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'world-map-data.json'
-  a.click()
-  URL.revokeObjectURL(url)
+  downloadJson(state.value.mapData, 'world-map-data.json')
 }
 
 function doUndo() { props.store.undo() }

@@ -3,24 +3,16 @@ import { useI18n } from '../../../shared/i18n'
 import type { TilesetInstance } from '../store'
 import { generateTres } from '../core/tres-export'
 import { getLayout } from '../core/layouts'
+import { downloadBlob } from '../../../shared/utils/download'
+import { pixelsToBlob } from '../../../shared/utils/canvas'
 
 const { t } = useI18n()
 const props = defineProps<{ store: TilesetInstance }>()
 
-function exportPng() {
+async function exportPng() {
   const s = props.store.state
-  const canvas = new OffscreenCanvas(s.atlasWidth, s.atlasHeight)
-  const ctx = canvas.getContext('2d')!
-  const imgData = new ImageData(new Uint8ClampedArray(s.atlasPixels), s.atlasWidth, s.atlasHeight)
-  ctx.putImageData(imgData, 0, 0)
-  canvas.convertToBlob({ type: 'image/png' }).then(blob => {
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${s.terrainName || 'tileset'}.png`
-    a.click()
-    URL.revokeObjectURL(url)
-  })
+  const blob = await pixelsToBlob(s.atlasPixels, s.atlasWidth, s.atlasHeight)
+  downloadBlob(blob, `${s.terrainName || 'tileset'}.png`)
 }
 
 function exportPngTres() {
@@ -30,13 +22,7 @@ function exportPngTres() {
   const filename = `${s.terrainName || 'tileset'}.png`
   const layout = getLayout(s.layout)
   const tres = generateTres(filename, tileSize, s.terrainName || 'Terrain', layout)
-  const blob = new Blob([tres], { type: 'text/plain' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${s.terrainName || 'tileset'}.tres`
-  a.click()
-  URL.revokeObjectURL(url)
+  downloadBlob(new Blob([tres], { type: 'text/plain' }), `${s.terrainName || 'tileset'}.tres`)
 }
 </script>
 

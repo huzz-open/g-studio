@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from '../../../shared/i18n'
+import { pixelsToBlobUrl } from '../../../shared/utils/canvas'
 import type { TilesetInstance } from '../store'
 import { getLayout } from '../core/layouts'
 import ImageCanvas from '../../../shared/components/ImageCanvas.vue'
@@ -18,17 +19,15 @@ const atlasH = computed(() => props.store.state.atlasHeight)
 const layoutCols = computed(() => layout.value.cols)
 const layoutRows = computed(() => layout.value.rows)
 
-watch(() => props.store.state.atlasPixels, (pixels) => {
+watch(() => props.store.state.atlasPixels, async (pixels) => {
   if (!pixels) { atlasBlobUrl.value = ''; return }
-  const w = props.store.state.atlasWidth
-  const h = props.store.state.atlasHeight
-  const canvas = new OffscreenCanvas(w, h)
-  const ctx = canvas.getContext('2d')!
-  ctx.putImageData(new ImageData(new Uint8ClampedArray(pixels), w, h), 0, 0)
-  canvas.convertToBlob({ type: 'image/png' }).then(blob => {
-    if (atlasBlobUrl.value) URL.revokeObjectURL(atlasBlobUrl.value)
-    atlasBlobUrl.value = URL.createObjectURL(blob)
-  })
+  const oldUrl = atlasBlobUrl.value
+  atlasBlobUrl.value = await pixelsToBlobUrl(
+    pixels,
+    props.store.state.atlasWidth,
+    props.store.state.atlasHeight,
+  )
+  if (oldUrl) URL.revokeObjectURL(oldUrl)
 }, { immediate: true })
 
 onUnmounted(() => {

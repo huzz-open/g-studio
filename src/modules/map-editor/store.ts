@@ -310,24 +310,12 @@ export function createMapEditorInstance(id: string) {
 
 export type MapEditorInstance = ReturnType<typeof createMapEditorInstance>
 
-const instances = new Map<string, MapEditorInstance>()
+import { createInstanceRegistry } from '../../shared/components/editor-shell/createInstanceRegistry'
 
-export function getMapEditorInstance(id: string): MapEditorInstance {
-  let inst = instances.get(id)
-  if (!inst) {
-    inst = createMapEditorInstance(id)
-    instances.set(id, inst)
-  }
-  return inst
-}
+const registry = createInstanceRegistry(createMapEditorInstance)
+export const getMapEditorInstance = registry.get
+export const removeMapEditorInstance = registry.remove
 
-export function removeMapEditorInstance(id: string) {
-  instances.delete(id)
-}
-
-// Backward-compatible default singleton for simple usage
-let _default: MapEditorInstance | null = null
 export function useMapEditorStore(): MapEditorInstance {
-  if (!_default) _default = getMapEditorInstance('__default__')
-  return _default
+  return getMapEditorInstance('__default__')
 }

@@ -8,8 +8,8 @@ import { showToast } from '../../../shared/components/toast'
 import { prompt } from '../../../shared/components/prompt'
 import { useWorkspace, getWorkspaceHandle } from '../../../shared/workspace'
 import { resolveDir, writeFile as fsWriteFile, listDirs } from '../../../shared/workspace/fs'
-import { EditorShell } from '../../../shared/components/editor-shell'
-import type { PanelConfig, DropModifiers } from '../../../shared/components/editor-shell'
+import { EditorShell, definePanelConfig } from '../../../shared/components/editor-shell'
+import type { DropModifiers } from '../../../shared/components/editor-shell'
 import DirectoryTree from './DirectoryTree.vue'
 import FileGrid from './FileGrid.vue'
 import FilePreview from './FilePreview.vue'
@@ -35,15 +35,8 @@ const rootHandle = ref<FileSystemDirectoryHandle | null>(null)
 const selectedDirPath = ref('')
 const expandedPaths = ref<Set<string>>(new Set())
 
-const leftPanelConfig: PanelConfig = {
-  width: { default: 240, min: 180, max: 480 },
-  persistKey: 'rm-tree-width',
-}
-
-const rightPanelConfig: PanelConfig = {
-  width: { default: 260, min: 180, max: 480 },
-  persistKey: 'rm-preview-width',
-}
+const leftPanelConfig = definePanelConfig('rm-tree-width', 240)
+const rightPanelConfig = definePanelConfig('rm-preview-width')
 
 const wsFiles = computed<FsEntry[]>(() => {
   if (!scanResult.value) return []
@@ -288,6 +281,7 @@ const showRightPanel = computed(() => !!selectedFile.value)
         :left-collapsed="leftCollapsed"
         :right-collapsed="rightCollapsed"
         :viewport="{ accept: '*/*', dropOverlayText: '拖放文件到此处上传' }"
+        :managed-drop="false"
         @viewport-drop="onViewportDrop"
         @update:left-collapsed="leftCollapsed = $event"
         @update:right-collapsed="rightCollapsed = $event"

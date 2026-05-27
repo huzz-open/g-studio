@@ -8,10 +8,12 @@ const props = withDefaults(defineProps<{
   max?: number
   step?: number
   suffix?: string
+  disabled?: boolean
 }>(), {
   min: 0,
   max: 100,
   step: 1,
+  disabled: false,
 })
 
 const emit = defineEmits<{
@@ -24,7 +26,7 @@ const displayVal = computed(() =>
 </script>
 
 <template>
-  <div class="slider-row">
+  <div class="slider-row" :class="{ disabled }">
     <div class="slider-label">
       <span>{{ label }}</span>
       <span class="slider-value">{{ displayVal }}</span>
@@ -36,6 +38,7 @@ const displayVal = computed(() =>
       :min="min"
       :max="max"
       :step="step"
+      :disabled="disabled"
       @input="emit('update:modelValue', +($event.target as HTMLInputElement).value)"
     />
   </div>
@@ -75,4 +78,5 @@ const displayVal = computed(() =>
   background: #8ab4f8;
   cursor: pointer;
 }
+.slider-row.disabled { opacity: 0.4; pointer-events: none; }
 </style>

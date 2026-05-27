@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import SvgIcon from '../../icons/SvgIcon.vue'
 import { useI18n } from '../../i18n'
+import { filterFilesByAccept } from '../../utils/file-accept'
 import type { DropModifiers } from './types'
 
 const { t } = useI18n()
@@ -50,21 +51,11 @@ function onDrop(e: DragEvent) {
   e.preventDefault()
   dragCounter = 0
   dragging.value = false
-  const files = Array.from(e.dataTransfer?.files ?? [])
-  if (!files.length) return
-
-  if (props.accept && props.accept !== '*/*') {
-    const exts = props.accept.split(',').map(s => s.trim())
-    const valid = files.filter(f => exts.some(ext => {
-      if (ext.startsWith('.')) return f.name.toLowerCase().endsWith(ext)
-      if (ext.endsWith('/*')) return f.type.startsWith(ext.replace('/*', '/'))
-      return f.type === ext
-    }))
-    if (!valid.length) return
-    emit('drop', valid, { alt: e.altKey, ctrl: e.ctrlKey, shift: e.shiftKey })
-  } else {
-    emit('drop', files, { alt: e.altKey, ctrl: e.ctrlKey, shift: e.shiftKey })
-  }
+  const raw = Array.from(e.dataTransfer?.files ?? [])
+  if (!raw.length) return
+  const valid = filterFilesByAccept(raw, props.accept)
+  if (!valid.length) return
+  emit('drop', valid, { alt: e.altKey, ctrl: e.ctrlKey, shift: e.shiftKey })
 }
 
 const showOverlay = computed(() => dragging.value && (props.dropOverlayText || props.altDropOverlayText))

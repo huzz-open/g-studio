@@ -267,20 +267,11 @@ export function createTilesetInstance(id: string) {
 
 export type TilesetInstance = ReturnType<typeof createTilesetInstance>
 
-const instances = new Map<string, TilesetInstance>()
+import { createInstanceRegistry } from '../../shared/components/editor-shell/createInstanceRegistry'
 
-export function getTilesetInstance(id: string): TilesetInstance {
-  let inst = instances.get(id)
-  if (!inst) {
-    inst = createTilesetInstance(id)
-    instances.set(id, inst)
-  }
-  return inst
-}
-
-export function removeTilesetInstance(id: string) {
-  instances.delete(id)
-}
+const registry = createInstanceRegistry(createTilesetInstance)
+export const getTilesetInstance = registry.get
+export const removeTilesetInstance = registry.remove
 
 export function useTilesetStore(): TilesetInstance {
   return getTilesetInstance('__default__')

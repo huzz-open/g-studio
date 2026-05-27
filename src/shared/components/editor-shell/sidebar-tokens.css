@@ -1,0 +1,58 @@
+.sidebar-section-title {
+  font-size: 11px;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.sidebar-select {
+  width: 100%;
+  padding: 3px 6px;
+  font-size: 11px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #ddd;
+  cursor: pointer;
+}
+.sidebar-select:focus {
+  outline: none;
+  border-color: #5577aa;
+}
+
+.sidebar-input {
+  width: 100%;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #ccc;
+}
+.sidebar-input:focus {
+  outline: none;
+  border-color: #5577aa;
+}
+
+.sidebar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  background: #3a5070;
+  color: #dde4f0;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s;
+}
+.sidebar-btn:hover:not(:disabled) { background: #4a6080; }
+.sidebar-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.sidebar-btn-sm { padding: 4px 8px; font-size: 11px; }
+.sidebar-btn-accent { background: #3a6a5a; color: #d0f0e0; }
+.sidebar-btn-accent:hover:not(:disabled) { background: #4a7a6a; }

@@ -2,6 +2,7 @@
 import { useI18n } from '../../../shared/i18n'
 import type { TilesetInstance } from '../store'
 import FileDropZone from '../../../shared/components/FileDropZone.vue'
+import { CheckboxRow } from '../../../shared/components/editor-shell/sidebar-atoms'
 
 const { t } = useI18n()
 const props = defineProps<{ store: TilesetInstance }>()
@@ -25,14 +26,11 @@ const props = defineProps<{ store: TilesetInstance }>()
     </div>
 
     <div class="section">
-      <label class="toggle-row">
-        <input
-          type="checkbox"
-          :checked="props.store.state.useMagenta"
-          @change="props.store.setMagenta(($event.target as HTMLInputElement).checked)"
-        />
-        <span>{{ t('tileset.ninegrid.magenta') }}</span>
-      </label>
+      <CheckboxRow
+        :label="t('tileset.ninegrid.magenta')"
+        :model-value="props.store.state.useMagenta"
+        @update:model-value="props.store.setMagenta($event)"
+      />
       <div v-if="props.store.state.useMagenta" class="slider-row">
         <label>{{ t('tileset.ninegrid.tolerance') }}</label>
         <input
@@ -65,14 +63,6 @@ const props = defineProps<{ store: TilesetInstance }>()
   display: block;
 }
 .error { color: #e88; font-size: 11px; margin-top: 6px; }
-.toggle-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: #ccc;
-  cursor: pointer;
-}
 .slider-row {
   display: grid;
   grid-template-columns: auto 1fr 30px;

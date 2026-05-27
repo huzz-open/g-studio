@@ -5,13 +5,6 @@ export interface TabItem {
   icon?: string
 }
 
-export interface TabConfig {
-  items: TabItem[]
-  activeId: string | null
-  accept: string
-  dropMode: 'new-tab' | 'custom'
-}
-
 export interface PanelConfig {
   width: { default: number; min: number; max: number }
   persistKey: string
@@ -23,11 +16,10 @@ export interface ViewportConfig {
   accept: string
   dropOverlayText?: string
   altDropOverlayText?: string
-  customDrop?: boolean
   emptyState?: {
     icon: string
-    titleKey: string
-    descKey?: string
+    title: string
+    desc?: string
   }
 }
 

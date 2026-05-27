@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import SvgIcon from '../icons/SvgIcon.vue'
+import { filterFilesByAccept } from '../utils/file-accept'
 
 const props = withDefaults(defineProps<{
   accept?: string
@@ -58,32 +59,16 @@ function onDragLeave() {
 function onDrop(e: DragEvent) {
   e.preventDefault()
   dragging.value = false
-  const files = e.dataTransfer?.files
-  if (!files || files.length === 0) return
-
-  if (props.accept !== '*/*') {
-    const exts = props.accept.split(',').map(s => s.trim())
-    const valid = Array.from(files).filter(f =>
-      exts.some(ext => {
-        if (ext.startsWith('.')) return f.name.toLowerCase().endsWith(ext)
-        if (ext.endsWith('/*')) return f.type.startsWith(ext.replace('/*', '/'))
-        return f.type === ext
-      }),
-    )
-    if (valid.length === 0) return
-    if (props.multiple) {
-      const dt = new DataTransfer()
-      valid.forEach(f => dt.items.add(f))
-      emit('files', dt.files)
-    } else {
-      emit('file', valid[0])
-    }
+  const raw = e.dataTransfer?.files
+  if (!raw || raw.length === 0) return
+  const valid = filterFilesByAccept(Array.from(raw), props.accept)
+  if (valid.length === 0) return
+  if (props.multiple) {
+    const dt = new DataTransfer()
+    valid.forEach(f => dt.items.add(f))
+    emit('files', dt.files)
   } else {
-    if (props.multiple) {
-      emit('files', files)
-    } else {
-      emit('file', files[0])
-    }
+    emit('file', valid[0])
   }
 }
 

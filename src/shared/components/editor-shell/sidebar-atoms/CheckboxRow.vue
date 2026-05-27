@@ -1,8 +1,11 @@
 <script setup lang="ts">
-defineProps<{
+const props = withDefaults(defineProps<{
   label: string
   modelValue: boolean
-}>()
+  disabled?: boolean
+}>(), {
+  disabled: false,
+})
 
 const emit = defineEmits<{
   'update:modelValue': [val: boolean]
@@ -16,6 +19,7 @@ const emit = defineEmits<{
         type="checkbox"
         class="checkbox-input"
         :checked="modelValue"
+        :disabled="disabled"
         @change="emit('update:modelValue', ($event.target as HTMLInputElement).checked)"
       />
       <span class="checkbox-text">{{ label }}</span>
@@ -45,4 +49,6 @@ const emit = defineEmits<{
 .checkbox-text {
   user-select: none;
 }
+.checkbox-input:disabled { opacity: 0.4; cursor: default; }
+.checkbox-input:disabled ~ .checkbox-text { opacity: 0.4; }
 </style>

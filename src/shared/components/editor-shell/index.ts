@@ -4,10 +4,13 @@ export { default as SidePanel } from './SidePanel.vue'
 export { default as ViewportArea } from './ViewportArea.vue'
 export { default as SidebarSection } from './SidebarSection.vue'
 export { useEditorShell, EDITOR_SHELL_KEY } from './useEditorShell'
+export { useEditorTabs } from './useEditorTabs'
+export { createInstanceRegistry } from './createInstanceRegistry'
+export { definePanelConfig } from './definePanelConfig'
+export { useRouteResource } from './useRouteResource'
 export * from './sidebar-atoms'
 export type {
   TabItem,
-  TabConfig,
   PanelConfig,
   ViewportConfig,
   DropModifiers,

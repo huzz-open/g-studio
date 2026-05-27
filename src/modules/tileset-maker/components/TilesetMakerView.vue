@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from '../../../shared/i18n'
-import { EditorShell, SidebarSection } from '../../../shared/components/editor-shell'
-import type { TabItem, PanelConfig } from '../../../shared/components/editor-shell'
+import { EditorShell, SidebarSection, useEditorTabs, definePanelConfig, useRouteResource } from '../../../shared/components/editor-shell'
+import type { TabItem } from '../../../shared/components/editor-shell'
 import { getTilesetInstance, removeTilesetInstance, type TilesetInstance } from '../store'
 import TextureSourcePanel from './TextureSourcePanel.vue'
 import NineGridSourcePanel from './NineGridSourcePanel.vue'
@@ -15,12 +15,13 @@ import ExportPanel from './ExportPanel.vue'
 const { t } = useI18n()
 const route = useRoute()
 
-const tabInstances = ref<TilesetInstance[]>([])
-const activeTabId = ref<string | null>(null)
+const { instances: tabInstances, activeTabId, activeInstance, createTab: createTabRaw, switchTab: onTabSwitch, closeTab: onTabClose } = useEditorTabs<TilesetInstance>({
+  prefix: 'tileset',
+  factory: getTilesetInstance,
+  destroy: removeTilesetInstance,
+})
 const leftCollapsed = ref(false)
 const rightCollapsed = ref(false)
-
-let tabCounter = 0
 
 const tabs = computed<TabItem[]>(() =>
   tabInstances.value.map(inst => ({
@@ -30,42 +31,13 @@ const tabs = computed<TabItem[]>(() =>
   }))
 )
 
-const activeInstance = computed<TilesetInstance | null>(() => {
-  if (!activeTabId.value) return null
-  return tabInstances.value.find(i => i.id === activeTabId.value) ?? null
-})
-
-const leftPanelConfig: PanelConfig = {
-  width: { default: 300, min: 180, max: 480 },
-  persistKey: 'tileset-panel-left',
-}
-
-const rightPanelConfig: PanelConfig = {
-  width: { default: 320, min: 180, max: 480 },
-  persistKey: 'tileset-panel-right',
-}
+const leftPanelConfig = definePanelConfig('tileset-panel-left', 300)
+const rightPanelConfig = definePanelConfig('tileset-panel-right', 320)
 
 function createTab(fileName?: string): TilesetInstance {
-  const id = `tileset-${++tabCounter}-${Date.now()}`
-  const inst = getTilesetInstance(id)
+  const inst = createTabRaw()
   if (fileName) inst.state.textureFileName = fileName
-  tabInstances.value.push(inst)
-  activeTabId.value = id
   return inst
-}
-
-function onTabSwitch(id: string) {
-  activeTabId.value = id
-}
-
-function onTabClose(id: string) {
-  const idx = tabInstances.value.findIndex(i => i.id === id)
-  if (idx === -1) return
-  tabInstances.value.splice(idx, 1)
-  removeTilesetInstance(id)
-  if (activeTabId.value === id) {
-    activeTabId.value = tabInstances.value[Math.min(idx, tabInstances.value.length - 1)]?.id ?? null
-  }
 }
 
 function onTabAddFile(file: File) {
@@ -101,16 +73,7 @@ async function loadFromResource(resourceUid: string) {
   } catch { /* best-effort */ }
 }
 
-onMounted(() => {
-  const resourceId = route.query.resource as string | undefined
-  if (resourceId) {
-    loadFromResource(resourceId)
-  }
-})
-
-watch(() => route.query.resource, (newId) => {
-  if (newId && typeof newId === 'string') loadFromResource(newId)
-})
+const { hasRouteResource } = useRouteResource(loadFromResource)
 
 const showEmpty = computed(() => !activeInstance.value || !activeInstance.value.hasSource.value)
 </script>
@@ -126,8 +89,8 @@ const showEmpty = computed(() => !activeInstance.value || !activeInstance.value.
     :right-collapsed="rightCollapsed"
     :show-empty="showEmpty"
     :loading="activeInstance?.state.isGenerating ?? false"
-    :auto-empty-tab="!route.query.resource"
-    :viewport="{ accept: 'image/png,image/jpeg,image/webp', dropOverlayText: t('common.dropToOpen'), emptyState: { icon: 'upload', titleKey: t('tileset.empty.title'), descKey: activeInstance?.state.mode === 'sdf' ? t('tileset.empty.sdfHint') : t('tileset.empty.subtileHint') } }"
+    :auto-empty-tab="!hasRouteResource"
+    :viewport="{ accept: 'image/png,image/jpeg,image/webp', dropOverlayText: t('common.dropToOpen'), emptyState: { icon: 'upload', title: t('tileset.empty.title'), desc: activeInstance?.state.mode === 'sdf' ? t('tileset.empty.sdfHint') : t('tileset.empty.subtileHint') } }"
     @tab-switch="onTabSwitch"
     @tab-close="onTabClose"
     @tab-add-empty="createTab()"

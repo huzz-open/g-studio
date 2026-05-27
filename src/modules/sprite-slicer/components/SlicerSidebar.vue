@@ -10,6 +10,7 @@ import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import FileDropZone from '../../../shared/components/FileDropZone.vue'
 import SegmentedControl from '../../../shared/components/SegmentedControl.vue'
 import InlineSwitch from '../../../shared/components/InlineSwitch.vue'
+import { CheckboxRow } from '../../../shared/components/editor-shell/sidebar-atoms'
 
 export interface OutputPayload {
   composite: boolean
@@ -136,6 +137,10 @@ const arrangeModeOptions = [
   { value: 'standardize', labelKey: 'slicer.arrangeMode.standardize' },
   { value: 'bin-pack', labelKey: 'slicer.arrangeMode.binPack' },
 ]
+
+const bgRemoverOptions = computed(() =>
+  props.store.bgRemovers.map(r => ({ value: r.id, labelKey: r.labelKey })),
+)
 </script>
 
 <template>
@@ -158,16 +163,12 @@ const arrangeModeOptions = [
     <!-- Background Removal -->
     <div class="sidebar-section">
       <h4>{{ t('slicer.bgRemoval') }}</h4>
-      <div class="seg-group">
-        <button
-          v-for="r in store.bgRemovers"
-          :key="r.id"
-          class="seg-item"
-          :class="{ active: store.bgRemoverId.value === r.id }"
-          :disabled="!hasImage"
-          @click="store.bgRemoverId.value = r.id"
-        >{{ t(r.labelKey) }}</button>
-      </div>
+      <SegmentedControl
+        :model-value="store.bgRemoverId.value"
+        :options="bgRemoverOptions"
+        :disabled="!hasImage"
+        @update:model-value="store.bgRemoverId.value = $event"
+      />
 
       <template v-if="store.bgRemoverId.value === 'auto'">
         <div class="param-row slider-row" style="margin-top:8px">
@@ -313,10 +314,12 @@ const arrangeModeOptions = [
       </div>
 
       <div class="cb-pair">
-        <label class="cb-row">
-          <input type="checkbox" v-model="exportOpts.composite" :disabled="!hasImage" />
-          <span>{{ t('slicer.output.composite') }}</span>
-        </label>
+        <CheckboxRow
+          :label="t('slicer.output.composite')"
+          :model-value="exportOpts.composite"
+          :disabled="!hasImage"
+          @update:model-value="exportOpts.composite = $event"
+        />
         <InlineSwitch
           :model-value="exportOpts.meta"
           label=""
@@ -325,10 +328,12 @@ const arrangeModeOptions = [
           @update:model-value="onMetaChange($event)"
         />
       </div>
-      <label class="cb-row">
-        <input type="checkbox" v-model="exportOpts.sprites" :disabled="!hasImage" />
-        <span>{{ t('slicer.output.sprites') }}</span>
-      </label>
+      <CheckboxRow
+        :label="t('slicer.output.sprites')"
+        :model-value="exportOpts.sprites"
+        :disabled="!hasImage"
+        @update:model-value="exportOpts.sprites = $event"
+      />
       <div class="output-btns">
         <button
           class="btn btn-sm"
@@ -373,35 +378,11 @@ const arrangeModeOptions = [
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-.seg-group {
-  display: flex;
-  border: 1px solid #444;
-  border-radius: 5px;
-  overflow: hidden;
-}
-.seg-item {
-  flex: 1;
-  padding: 5px 6px;
-  background: transparent;
-  color: #888;
-  border: none;
-  font-size: 11px;
-  cursor: pointer;
-  text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  transition: background 0.15s, color 0.15s;
-  border-right: 1px solid #444;
-}
+.seg-group { display: flex; border: 1px solid #444; border-radius: 5px; overflow: hidden; }
+.seg-item { flex: 1; padding: 5px 6px; background: transparent; color: #888; border: none; font-size: 11px; cursor: pointer; text-align: center; display: flex; align-items: center; justify-content: center; gap: 4px; transition: background 0.15s, color 0.15s; border-right: 1px solid #444; }
 .seg-item:last-child { border-right: none; }
 .seg-item:hover:not(:disabled) { background: #333; color: #bbb; }
-.seg-item.active {
-  background: #3a3a3a;
-  color: #eee;
-  box-shadow: inset 0 -2px 0 #7aa2d4;
-}
+.seg-item.active { background: #3a3a3a; color: #eee; box-shadow: inset 0 -2px 0 #7aa2d4; }
 .seg-item:disabled { cursor: default; }
 .param-row { display: flex; gap: 8px; }
 .param-row label {
@@ -518,22 +499,6 @@ const arrangeModeOptions = [
   display: flex;
   gap: 12px;
 }
-.cb-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #bbb;
-  cursor: pointer;
-  padding: 3px 0;
-}
-.cb-row input[type="checkbox"] {
-  accent-color: #5577aa;
-  cursor: pointer;
-  margin: 0;
-}
-.cb-row input:disabled { opacity: 0.4; cursor: default; }
-.cb-row input:disabled + span { opacity: 0.4; }
 .output-btns {
   display: flex;
   gap: 6px;

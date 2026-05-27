@@ -18,6 +18,7 @@ const props = withDefaults(defineProps<{
   showEmpty?: boolean
   loading?: boolean
   autoEmptyTab?: boolean
+  managedDrop?: boolean
 }>(), {
   tabAccept: '*/*',
   leftCollapsed: false,
@@ -25,6 +26,7 @@ const props = withDefaults(defineProps<{
   showEmpty: false,
   loading: false,
   autoEmptyTab: true,
+  managedDrop: true,
 })
 
 const emit = defineEmits<{
@@ -50,6 +52,8 @@ onMounted(() => {
 
 function onViewportDrop(files: File[], modifiers: DropModifiers) {
   emit('viewport-drop', files, modifiers)
+
+  if (!props.managedDrop) return
 
   const file = files[0]
   if (!file) return
@@ -96,8 +100,8 @@ function onViewportDrop(files: File[], modifiers: DropModifiers) {
         :drop-overlay-text="viewport?.dropOverlayText"
         :alt-drop-overlay-text="viewport?.altDropOverlayText"
         :empty-icon="viewport?.emptyState?.icon"
-        :empty-title="viewport?.emptyState?.titleKey"
-        :empty-desc="viewport?.emptyState?.descKey"
+        :empty-title="viewport?.emptyState?.title"
+        :empty-desc="viewport?.emptyState?.desc"
         :show-empty="showEmpty"
         :loading="loading"
         @drop="onViewportDrop"

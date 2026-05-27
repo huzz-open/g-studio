@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from '../../../shared/i18n'
-import { EditorShell } from '../../../shared/components/editor-shell'
-import type { TabItem, PanelConfig, DropModifiers } from '../../../shared/components/editor-shell'
+import { EditorShell, useEditorTabs, definePanelConfig } from '../../../shared/components/editor-shell'
+import type { TabItem, DropModifiers } from '../../../shared/components/editor-shell'
 import { getMapEditorInstance, removeMapEditorInstance, type MapEditorInstance } from '../store'
 import type { WorldMapData } from '../types'
 import MapToolbar from './MapToolbar.vue'
@@ -12,56 +12,27 @@ import MapPropertyPanel from './MapPropertyPanel.vue'
 
 const { t } = useI18n()
 
-const tabInstances = ref<MapEditorInstance[]>([])
-const activeTabId = ref<string | null>(null)
+const { instances: tabInstances, activeTabId, activeInstance, createTab: createTabRaw, switchTab: onTabSwitch, closeTab: onTabClose } = useEditorTabs<MapEditorInstance>({
+  prefix: 'map',
+  factory: getMapEditorInstance,
+  destroy: removeMapEditorInstance,
+})
 const leftCollapsed = ref(false)
 const rightCollapsed = ref(false)
 
-let tabCounter = 0
-
-const leftPanelConfig: PanelConfig = {
-  width: { default: 240, min: 180, max: 480 },
-  persistKey: 'map-editor-left',
-}
-
-const rightPanelConfig: PanelConfig = {
-  width: { default: 260, min: 180, max: 480 },
-  persistKey: 'map-editor-right',
-}
+const leftPanelConfig = definePanelConfig('map-editor-left', 240)
+const rightPanelConfig = definePanelConfig('map-editor-right')
 
 const tabs = computed<TabItem[]>(() =>
   tabInstances.value.map(inst => ({
     id: inst.id,
-    label: inst.state.mapData?.name || t('mapEditor.newMap'),
+    label: inst.state.mapData?.name || t('common.newTab'),
     dirty: inst.canUndo.value,
   }))
 )
 
-const activeInstance = computed<MapEditorInstance | null>(() => {
-  if (!activeTabId.value) return null
-  return tabInstances.value.find(i => i.id === activeTabId.value) ?? null
-})
-
-function createTab(name?: string): MapEditorInstance {
-  const id = `map-${++tabCounter}-${Date.now()}`
-  const inst = getMapEditorInstance(id)
-  tabInstances.value.push(inst)
-  activeTabId.value = id
-  return inst
-}
-
-function onTabSwitch(id: string) {
-  activeTabId.value = id
-}
-
-function onTabClose(id: string) {
-  const idx = tabInstances.value.findIndex(i => i.id === id)
-  if (idx === -1) return
-  tabInstances.value.splice(idx, 1)
-  removeMapEditorInstance(id)
-  if (activeTabId.value === id) {
-    activeTabId.value = tabInstances.value[Math.min(idx, tabInstances.value.length - 1)]?.id ?? null
-  }
+function createTab(): MapEditorInstance {
+  return createTabRaw()
 }
 
 function onTabAddFile(file: File) {
@@ -70,7 +41,7 @@ function onTabAddFile(file: File) {
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result as string) as WorldMapData
-      const inst = createTab(data.name)
+      const inst = createTab()
       inst.loadMapData(data)
     } catch { /* parse error */ }
   }
@@ -103,7 +74,8 @@ createTab()
     :left-collapsed="leftCollapsed"
     :right-collapsed="rightCollapsed"
     :show-empty="showEmpty"
-    :viewport="{ accept: '.json,image/*', dropOverlayText: t('mapEditor.dropJson'), emptyState: { icon: 'map', titleKey: t('mapEditor.empty.title'), descKey: t('mapEditor.empty.desc') } }"
+    :viewport="{ accept: '.json,image/*', dropOverlayText: t('mapEditor.dropJson'), emptyState: { icon: 'map', title: t('mapEditor.empty.title'), desc: t('mapEditor.empty.desc') } }"
+    :managed-drop="false"
     @tab-switch="onTabSwitch"
     @tab-close="onTabClose"
     @tab-add-file="onTabAddFile"

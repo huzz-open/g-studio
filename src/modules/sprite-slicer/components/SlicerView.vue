@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, computed } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from '../../../shared/i18n'
 import { useSlicerStore } from '../store'
@@ -13,6 +13,7 @@ import {
 } from '../../resource-manager'
 import type { SaveFileOptions } from '../../resource-manager'
 import type { SlicerModuleData } from '../../resource-manager'
+import { downloadBlob } from '../../../shared/utils/download'
 import { notifyFileChanged } from '../../resource-manager'
 import { resolveDir, splitPath } from '../../../shared/workspace/fs'
 import type { FsErrorKind } from '../../../shared/workspace/fs'
@@ -22,12 +23,11 @@ import { useSettings } from '../../../shared/settings'
 import type { OutputPayload } from './SlicerSidebar.vue'
 import { showToast, withProgress } from '../../../shared/components/toast'
 import { confirm } from '../../../shared/components/confirm'
-import { EditorShell } from '../../../shared/components/editor-shell'
-import type { TabItem, PanelConfig } from '../../../shared/components/editor-shell'
+import { EditorShell, definePanelConfig, useRouteResource } from '../../../shared/components/editor-shell'
+import type { TabItem } from '../../../shared/components/editor-shell'
 import SlicerSidebar from './SlicerSidebar.vue'
 import SlicerPreview from './SlicerPreview.vue'
 import AnimationPreview from './AnimationPreview.vue'
-import FileDropZone from '../../../shared/components/FileDropZone.vue'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 
 const route = useRoute()
@@ -40,10 +40,7 @@ const showAnimPreview = ref(false)
 const loadingResource = ref(false)
 const leftCollapsed = ref(false)
 
-const leftPanelConfig: PanelConfig = {
-  width: { default: 300, min: 180, max: 480 },
-  persistKey: 'slicer-sidebar-width',
-}
+const leftPanelConfig = definePanelConfig('slicer-sidebar-width', 300)
 
 const tabs = computed<TabItem[]>(() =>
   store.tabs.value.map(tab => ({
@@ -153,18 +150,7 @@ async function loadFromResource(_resourceId: string): Promise<void> {
   }
 }
 
-onMounted(() => {
-  const resourceId = route.query.resource as string | undefined
-  if (resourceId) {
-    void loadFromResource(resourceId)
-  }
-})
-
-watch(() => route.query.resource, (newId) => {
-  if (newId && typeof newId === 'string') {
-    void loadFromResource(newId)
-  }
-})
+useRouteResource((id) => void loadFromResource(id))
 
 watch(wsOpen, async (connected) => {
   if (!connected) return
@@ -290,13 +276,6 @@ function onTabClose(id: string) {
 
 function getPrefix(): string {
   return store.namePrefix.value || 'sprites'
-}
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url; a.download = filename; a.click()
-  URL.revokeObjectURL(url)
 }
 
 function generateMetaJson(): Blob {
@@ -567,7 +546,7 @@ watch(() => store.namePrefix.value, () => {
     :show-empty="showEmpty"
     :loading="loadingResource"
     :auto-empty-tab="!route.query.resource"
-    :viewport="{ accept: 'image/png,image/jpeg,image/webp', dropOverlayText: t('common.dropToOpen'), altDropOverlayText: t('common.dropToReplace'), emptyState: { icon: 'upload', titleKey: t('slicer.upload.desc'), descKey: t('slicer.upload.hint') } }"
+    :viewport="{ accept: 'image/png,image/jpeg,image/webp', dropOverlayText: t('common.dropToOpen'), altDropOverlayText: t('common.dropToReplace'), emptyState: { icon: 'upload', title: t('slicer.upload.desc'), desc: t('slicer.upload.hint') } }"
     @tab-switch="onTabSwitch"
     @tab-close="onTabClose"
     @tab-add-empty="store.addEmptyTab()"
@@ -598,18 +577,6 @@ watch(() => store.namePrefix.value, () => {
       <template v-else-if="store.sourceImage.value">
         <SlicerPreview :store="store" />
       </template>
-      <template v-else-if="!showEmpty">
-        <div class="upload-stage">
-          <FileDropZone
-            accept="image/png,image/jpeg,image/webp"
-            :hint="store.loading.value ? t('slicer.upload.processing') : t('slicer.upload.hint')"
-            :description="t('slicer.upload.desc')"
-            :loading="store.loading.value"
-            icon="upload"
-            @file="onAddFile"
-          />
-        </div>
-      </template>
     </template>
   </EditorShell>
 
@@ -621,13 +588,6 @@ watch(() => store.namePrefix.value, () => {
 </template>
 
 <style scoped>
-.upload-stage {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-}
 .resource-loading {
   flex: 1;
   display: flex;
