@@ -14,7 +14,8 @@ const STORAGE_KEY = 'g-studio-locale'
 function loadLocale(): string {
   try {
     return localStorage.getItem(STORAGE_KEY) ?? 'zh-CN'
-  } catch {
+  } catch (e) {
+    console.warn('[i18n] localStorage read failed:', e)
     return 'zh-CN'
   }
 }
@@ -30,7 +31,7 @@ export function setLocale(code: string) {
   locale.value = code
   try {
     localStorage.setItem(STORAGE_KEY, code)
-  } catch { /* noop */ }
+  } catch (e) { console.warn('[i18n] localStorage write failed:', e) }
 }
 
 export function useI18n() {

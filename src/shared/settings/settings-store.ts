@@ -2,6 +2,7 @@ import { reactive, watch, toRaw } from 'vue'
 import { getWorkspaceHandle } from '../workspace'
 import { WORKSPACE_SYSTEM_DIR, WORKSPACE_CONFIG_FILE } from '../workspace/interfaces'
 import { readJsonFileOrNull, writeJsonFile } from '../workspace/fs'
+import { showToast } from '../components/toast'
 
 export interface ExportOptions {
   composite: boolean
@@ -67,7 +68,8 @@ async function readFromDisk(): Promise<Partial<SettingsData>> {
     const sysDir = await root.getDirectoryHandle(WORKSPACE_SYSTEM_DIR)
     const config = await readJsonFileOrNull<Record<string, unknown>>(sysDir, WORKSPACE_CONFIG_FILE)
     return (config?.settings as Partial<SettingsData>) ?? {}
-  } catch {
+  } catch (e) {
+    console.error('[settings] failed to read:', e)
     return {}
   }
 }
@@ -81,7 +83,8 @@ async function writeToDisk(): Promise<void> {
     config.settings = toRaw(settings)
     await writeJsonFile(sysDir, WORKSPACE_CONFIG_FILE, config)
   } catch (e) {
-    console.warn('[settings] failed to write:', e)
+    console.error('[settings] failed to write:', e)
+    showToast('设置保存失败', 'error')
   }
 }
 

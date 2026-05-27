@@ -95,7 +95,7 @@ function setScaleCentered(newVal: number) {
 }
 
 function saveState() {
-  return pzvRef.value?.saveState() ?? { scale: 1, panX: 0, panY: 0 }
+  return pzvRef.value?.saveState() ?? null
 }
 
 function restoreState(s: { scale: number; panX: number; panY: number }) {

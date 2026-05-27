@@ -35,13 +35,11 @@ watch(() => props.file, async (f) => {
 }, { immediate: true })
 
 function openInSlicer() {
-  if (!props.file?.meta?.uid) return
-  router.push({ path: '/sprite-slicer', query: { resource: props.file.meta.uid, path: props.file.path } })
+  router.push({ path: '/sprite-slicer', query: { resource: props.file.meta!.uid, path: props.file.path } })
 }
 
 function openInTilesetMaker() {
-  if (!props.file?.meta?.uid) return
-  router.push({ path: '/tileset-maker', query: { resource: props.file.meta.uid, path: props.file.path } })
+  router.push({ path: '/tileset-maker', query: { resource: props.file.meta!.uid, path: props.file.path } })
 }
 
 function formatDate(ts?: number): string {

@@ -181,6 +181,7 @@ watch(wsOpen, async (connected) => {
 async function syncAllTabsToWorkspace() {
   let saved = 0
   let skipped = 0
+  let failCount = 0
   for (const tab of store.tabs.value) {
     if (tab.workspacePath) continue
     try {
@@ -207,13 +208,16 @@ async function syncAllTabsToWorkspace() {
       tab.workspacePath = result.path
       tab.resourceUid = result.uid
       saved++
-    } catch { /* skip failed ones */ }
+    } catch (e) { console.error('[slicer] syncTab failed:', tab.fileName, e); failCount++ }
   }
   if (saved > 0) {
     showToast(t('slicer.workspace.syncDone', { count: saved }), 'success')
   }
   if (skipped > 0) {
     showToast(t('slicer.workspace.syncSkipped', { count: skipped }), 'info')
+  }
+  if (failCount > 0) {
+    showToast(`${failCount} 个文件同步失败`, 'error')
   }
 }
 
@@ -391,7 +395,8 @@ async function saveToWorkspace(payload: OutputPayload) {
       t('toast.save.error'),
       async () => {
         const tab = store.tabs.value.find(t => t.id === store.activeTabId.value)
-        const baseName = tab?.fileName.replace(/\.[^.]+$/, '') ?? 'spritesheet'
+        if (!tab) throw new Error('[slicer] save handler: no active tab')
+        const baseName = tab.fileName.replace(/\.[^.]+$/, '')
         const dir = payload.dir
         const now = Date.now()
 
@@ -446,7 +451,7 @@ async function saveToWorkspace(payload: OutputPayload) {
               tags: payload.tags,
               openWith: 'sprite-slicer',
               moduleData: { 'sprite-slicer': slicerModuleData },
-              origin: { ...originBase, method: `sprite-slicer/${store.arrangeMode.value || 'none'}` },
+              origin: { ...originBase, method: `sprite-slicer/${store.arrangeMode.value}` },
               pipeline: [{ step: 'save', at: now, detail: 'saved from slicer' }],
               relations: derivedRelations,
               sourceUid,

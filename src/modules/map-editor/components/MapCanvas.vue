@@ -50,8 +50,8 @@ function draw() {
   }
 
   const state = props.store.state
-  if (state.mapData?.regions?.length && state.showRegions) drawRegions(state.mapData.regions)
-  if (state.mapData?.waterFeatures?.length && state.showWater) drawWaterFeatures(state.mapData.waterFeatures)
+  if (state.mapData?.regions.length && state.showRegions) drawRegions(state.mapData.regions)
+  if (state.mapData?.waterFeatures.length && state.showWater) drawWaterFeatures(state.mapData.waterFeatures)
   if (state.showGrid) {
     ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 0.5
     for (let x = 0; x <= BASE_W; x += 64) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, BASE_H); ctx.stroke() }
@@ -101,7 +101,7 @@ function drawWaterFeatures(features: WaterFeature[]) {
 }
 
 function drawRoads() {
-  if (!ctx || !props.store.state.mapData?.roads?.length) return
+  if (!ctx || !props.store.state.mapData!.roads.length) return
   const locsById = new Map(props.store.state.mapData.locations.map(l => [l.id, l]))
   for (const road of props.store.state.mapData.roads) {
     const a = locsById.get(road.from), b = locsById.get(road.to)
@@ -118,8 +118,8 @@ function drawLocation(loc: MapLocation) {
   const x = loc.position.x, y = loc.position.y
   const w = loc.iconSize.w, h = loc.iconSize.h
   const state = props.store.state
-  const realmColors: Record<string, string> = { human: '#4a9', underground: '#a73', underworld: '#68a', celestial: '#da5' }
-  const rc = realmColors[loc.realm] ?? '#888'
+  const realmColors: Record<MapLocation['realm'], string> = { human: '#4a9', underground: '#a73', underworld: '#68a', celestial: '#da5' }
+  const rc = realmColors[loc.realm]
   ctx.fillStyle = rc; ctx.globalAlpha = 0.25
   ctx.beginPath(); ctx.ellipse(x, y, w/2, h/2, 0, 0, Math.PI*2); ctx.fill()
   ctx.globalAlpha = 0.6; ctx.strokeStyle = rc; ctx.lineWidth = 1; ctx.stroke(); ctx.globalAlpha = 1
@@ -161,7 +161,7 @@ function onCanvasMouseDown(e: MouseEvent) {
   if (hit) {
     props.store.selectLocation(hit.id)
     dragTarget = hit
-    dragOffset = { x: world.x - (hit.position.x ?? 0), y: world.y - (hit.position.y ?? 0) }
+    dragOffset = { x: world.x - hit.position.x!, y: world.y - hit.position.y! }
     props.store.beginEditTransaction()
   } else {
     props.store.selectLocation(null)

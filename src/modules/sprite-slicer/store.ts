@@ -113,7 +113,7 @@ function createSlicerStore() {
   preloadCV()
 
   const currentBgRemover = computed(() =>
-    bgRemovers.find(r => r.id === bgRemoverId.value) ?? bgRemovers[0],
+    bgRemovers.find(r => r.id === bgRemoverId.value)!,
   )
 
   const selectedSprites = computed(() =>
@@ -467,8 +467,8 @@ function createSlicerStore() {
           mergeGap: mergeGap.value,
           minArea: minArea.value,
         })
-      } catch {
-        // Fallback to JS CCA if OpenCV fails
+      } catch (e) {
+        console.warn('[slicer] OpenCV failed, using JS CCA fallback:', e)
         detected = ccaDetector.detect(cleanImageData, w, h, {
           mode: 'auto',
           mergeGap: mergeGap.value,
@@ -507,7 +507,8 @@ function createSlicerStore() {
   }
 
   function mergeSprites(ids: number[]) {
-    if (ids.length < 2 || !cleanImageData) return
+    if (ids.length < 2) return
+    if (!cleanImageData) { console.error('[slicer] mergeSprites: cleanImageData missing'); return }
 
     const toMerge = sprites.value.filter(s => ids.includes(s.id))
     if (toMerge.length < 2) return
@@ -553,7 +554,7 @@ function createSlicerStore() {
   }
 
   function unmergeSprite(spriteId: number) {
-    if (!cleanImageData) return false
+    if (!cleanImageData) { console.error('[slicer] unmergeSprite: cleanImageData missing'); return false }
     const sprite = sprites.value.find(s => s.id === spriteId)
     if (!sprite?.mergedFromRects || sprite.mergedFromRects.length < 2) return false
 
@@ -588,7 +589,7 @@ function createSlicerStore() {
     if (lines.length === 0) return
 
     const sprite = sprites.value.find(s => s.id === spriteId)
-    if (!sprite) return
+    if (!sprite) { console.error('[slicer] splitSprite: sprite not found:', spriteId); return }
 
     const maxId = Math.max(...sprites.value.map(s => s.id)) + 1
     const newSprites = splitSpriteByLines(sprite, lines, maxId)
@@ -661,7 +662,14 @@ function createSlicerStore() {
 
   function applySliceConfig(sc: SlicerSliceConfig) {
     if (sc.detectionMode) detectionMode.value = sc.detectionMode as 'auto' | 'grid'
-    if (sc.bgRemoverId) bgRemoverId.value = sc.bgRemoverId
+    if (sc.bgRemoverId) {
+      if (bgRemovers.some(r => r.id === sc.bgRemoverId)) {
+        bgRemoverId.value = sc.bgRemoverId
+      } else {
+        console.warn('[slicer] invalid bgRemoverId from config, resetting:', sc.bgRemoverId)
+        bgRemoverId.value = bgRemovers[0].id
+      }
+    }
     if (sc.bgColor) bgColor.value = sc.bgColor as [number, number, number]
     if (sc.bgTolerance !== undefined) bgTolerance.value = sc.bgTolerance
     if (sc.bgSpillStrength !== undefined) bgSpillStrength.value = sc.bgSpillStrength

@@ -56,11 +56,12 @@ export function createMapEditorInstance(id: string) {
   let transactionDepth = 0
   let transactionSnapshot: EditorSnapshot | null = null
 
-  const canUndo = computed(() => undoStack.value.length > 0)
-  const canRedo = computed(() => redoStack.value.length > 0)
+  const canUndo = computed(() => undoStack.value.length > 0 && state.mapData !== null)
+  const canRedo = computed(() => redoStack.value.length > 0 && state.mapData !== null)
 
   const selectedLocation = computed<MapLocation | null>(() => {
     if (!state.mapData || state.selectedLocationId === null) return null
+    // .find() may miss if ID is stale after map reload — acceptable, UI shows empty panel
     return state.mapData.locations.find(l => l.id === state.selectedLocationId) ?? null
   })
 
@@ -182,8 +183,7 @@ export function createMapEditorInstance(id: string) {
   }
 
   function undo() {
-    const current = getSnapshot()
-    if (!current) return
+    const current = getSnapshot()!
     const prev = undoStack.value.pop()
     if (!prev) return
     redoStack.value.push(current)
@@ -195,8 +195,7 @@ export function createMapEditorInstance(id: string) {
   }
 
   function redo() {
-    const current = getSnapshot()
-    if (!current) return
+    const current = getSnapshot()!
     const next = redoStack.value.pop()
     if (!next) return
     undoStack.value.push(current)
@@ -230,7 +229,8 @@ export function createMapEditorInstance(id: string) {
       let iconsDir: FileSystemDirectoryHandle
       try {
         iconsDir = await resolveDir('icons')
-      } catch {
+      } catch (e) {
+        console.error('[map] icons directory not accessible:', e)
         state.assetsLoaded = true
         return
       }
@@ -256,7 +256,8 @@ export function createMapEditorInstance(id: string) {
         }
       }
       state.assetsLoaded = true
-    } catch {
+    } catch (e) {
+      console.error('[map] icon loading failed:', e)
       state.assetsLoaded = true
     }
   }
@@ -276,7 +277,7 @@ export function createMapEditorInstance(id: string) {
         dir: 'icons',
         origin: { source: 'uploaded', createdBy: 'g-studio', importedAt: Date.now() },
       })
-    } catch { /* noop */ }
+    } catch (e) { console.error('[map] icon persist failed:', e) }
   }
 
   return {

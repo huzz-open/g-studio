@@ -5,6 +5,7 @@ import { useSettings } from '../../../shared/settings'
 import { useWorkspace } from '../../../shared/workspace'
 import { listDirs, resolveDir } from '../../../shared/workspace/fs'
 import { prompt } from '../../../shared/components/prompt'
+import { showToast } from '../../../shared/components/toast'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import FileDropZone from '../../../shared/components/FileDropZone.vue'
 import SegmentedControl from '../../../shared/components/SegmentedControl.vue'
@@ -91,8 +92,9 @@ async function onNewFolder() {
     await resolveDir(cleaned, true)
     await refreshDirs()
     saveDir.value = cleaned
-  } catch {
-    /* ignore */
+  } catch (e) {
+    console.error('[slicer] folder creation failed:', cleaned, e)
+    showToast(t('toast.folder.error'), 'error')
   }
 }
 

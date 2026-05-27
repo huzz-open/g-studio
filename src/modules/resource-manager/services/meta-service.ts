@@ -92,7 +92,7 @@ export async function renameMetaFile(
   newFileName: string,
 ): Promise<void> {
   const meta = await readMetaFile(oldDirHandle, oldFileName)
-  if (!meta) return
+  if (!meta) { console.error('[meta] renameMetaFile: expected .meta not found for', oldFileName); return }
   meta.boundFileName = newFileName
   meta.updatedAt = Date.now()
   await writeMetaFile(newDirHandle, newFileName, meta)

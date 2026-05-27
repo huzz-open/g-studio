@@ -229,7 +229,7 @@ export function createTilesetInstance(id: string) {
     const oldGrid = state.terrainGrid
     const newGrid = createTerrainGrid(cols, rows)
     const copyRows = Math.min(rows, oldGrid.length)
-    const copyCols = Math.min(cols, oldGrid[0]?.length ?? 0)
+    const copyCols = Math.min(cols, oldGrid[0].length)
     for (let r = 0; r < copyRows; r++) {
       for (let c = 0; c < copyCols; c++) {
         newGrid[r][c] = oldGrid[r][c]

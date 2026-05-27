@@ -6,6 +6,7 @@ import { computeContentHash } from './content-hash'
 import { notifyFileChanged } from './workspace-cache'
 import { readUidIndex, writeUidIndex } from './uid-index'
 import { resolveDir, writeFile as fsWriteFile, readFile as fsReadFile, splitPath, joinPath, classifyError } from '../../../shared/workspace/fs'
+import { showToast } from '../../../shared/components/toast'
 
 export interface SaveFileOptions {
   fileName: string
@@ -177,12 +178,12 @@ export async function saveFileBatch(filesOrOpts: SaveFileOptions[] | BatchOption
   }
   for (const [sourceUid, producedUids] of grouped) {
     const sourcePath = index[sourceUid]
-    if (!sourcePath) continue
+    if (!sourcePath) { console.error('[workspace] source uid not in index:', sourceUid); continue }
     try {
       const { dir: srcDir, fileName: srcFile } = splitPath(sourcePath)
       const dirHandle = srcDir ? await resolveDir(srcDir) : root
       const sourceMeta = await readMetaFile(dirHandle, srcFile)
-      if (!sourceMeta) continue
+      if (!sourceMeta) { console.error('[workspace] source .meta not readable:', sourcePath); continue }
       const rels = sourceMeta.relations ?? []
       for (const uid of producedUids) {
         if (!rels.some(r => r.rel === 'produces' && r.uid === uid)) {
@@ -193,27 +194,30 @@ export async function saveFileBatch(filesOrOpts: SaveFileOptions[] | BatchOption
       sourceMeta.updatedAt = Date.now()
       if (sourceMetaUpdate) sourceMetaUpdate(sourceMeta)
       await writeMetaFile(dirHandle, srcFile, sourceMeta)
-    } catch { /* non-fatal */ }
+    } catch (e) { console.error('[workspace] relation write failed:', sourceUid, e) }
   }
 
   if (grouped.size === 0 && sourceMetaUpdate) {
     const allSourceUids = new Set(files.map(f => f.sourceUid).filter(Boolean) as string[])
     for (const sourceUid of allSourceUids) {
       const sourcePath = index[sourceUid]
-      if (!sourcePath) continue
+      if (!sourcePath) { console.error('[workspace] source uid not in index:', sourceUid); continue }
       try {
         const { dir: srcDir, fileName: srcFile } = splitPath(sourcePath)
         const dirHandle = srcDir ? await resolveDir(srcDir) : root
         const sourceMeta = await readMetaFile(dirHandle, srcFile)
-        if (!sourceMeta) continue
+        if (!sourceMeta) { console.error('[workspace] source .meta not readable:', sourcePath); continue }
         sourceMeta.updatedAt = Date.now()
         sourceMetaUpdate(sourceMeta)
         await writeMetaFile(dirHandle, srcFile, sourceMeta)
-      } catch { /* non-fatal */ }
+      } catch (e) { console.error('[workspace] relation write failed:', sourceUid, e) }
     }
   }
 
-  writeUidIndex(root, index).catch(() => {})
+  writeUidIndex(root, index).catch((e) => {
+    console.error('[workspace] uid-index write failed:', e)
+    showToast('uid-index 写入失败，文件索引可能不完整', 'error')
+  })
 
   notifyFileChanged()
   return results
@@ -223,18 +227,18 @@ async function addProducesRelation(root: FileSystemDirectoryHandle, sourceUid: s
   try {
     const index = await readUidIndex(root)
     const sourcePath = index[sourceUid]
-    if (!sourcePath) return
+    if (!sourcePath) { console.error('[workspace] addProducesRelation: source uid not in index:', sourceUid); return }
     const { dir: srcDir, fileName: srcFile } = splitPath(sourcePath)
     const dirHandle = srcDir ? await resolveDir(srcDir) : root
     const sourceMeta = await readMetaFile(dirHandle, srcFile)
-    if (!sourceMeta) return
+    if (!sourceMeta) { console.error('[workspace] addProducesRelation: source .meta not readable:', sourcePath); return }
     const rels = sourceMeta.relations ?? []
     if (rels.some(r => r.rel === 'produces' && r.uid === producedUid)) return
     rels.push({ rel: 'produces', uid: producedUid })
     sourceMeta.relations = rels
     sourceMeta.updatedAt = Date.now()
     await writeMetaFile(dirHandle, srcFile, sourceMeta)
-  } catch { /* non-fatal */ }
+  } catch (e) { console.error('[workspace] addProducesRelation failed:', sourceUid, e) }
 }
 
 export type ReadFileResult = FsResult<{ data: Uint8Array; meta: MetaFile | null }>
@@ -276,8 +280,11 @@ export async function deleteFileFromWorkspace(
   const deletedUid = meta?.uid
 
   let referencedBy: string[] | undefined
+  let relationCheckFailed = false
   if (deletedUid) {
-    referencedBy = await findRelationReferences(root, deletedUid)
+    const result = await findRelationReferences(root, deletedUid)
+    referencedBy = result.refs
+    relationCheckFailed = !!result.error
   }
 
   await dirHandle.removeEntry(fileName)
@@ -290,10 +297,10 @@ export async function deleteFileFromWorkspace(
   }
 
   notifyFileChanged()
-  return { deletedUid, referencedBy }
+  return { deletedUid, referencedBy, relationCheckFailed }
 }
 
-async function findRelationReferences(root: FileSystemDirectoryHandle, uid: string): Promise<string[]> {
+async function findRelationReferences(root: FileSystemDirectoryHandle, uid: string): Promise<{ refs: string[]; error?: boolean }> {
   const refs: string[] = []
   try {
     const index = await readUidIndex(root)
@@ -305,10 +312,13 @@ async function findRelationReferences(root: FileSystemDirectoryHandle, uid: stri
         if (m?.relations?.some(r => r.uid === uid)) {
           refs.push(path)
         }
-      } catch { /* skip inaccessible */ }
+      } catch { /* skip inaccessible file */ }
     }
-  } catch { /* uid-index read failure */ }
-  return refs
+  } catch (e) {
+    console.error('[workspace] relation check failed:', e)
+    return { refs: [], error: true }
+  }
+  return { refs }
 }
 
 export function isWorkspaceConnected(): boolean {

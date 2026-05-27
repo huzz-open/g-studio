@@ -9,7 +9,6 @@ const props = defineProps<{ store: TilesetInstance }>()
 
 function exportPng() {
   const s = props.store.state
-  if (!s.atlasPixels) return
   const canvas = new OffscreenCanvas(s.atlasWidth, s.atlasHeight)
   const ctx = canvas.getContext('2d')!
   const imgData = new ImageData(new Uint8ClampedArray(s.atlasPixels), s.atlasWidth, s.atlasHeight)

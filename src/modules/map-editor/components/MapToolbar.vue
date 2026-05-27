@@ -38,7 +38,6 @@ function onLoadBaseMap(e: Event) {
 }
 
 function exportJson() {
-  if (!state.value.mapData) return
   const json = JSON.stringify(state.value.mapData, null, 2)
   const blob = new Blob([json], { type: 'application/json' })
   const url = URL.createObjectURL(blob)

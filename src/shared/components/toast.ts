@@ -26,22 +26,24 @@ export function dismissToast(id: number) {
   toastRef.value?.dismiss(id)
 }
 
+export type ProgressResult<T> = { ok: true; data: T } | { ok: false; error: unknown }
+
 export async function withProgress<T>(
   loadingMsg: string,
   successMsg: string,
   errorMsg: string,
   fn: () => Promise<T>,
-): Promise<T | undefined> {
+): Promise<ProgressResult<T>> {
   const loadingId = showToast(loadingMsg, 'info', 60000)
   try {
     const result = await fn()
     dismissToast(loadingId)
     showToast(successMsg, 'success')
-    return result
+    return { ok: true, data: result }
   } catch (e) {
     dismissToast(loadingId)
     showToast(errorMsg, 'error')
-    return undefined
+    return { ok: false, error: e }
   }
 }
 

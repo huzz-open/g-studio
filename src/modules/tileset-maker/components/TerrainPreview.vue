@@ -9,7 +9,7 @@ const { t } = useI18n()
 const props = defineProps<{ store: TilesetInstance }>()
 const canvasEl = ref<HTMLCanvasElement | null>(null)
 
-const gridCols = computed(() => props.store.state.terrainGrid[0]?.length ?? 11)
+const gridCols = computed(() => props.store.state.terrainGrid[0].length)
 const gridRows = computed(() => props.store.state.terrainGrid.length)
 const cellSize = computed(() => props.store.state.atlasTileW || 16)
 const displayScale = computed(() => Math.max(1, Math.floor(192 / (gridCols.value * cellSize.value)) + 1))
