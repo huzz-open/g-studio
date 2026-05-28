@@ -5,6 +5,8 @@ export class AutoRemover implements IBackgroundRemover {
   readonly labelKey = 'slicer.bgRemoval.auto'
 
   remove(data: ImageData, options: BgRemovalOptions): ImageData {
+    if (this.hasExistingTransparency(data)) return data
+
     const [bgR, bgG, bgB] = options.bgColor
     const isMagenta = bgR > 200 && bgG < 50 && bgB > 200
 
@@ -12,6 +14,16 @@ export class AutoRemover implements IBackgroundRemover {
       return this.reverseCompositeRemove(data, options.tolerance, options.spillStrength)
     }
     return this.colorDistanceRemove(data, options.bgColor, options.tolerance)
+  }
+
+  private hasExistingTransparency(data: ImageData): boolean {
+    const d = data.data
+    const total = d.length / 4
+    let transparent = 0
+    for (let i = 3; i < d.length; i += 4) {
+      if (d[i] === 0) transparent++
+    }
+    return (transparent / total) >= 0.01
   }
 
   private reverseCompositeRemove(
