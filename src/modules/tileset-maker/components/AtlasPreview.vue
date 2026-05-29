@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
-import { useI18n } from '../../../shared/i18n'
 import { pixelsToBlobUrl } from '../../../shared/utils/canvas'
 import type { TilesetInstance } from '../store'
 import { getLayout } from '../core/layouts'
 import ImageCanvas from '../../../shared/components/ImageCanvas.vue'
 
-const { t } = useI18n()
 const props = defineProps<{ store: TilesetInstance }>()
 const hoverTile = ref<{ col: number; row: number; idx: number } | null>(null)
 const atlasBlobUrl = ref('')
@@ -79,12 +77,6 @@ function onSvgMouseLeave() {
       show-info-bar
       controls-position="bottom-right"
     >
-      <template #toolbar-right>
-        <span v-if="hoverTile" class="tile-info">
-          {{ t('tileset.atlas.tileInfo', { idx: hoverTile.idx, col: hoverTile.col, row: hoverTile.row }) }}
-        </span>
-      </template>
-
       <template #default>
         <svg
           v-if="atlasW && atlasH"
@@ -135,5 +127,4 @@ function onSvgMouseLeave() {
   width: 100%;
   height: 100%;
 }
-.tile-info { font-size: 11px; color: #888; }
 </style>
