@@ -56,7 +56,15 @@ watch(() => activeInstance.value?.id, (id) => {
 
 function createTab(fileName?: string): TilesetInstance {
   const inst = createTabRaw()
-  if (fileName) inst.state.textureFileName = fileName
+  const inheritedMode = activeInstance.value?.state.mode ?? 'sdf'
+  inst.state.mode = inheritedMode
+  if (fileName) {
+    if (inheritedMode === 'sdf') {
+      inst.state.textureFileName = fileName
+    } else {
+      inst.state.nineGridFileName = fileName
+    }
+  }
   return inst
 }
 
@@ -71,7 +79,7 @@ function onViewportDrop(files: File[], modifiers: DropModifiers) {
   if (modifiers.alt && activeInstance.value) {
     onTabLoadFile(file)
   } else if (isTopEmpty.value && activeInstance.value) {
-    activeInstance.value.state.textureFileName = file.name
+    setFileNameForMode(activeInstance.value, file.name)
     loadFileToInstance(activeInstance.value, file)
   } else {
     onTabAddFile(file)
@@ -80,8 +88,16 @@ function onViewportDrop(files: File[], modifiers: DropModifiers) {
 
 function onTabLoadFile(file: File) {
   if (!activeInstance.value) return
-  activeInstance.value.state.textureFileName = file.name
+  setFileNameForMode(activeInstance.value, file.name)
   loadFileToInstance(activeInstance.value, file)
+}
+
+function setFileNameForMode(inst: TilesetInstance, name: string) {
+  if (inst.state.mode === 'sdf') {
+    inst.state.textureFileName = name
+  } else {
+    inst.state.nineGridFileName = name
+  }
 }
 
 function loadFileToInstance(inst: TilesetInstance, file: File) {
