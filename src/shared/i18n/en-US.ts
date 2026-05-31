@@ -287,6 +287,8 @@ export default {
   'tileset.ninegrid.magenta': 'Magenta to Transparent',
   'tileset.ninegrid.tolerance': 'Tolerance',
   'tileset.ninegrid.sizeError': 'Image size {w}×{h} is not divisible by 6',
+  'tileset.ninegrid.gridSplits': '6×6 Sub-tile Grid',
+  'tileset.ninegrid.resetGrid': 'Reset',
   'tileset.painter.title': 'Texture Painter',
   'tileset.painter.pencil': 'Pencil',
   'tileset.painter.fill': 'Fill',

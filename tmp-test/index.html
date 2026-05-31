@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>SubTile 47 验证程序</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a1a2e; color: #eee; font-family: monospace; padding: 20px; }
+h1 { font-size: 18px; margin-bottom: 12px; color: #8ab4f8; }
+h2 { font-size: 14px; margin: 16px 0 8px; color: #aad; }
+.section { margin-bottom: 24px; }
+canvas { image-rendering: pixelated; border: 1px solid #444; display: block; margin: 8px 0; }
+.row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+.info { font-size: 11px; color: #888; margin: 4px 0; }
+#log { background: #111; padding: 8px; font-size: 11px; max-height: 200px; overflow-y: auto; border-radius: 4px; white-space: pre-wrap; }
+.legend { display: flex; gap: 12px; font-size: 11px; margin: 8px 0; }
+.legend span { display: flex; align-items: center; gap: 4px; }
+.legend .swatch { width: 12px; height: 12px; border: 1px solid #555; }
+</style>
+</head>
+<body>
+<h1>SubTile 47 Algorithm Verifier</h1>
+
+<div class="section">
+  <h2>1. 源图 (3×3 九宫格, 72×72)</h2>
+  <canvas id="srcCanvas"></canvas>
+  <p class="info">72×72 = 3 cells × 24px, 每个子瓦片 12×12</p>
+</div>
+
+<div class="section">
+  <h2>2. 6×6 子瓦片分解 (可拖拽网格线)</h2>
+  <canvas id="gridCanvas"></canvas>
+  <div class="legend">
+    <span><div class="swatch" style="background:rgba(255,100,100,0.7);"></div> 外角 (outerCorner + flip180)</span>
+    <span><div class="swatch" style="background:rgba(100,200,255,0.7);"></div> 边缘 (edge)</span>
+    <span><div class="swatch" style="background:rgba(100,255,100,0.5);"></div> 内部 (interior)</span>
+  </div>
+  <p class="info">拖动网格线调整分割位置 | <button id="resetGrid" style="font-size:11px;cursor:pointer;">重置为均匀分割</button></p>
+  <p class="info" id="splitInfo"></p>
+</div>
+
+<div class="section">
+  <h2>3. 生成的 TileSet47</h2>
+  <div style="margin: 8px 0;">
+    <label style="font-size: 12px; cursor: pointer;">
+      <input type="radio" name="layout" value="8x6" checked> 8×6 layout (47 tiles + 1 空位)
+    </label>
+    <label style="font-size: 12px; cursor: pointer; margin-left: 16px;">
+      <input type="radio" name="layout" value="11x5"> 11×5 layout (45 tiles)
+    </label>
+  </div>
+  <canvas id="atlasCanvas"></canvas>
+  <p class="info" id="atlasInfo">47 种 peering 组合</p>
+</div>
+
+<div class="section">
+  <h2>4. TileMap 验证 (覆盖典型场景)</h2>
+  <canvas id="mapCanvas"></canvas>
+  <div class="legend">
+    <span>灰色 = 无地形 | 有图 = 地形瓦片</span>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Log</h2>
+  <div id="log"></div>
+</div>
+
+<script src="subtile-test.js"></script>
+</body>
+</html>

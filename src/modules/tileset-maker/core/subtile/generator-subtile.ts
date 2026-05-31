@@ -1,22 +1,19 @@
-import type { TilesetLayout } from '../types'
+import type { CustomSplits, TilesetLayout } from '../types'
 import { TILE_PEERINGS } from '../peerings'
-import { sliceSubTiles } from './slicer'
-import { getSubTileForQuadrant } from './mapper'
+import { sliceSubTiles, sliceSubTilesCustom } from './slicer'
+import { getSubTileForQuadrant, isInnerCorner } from './mapper'
 import { replaceMagentaWithTransparent } from './magenta'
 
 export interface SubtileOptions {
   useMagenta: boolean
   magentaTolerance: number
+  customSplits?: CustomSplits | null
 }
 
 /**
  * Generate a full tileset atlas using sub-tile reassembly.
- * @param sourcePixels - RGBA of 3W×3H nine-grid source
- * @param sourceWidth - Source width (must be divisible by 6)
- * @param sourceHeight - Source height (must be divisible by 6)
- * @param layout - Atlas layout
- * @param options - Preprocessing options
- * @returns { pixels, width, height, tileW, tileH }
+ * Uses the full 6x6 sub-tile grid (including outer ring) plus
+ * flip180-generated inner corner tiles.
  */
 export function generateTilesetSubtile(
   sourcePixels: Uint8ClampedArray,
@@ -30,7 +27,9 @@ export function generateTilesetSubtile(
     processed = replaceMagentaWithTransparent(sourcePixels, options.magentaTolerance)
   }
 
-  const grid = sliceSubTiles(processed, sourceWidth, sourceHeight)
+  const grid = options.customSplits
+    ? sliceSubTilesCustom(processed, sourceWidth, sourceHeight, options.customSplits)
+    : sliceSubTiles(processed, sourceWidth, sourceHeight)
 
   const outW = layout.cols * grid.tileW
   const outH = layout.rows * grid.tileH
@@ -47,15 +46,16 @@ export function generateTilesetSubtile(
     const dx = col * grid.tileW
     const dy = row * grid.tileH
 
-    const getSub = (coord: { row: number; col: number }) => grid.tiles[coord.row * 6 + coord.col]
+    const getSub = (coord: { row: number; col: number }) => {
+      if (isInnerCorner(coord)) {
+        return grid.innerCornerTiles[coord.col]
+      }
+      return grid.tiles[coord.row * 6 + coord.col]
+    }
 
-    // Top-left quadrant
     copySubTile(getSub(tl), grid.halfW, grid.halfH, output, outW, dx, dy)
-    // Top-right quadrant
     copySubTile(getSub(tr), grid.halfW, grid.halfH, output, outW, dx + grid.halfW, dy)
-    // Bottom-left quadrant
     copySubTile(getSub(bl), grid.halfW, grid.halfH, output, outW, dx, dy + grid.halfH)
-    // Bottom-right quadrant
     copySubTile(getSub(br), grid.halfW, grid.halfH, output, outW, dx + grid.halfW, dy + grid.halfH)
   }
 

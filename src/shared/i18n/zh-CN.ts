@@ -287,6 +287,8 @@ export default {
   'tileset.ninegrid.magenta': '品红转透明',
   'tileset.ninegrid.tolerance': '容差',
   'tileset.ninegrid.sizeError': '图片尺寸 {w}×{h} 无法被 6 整除',
+  'tileset.ninegrid.gridSplits': '6×6 子瓦片网格',
+  'tileset.ninegrid.resetGrid': '重置',
   'tileset.painter.title': '纹理绘制器',
   'tileset.painter.pencil': '铅笔',
   'tileset.painter.fill': '填充',

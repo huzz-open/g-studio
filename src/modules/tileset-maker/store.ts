@@ -1,5 +1,5 @@
 import { reactive, computed } from 'vue'
-import type { EdgeProfile, GenerationMode, LayoutName, TileSize, TilesetLayout } from './core/types'
+import type { CustomSplits, EdgeProfile, GenerationMode, LayoutName, TileSize, TilesetLayout } from './core/types'
 import { getProfile } from './core/sdf/profiles'
 import { getLayout } from './core/layouts'
 import { generateTileset } from './core/generator'
@@ -21,6 +21,8 @@ export interface TilesetMakerState {
   nineGridFileName: string
   useMagenta: boolean
   magentaTolerance: number
+  nineGridSplitsX: number[]
+  nineGridSplitsY: number[]
   layout: LayoutName
   atlasPixels: Uint8ClampedArray | null
   atlasWidth: number
@@ -51,6 +53,8 @@ export function createTilesetInstance(id: string) {
     nineGridFileName: '',
     useMagenta: false,
     magentaTolerance: 30,
+    nineGridSplitsX: [],
+    nineGridSplitsY: [],
     layout: settings.tilesetMaker.defaults.layout as LayoutName,
     atlasPixels: null,
     atlasWidth: 0,
@@ -101,6 +105,7 @@ export function createTilesetInstance(id: string) {
         state.atlasTileW = result.tileW
         state.atlasTileH = result.tileH
       } else if (state.mode === 'subtile' && state.nineGridPixels) {
+        const customSplits = getCustomSplits()
         const result = generateTileset({
           mode: 'subtile',
           sourcePixels: state.nineGridPixels,
@@ -109,6 +114,7 @@ export function createTilesetInstance(id: string) {
           layout: currentLayout.value,
           useMagenta: state.useMagenta,
           magentaTolerance: state.magentaTolerance,
+          customSplits,
         })
         state.atlasPixels = result.pixels
         state.atlasWidth = result.width
@@ -164,6 +170,7 @@ export function createTilesetInstance(id: string) {
     ctx.drawImage(bitmap, 0, 0)
     state.nineGridPixels = ctx.getImageData(0, 0, w, h).data
     state.generateError = null
+    initGridSplits()
     state.isGenerating = true
     regenerate(true)
   }
@@ -199,6 +206,53 @@ export function createTilesetInstance(id: string) {
     regenerate()
   }
 
+  function getDefaultSplits(w: number, h: number) {
+    const x: number[] = []
+    const y: number[] = []
+    for (let i = 0; i <= 6; i++) {
+      x.push(Math.round(i * w / 6))
+      y.push(Math.round(i * h / 6))
+    }
+    return { x, y }
+  }
+
+  function getCustomSplits(): CustomSplits | null {
+    if (state.nineGridSplitsX.length !== 7 || state.nineGridSplitsY.length !== 7) return null
+    const def = getDefaultSplits(state.nineGridWidth, state.nineGridHeight)
+    const isDefault = state.nineGridSplitsX.every((v, i) => v === def.x[i])
+      && state.nineGridSplitsY.every((v, i) => v === def.y[i])
+    return isDefault ? null : { x: state.nineGridSplitsX, y: state.nineGridSplitsY }
+  }
+
+  function initGridSplits() {
+    if (state.nineGridWidth > 0 && state.nineGridHeight > 0) {
+      const def = getDefaultSplits(state.nineGridWidth, state.nineGridHeight)
+      state.nineGridSplitsX = def.x
+      state.nineGridSplitsY = def.y
+    }
+  }
+
+  function setGridSplitX(index: number, value: number) {
+    if (index < 1 || index > 5) return
+    const min = state.nineGridSplitsX[index - 1] + 1
+    const max = state.nineGridSplitsX[index + 1] - 1
+    state.nineGridSplitsX[index] = Math.max(min, Math.min(max, value))
+    regenerate()
+  }
+
+  function setGridSplitY(index: number, value: number) {
+    if (index < 1 || index > 5) return
+    const min = state.nineGridSplitsY[index - 1] + 1
+    const max = state.nineGridSplitsY[index + 1] - 1
+    state.nineGridSplitsY[index] = Math.max(min, Math.min(max, value))
+    regenerate()
+  }
+
+  function resetGridSplits() {
+    initGridSplits()
+    regenerate()
+  }
+
   function setMagenta(enabled: boolean) {
     state.useMagenta = enabled
     regenerate()
@@ -225,6 +279,9 @@ export function createTilesetInstance(id: string) {
     setTileSize,
     setMagenta,
     setMagentaTolerance,
+    setGridSplitX,
+    setGridSplitY,
+    resetGridSplits,
   }
 }
 

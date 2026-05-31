@@ -1,4 +1,4 @@
-import type { EdgeProfile, TilesetLayout } from './types'
+import type { CustomSplits, EdgeProfile, TilesetLayout } from './types'
 import { generateTilesetSdf } from './sdf/render-sdf'
 import { generateTilesetSubtile } from './subtile/generator-subtile'
 
@@ -18,6 +18,7 @@ export interface SubtileGenerateInput {
   layout: TilesetLayout
   useMagenta: boolean
   magentaTolerance: number
+  customSplits?: CustomSplits | null
 }
 
 export type GenerateInput = SdfGenerateInput | SubtileGenerateInput
@@ -46,10 +47,11 @@ export function generateTileset(input: GenerateInput): GenerateResult {
       tileH: tileSize,
     }
   } else {
-    const { sourcePixels, sourceWidth, sourceHeight, layout, useMagenta, magentaTolerance } = input
+    const { sourcePixels, sourceWidth, sourceHeight, layout, useMagenta, magentaTolerance, customSplits } = input
     return generateTilesetSubtile(sourcePixels, sourceWidth, sourceHeight, layout, {
       useMagenta,
       magentaTolerance,
+      customSplits,
     })
   }
 }
