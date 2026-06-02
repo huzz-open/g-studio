@@ -43,4 +43,7 @@ export const iconPaths: Record<string, string> = {
   'chevron-down': 'M6 9l6 6 6-6',
   'file-text': 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8',
   link: 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71 M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
+  cursor: 'M4 2l5.5 18.5L12 13l7.5-2.5L4 2z',
+  'rect-select': 'M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5z',
+  pentagon: 'M12 2l9.5 7-3.6 11.5H6.1L2.5 9z',
 }

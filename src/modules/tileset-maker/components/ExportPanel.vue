@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from '../../../shared/i18n'
+import { ActionButtons } from '../../../shared/components/editor-shell'
+import type { ActionButton } from '../../../shared/components/editor-shell'
 import type { TilesetInstance } from '../store'
 import type { SharedTerrainState } from '../terrain-state'
 import { generateTres } from '../core/tres-export'
@@ -27,6 +30,18 @@ function exportPngTres() {
   const tres = generateTres(filename, tileSize, name || 'Terrain', layout)
   downloadBlob(new Blob([tres], { type: 'text/plain' }), `${name}.tres`)
 }
+
+const hasAtlas = computed(() => !!props.store.state.atlasPixels)
+
+const exportActions = computed<ActionButton[]>(() => [
+  { id: 'png', label: t('tileset.export.png'), disabled: !hasAtlas.value },
+  { id: 'pngTres', label: t('tileset.export.pngTres'), disabled: !hasAtlas.value },
+])
+
+function onAction(id: string) {
+  if (id === 'png') exportPng()
+  else if (id === 'pngTres') exportPngTres()
+}
 </script>
 
 <template>
@@ -39,14 +54,11 @@ function exportPngTres() {
         class="export-input"
       />
     </div>
-    <div class="actions">
-      <button class="btn-export" :disabled="!props.store.state.atlasPixels" @click="exportPng">
-        {{ t('tileset.export.png') }}
-      </button>
-      <button class="btn-export" :disabled="!props.store.state.atlasPixels" @click="exportPngTres">
-        {{ t('tileset.export.pngTres') }}
-      </button>
-    </div>
+    <ActionButtons
+      :buttons="exportActions"
+      direction="column"
+      @click="onAction"
+    />
   </div>
 </template>
 
@@ -79,17 +91,4 @@ function exportPngTres() {
   border-color: #6a8;
   outline: none;
 }
-.actions { display: flex; flex-direction: column; gap: 6px; }
-.btn-export {
-  padding: 6px 12px;
-  font-size: 12px;
-  background: #333;
-  border: 1px solid #555;
-  border-radius: 5px;
-  color: #ccc;
-  cursor: pointer;
-  text-align: center;
-}
-.btn-export:hover:not(:disabled) { border-color: #888; color: #eee; }
-.btn-export:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

@@ -25,6 +25,7 @@ const props = withDefaults(defineProps<{
   keepViewOnSrcChange?: boolean
   viewportCursor?: string
   preventEscClose?: boolean
+  panMode?: 'left' | 'middle'
 }>(), {
   src: '',
   checkerBackground: true,
@@ -40,6 +41,7 @@ const props = withDefaults(defineProps<{
   overlayTitle: '',
   overlaySubtitle: '',
   keepViewOnSrcChange: false,
+  panMode: 'left',
 })
 
 const emit = defineEmits<{
@@ -195,7 +197,7 @@ defineExpose({
         <PanZoomViewport
           ref="pzvRef"
           transform-mode="css"
-          pan-mode="left"
+          :pan-mode="panMode"
           :min-scale="minScale"
           :max-scale="maxScale"
           :content-width="imgNaturalW"
@@ -242,7 +244,7 @@ defineExpose({
       <PanZoomViewport
         ref="pzvRef"
         transform-mode="css"
-        pan-mode="left"
+        :pan-mode="panMode"
         :min-scale="minScale"
         :max-scale="maxScale"
         :content-width="imgNaturalW"

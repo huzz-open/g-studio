@@ -28,6 +28,11 @@ const router = createRouter({
       name: 'tileset-maker',
       component: () => import('../modules/tileset-maker/components/TilesetMakerView.vue'),
     },
+    {
+      path: '/scene-region-editor',
+      name: 'scene-region-editor',
+      component: () => import('../modules/scene-region-editor/components/SceneRegionEditorView.vue'),
+    },
   ],
 })
 

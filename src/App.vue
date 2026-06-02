@@ -35,6 +35,7 @@ const navItems = [
   { route: '/sprite-slicer', labelKey: 'nav.spriteSlicer', icon: 'scissors' },
   { route: '/map-editor', labelKey: 'nav.mapEditor', icon: 'map' },
   { route: '/tileset-maker', labelKey: 'nav.tilesetMaker', icon: 'grid' },
+  { route: '/scene-region-editor', labelKey: 'nav.sceneRegionEditor', icon: 'layers' },
 ]
 
 onMounted(async () => {

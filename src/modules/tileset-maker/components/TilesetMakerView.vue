@@ -5,6 +5,7 @@ import { useI18n } from '../../../shared/i18n'
 import { EditorShell, SidebarSection, definePanelConfig, useRouteResource } from '../../../shared/components/editor-shell'
 import type { TabItem, DropModifiers } from '../../../shared/components/editor-shell'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
+import { ActionButtons } from '../../../shared/components/editor-shell'
 import { useTilesetTabs, useTilesetTerrain, type TilesetInstance } from '../store'
 import TextureSourcePanel from './TextureSourcePanel.vue'
 import NineGridSourcePanel from './NineGridSourcePanel.vue'
@@ -201,10 +202,10 @@ onUnmounted(() => {
       </template>
       <div v-else class="sidebar-empty">
         <p class="sidebar-empty-hint">{{ t('tileset.empty.title') }}</p>
-        <button class="sidebar-new-btn" @click="createTab()">
-          <SvgIcon name="plus" :size="12" />
-          {{ t('common.newTab') }}
-        </button>
+        <ActionButtons
+          :buttons="[{ id: 'new', label: t('common.newTab'), icon: 'plus', variant: 'primary' }]"
+          @click="createTab()"
+        />
       </div>
     </template>
 
@@ -290,25 +291,6 @@ onUnmounted(() => {
   margin: 0;
   text-align: center;
 }
-.sidebar-new-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 14px;
-  font-size: 11px;
-  border: 1px solid #444;
-  border-radius: 4px;
-  background: #2a2a2a;
-  color: #aaa;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.sidebar-new-btn:hover {
-  border-color: #6a8;
-  color: #ade;
-  background: #2a3a2e;
-}
-
 /* Split viewport layout */
 .split-viewport {
   display: flex;

@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
+import { ActionButtons } from '../../../shared/components/editor-shell/sidebar-atoms'
+import type { ActionButton } from '../../../shared/components/editor-shell/sidebar-atoms'
 import type { FsEntry } from '../interfaces/meta'
 
 const props = defineProps<{
@@ -46,6 +48,26 @@ function formatDate(ts?: number): string {
   if (!ts) return '-'
   return new Date(ts).toLocaleString()
 }
+
+const actionButtons = computed<ActionButton[]>(() => {
+  const btns: ActionButton[] = []
+  const f = props.file
+  if (!f) return btns
+  if (f.meta?.openWith === 'sprite-slicer' || f.meta?.type === 'spritesheet') {
+    btns.push({ id: 'open-slicer', label: '在切分器中打开', icon: 'scissors' })
+  }
+  if (f.meta?.openWith === 'tileset-maker' || f.meta?.type === 'tile') {
+    btns.push({ id: 'open-tileset', label: '在瓦片集制作中打开', icon: 'grid' })
+  }
+  btns.push({ id: 'delete', label: '删除', icon: 'trash', variant: 'danger' })
+  return btns
+})
+
+function onAction(id: string) {
+  if (id === 'open-slicer') openInSlicer()
+  else if (id === 'open-tileset') openInTilesetMaker()
+  else if (id === 'delete' && props.file) emit('delete', props.file)
+}
 </script>
 
 <template>
@@ -88,26 +110,11 @@ function formatDate(ts?: number): string {
     </div>
 
     <div class="preview-actions">
-      <button
-        v-if="file.meta?.openWith === 'sprite-slicer' || file.meta?.type === 'spritesheet'"
-        class="btn btn-sm"
-        @click="openInSlicer"
-      >
-        <SvgIcon name="scissors" :size="12" />
-        在切分器中打开
-      </button>
-      <button
-        v-if="file.meta?.openWith === 'tileset-maker' || file.meta?.type === 'tile'"
-        class="btn btn-sm"
-        @click="openInTilesetMaker"
-      >
-        <SvgIcon name="grid" :size="12" />
-        在瓦片集制作中打开
-      </button>
-      <button class="btn btn-sm btn-danger" @click="emit('delete', file)">
-        <SvgIcon name="trash" :size="12" />
-        删除
-      </button>
+      <ActionButtons
+        :buttons="actionButtons"
+        direction="column"
+        @click="onAction"
+      />
     </div>
 
     <div v-if="file.meta?.pipeline?.length" class="preview-pipeline">
@@ -171,27 +178,8 @@ function formatDate(ts?: number): string {
 .meta-row span:last-child { color: #ccc; text-align: right; max-width: 140px; word-break: break-all; }
 .uid-text { font-family: monospace; font-size: 10px; }
 .preview-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
   margin-bottom: 12px;
 }
-.btn {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 10px;
-  background: #3a5070;
-  color: #dde4f0;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 11px;
-  transition: background 0.15s;
-}
-.btn:hover { background: #4a6080; }
-.btn-danger { background: #6a3a3a; color: #f0d0d0; }
-.btn-danger:hover { background: #7a4a4a; }
 .preview-pipeline {
   border-top: 1px solid #3a3a3a;
   padding-top: 10px;

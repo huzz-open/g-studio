@@ -10,7 +10,8 @@ import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import FileDropZone from '../../../shared/components/FileDropZone.vue'
 import SegmentedControl from '../../../shared/components/SegmentedControl.vue'
 import InlineSwitch from '../../../shared/components/InlineSwitch.vue'
-import { CheckboxRow } from '../../../shared/components/editor-shell/sidebar-atoms'
+import { CheckboxRow, ActionButtons } from '../../../shared/components/editor-shell/sidebar-atoms'
+import type { ActionButton } from '../../../shared/components/editor-shell/sidebar-atoms'
 
 export interface OutputPayload {
   composite: boolean
@@ -141,6 +142,27 @@ const arrangeModeOptions = [
 const bgRemoverOptions = computed(() =>
   props.store.bgRemovers.map(r => ({ value: r.id, labelKey: r.labelKey })),
 )
+
+const outputButtons = computed<ActionButton[]>(() => [
+  {
+    id: 'export-local',
+    label: t('slicer.output.exportLocal'),
+    icon: 'download',
+    disabled: outputDisabled.value || props.store.saving.value,
+  },
+  {
+    id: 'save-workspace',
+    label: props.store.saving.value ? t('slicer.save.saving') : t('slicer.output.saveWorkspace'),
+    icon: 'save',
+    variant: 'primary',
+    disabled: outputDisabled.value || props.store.saving.value || !wsOpen.value,
+  },
+])
+
+function onOutputAction(id: string) {
+  if (id === 'export-local') emit('export-local', getPayload())
+  else if (id === 'save-workspace') emit('save-workspace', getPayload())
+}
 </script>
 
 <template>
@@ -334,24 +356,10 @@ const bgRemoverOptions = computed(() =>
         :disabled="!hasImage"
         @update:model-value="exportOpts.sprites = $event"
       />
-      <div class="output-btns">
-        <button
-          class="btn btn-sm"
-          :disabled="outputDisabled || store.saving.value"
-          @click="emit('export-local', getPayload())"
-        >
-          <SvgIcon name="download" :size="12" />
-          {{ t('slicer.output.exportLocal') }}
-        </button>
-        <button
-          class="btn btn-sm btn-accent"
-          :disabled="outputDisabled || store.saving.value || !wsOpen.value"
-          @click="emit('save-workspace', getPayload())"
-        >
-          <SvgIcon name="save" :size="12" />
-          {{ store.saving.value ? t('slicer.save.saving') : t('slicer.output.saveWorkspace') }}
-        </button>
-      </div>
+      <ActionButtons
+        :buttons="outputButtons"
+        @click="onOutputAction"
+      />
     </div>
   </div>
 </template>
@@ -474,37 +482,11 @@ const bgRemoverOptions = computed(() =>
   border-radius: 4px;
   font-size: 12px;
 }
-.btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  padding: 6px 10px;
-  background: #3a5070;
-  color: #dde4f0;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: background 0.15s;
-}
-.btn:hover:not(:disabled) { background: #4a6080; }
-.btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.btn-sm { padding: 4px 8px; font-size: 11px; }
-.btn-accent { background: #3a6a5a; color: #d0f0e0; }
-.btn-accent:hover:not(:disabled) { background: #4a7a6a; }
 .actions { padding-top: 4px; display: flex; flex-direction: column; gap: 6px; }
 .cb-pair {
   display: flex;
   gap: 12px;
 }
-.output-btns {
-  display: flex;
-  gap: 6px;
-  margin-top: 8px;
-}
-.output-btns .btn { flex: 1; }
 .dir-picker {
   display: flex;
   gap: 4px;

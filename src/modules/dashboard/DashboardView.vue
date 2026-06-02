@@ -35,6 +35,13 @@ const modules = [
     descKey: 'dashboard.tilesetMaker.desc',
     color: '#6a8a5a',
   },
+  {
+    route: '/scene-region-editor',
+    icon: 'layers',
+    titleKey: 'dashboard.sceneRegionEditor.title',
+    descKey: 'dashboard.sceneRegionEditor.desc',
+    color: '#5a7a9a',
+  },
 ]
 </script>
 
