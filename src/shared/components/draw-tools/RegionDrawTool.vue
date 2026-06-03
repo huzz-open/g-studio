@@ -33,11 +33,21 @@ const isDrawingRect = ref(false)
 const rectStart = ref<DrawPoint | null>(null)
 
 const draggingVertexIndex = ref<number | null>(null)
+const dragOrigin = ref<DrawPoint | null>(null)
 const hoverVertexIndex = ref<number | null>(null)
 const hoverEdgeIndex = ref<number | null>(null)
 
 const CLOSE_THRESHOLD = 8
 const MIN_RECT_DRAG = 4
+const SNAP_THRESHOLD = 5
+
+interface SnapLine {
+  axis: 'x' | 'y'
+  value: number
+  from: DrawPoint
+  to: DrawPoint
+}
+const activeSnapLines = ref<SnapLine[]>([])
 
 function screenToLocal(clientX: number, clientY: number): DrawPoint | null {
   const svg = svgEl.value
@@ -165,6 +175,7 @@ function onSvgMouseDown(e: MouseEvent) {
     for (let i = 0; i < poly.vertices.length; i++) {
       if (distScreen(pt, poly.vertices[i]) < CLOSE_THRESHOLD) {
         draggingVertexIndex.value = i
+        dragOrigin.value = { ...poly.vertices[i] }
         emit('vertex-drag-start')
         e.preventDefault()
         e.stopPropagation()
@@ -180,6 +191,7 @@ function onSvgMouseDown(e: MouseEvent) {
       newVerts.splice(i + 1, 0, cp.point)
       emit('polygon-updated', { id: poly.id, vertices: newVerts })
       draggingVertexIndex.value = i + 1
+      dragOrigin.value = { ...cp.point }
       emit('vertex-drag-start')
       hoverEdgeIndex.value = null
       hoverEdgePoint.value = null
@@ -241,9 +253,51 @@ function onSvgMouseMove(e: MouseEvent) {
   mousePos.value = pt
 
   if (draggingVertexIndex.value !== null && selectedPolygon.value) {
-    const newVerts = [...selectedPolygon.value.vertices]
-    newVerts[draggingVertexIndex.value] = pt
-    emit('polygon-updated', { id: selectedPolygon.value.id, vertices: newVerts })
+    let target = { ...pt }
+
+    if (e.shiftKey && dragOrigin.value) {
+      const dx = Math.abs(pt.x - dragOrigin.value.x)
+      const dy = Math.abs(pt.y - dragOrigin.value.y)
+      if (dx >= dy) {
+        target.y = dragOrigin.value.y
+      } else {
+        target.x = dragOrigin.value.x
+      }
+    }
+
+    const poly = selectedPolygon.value
+    const idx = draggingVertexIndex.value
+    const snaps: SnapLine[] = []
+
+    for (let i = 0; i < poly.vertices.length; i++) {
+      if (i === idx) continue
+      const other = poly.vertices[i]
+      if (Math.abs(target.x - other.x) <= SNAP_THRESHOLD) {
+        target.x = other.x
+        const minY = Math.min(target.y, other.y)
+        const maxY = Math.max(target.y, other.y)
+        snaps.push({ axis: 'x', value: other.x, from: { x: other.x, y: minY }, to: { x: other.x, y: maxY } })
+        break
+      }
+    }
+
+    for (let i = 0; i < poly.vertices.length; i++) {
+      if (i === idx) continue
+      const other = poly.vertices[i]
+      if (Math.abs(target.y - other.y) <= SNAP_THRESHOLD) {
+        target.y = other.y
+        const minX = Math.min(target.x, other.x)
+        const maxX = Math.max(target.x, other.x)
+        snaps.push({ axis: 'y', value: other.y, from: { x: minX, y: other.y }, to: { x: maxX, y: other.y } })
+        break
+      }
+    }
+
+    activeSnapLines.value = snaps
+
+    const newVerts = [...poly.vertices]
+    newVerts[idx] = target
+    emit('polygon-updated', { id: poly.id, vertices: newVerts })
     return
   }
 
@@ -280,6 +334,8 @@ function onSvgMouseMove(e: MouseEvent) {
 function onSvgMouseUp(e: MouseEvent) {
   if (draggingVertexIndex.value !== null) {
     draggingVertexIndex.value = null
+    dragOrigin.value = null
+    activeSnapLines.value = []
     emit('vertex-drag-end')
     return
   }
@@ -418,6 +474,20 @@ const firstPointHover = computed(() => {
           class="vertex-handle"
         />
       </template>
+
+      <!-- Snap alignment lines -->
+      <line
+        v-for="(snap, si) in activeSnapLines"
+        :key="'snap-' + si"
+        :x1="snap.from.x"
+        :y1="snap.from.y"
+        :x2="snap.to.x"
+        :y2="snap.to.y"
+        stroke="#ffd700"
+        stroke-width="1"
+        stroke-dasharray="3,2"
+        opacity="0.8"
+      />
     </template>
 
     <!-- Polygon creation: existing vertices + edges -->
