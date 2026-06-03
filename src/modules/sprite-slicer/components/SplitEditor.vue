@@ -5,6 +5,8 @@ import { useSettings } from '../../../shared/settings'
 import { confirm } from '../../../shared/components/confirm'
 import ImageCanvas from '../../../shared/components/ImageCanvas.vue'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
+import { createHistoryStack } from '../../../shared/history'
+import type { Transaction } from '../../../shared/history'
 import type { DetectedSprite } from '../interfaces/sprite-detector'
 import type { Point } from '../core/split/line-splitter'
 import {
@@ -50,43 +52,38 @@ const hoveredPointRef = ref<PointRef | null>(null)
 const dragPointRef = ref<PointRef | null>(null)
 const isDragging = ref(false)
 let downClientPos: { x: number; y: number } | null = null
+let dragTx: Transaction | null = null
 const DRAG_THRESHOLD = 3
 
 // --- Undo / Redo ---
-interface Snapshot {
+interface SplitSnapshot {
   completed: Point[][]
   current: Point[]
   startedExisting: boolean
 }
-const history = ref<Snapshot[]>([{ completed: [], current: [], startedExisting: false }])
-const historyIdx = ref(0)
 
-function snapshot(): Snapshot {
-  return {
-    completed: completedLines.value.map(l => l.map(p => ({ ...p }))),
-    current: currentPoints.value.map(p => ({ ...p })),
-    startedExisting: startedFromExisting.value,
-  }
+const splitHistory = createHistoryStack<SplitSnapshot>({
+  capture() {
+    return {
+      completed: completedLines.value.map(l => l.map(p => ({ ...p }))),
+      current: currentPoints.value.map(p => ({ ...p })),
+      startedExisting: startedFromExisting.value,
+    }
+  },
+  restore(s) {
+    completedLines.value = s.completed.map(l => l.map(p => ({ ...p })))
+    currentPoints.value = s.current.map(p => ({ ...p }))
+    startedFromExisting.value = s.startedExisting
+  },
+})
+
+function recordBefore() {
+  splitHistory.record()
 }
-function pushState() {
-  const s = snapshot()
-  history.value = history.value.slice(0, historyIdx.value + 1)
-  history.value.push(s)
-  historyIdx.value = history.value.length - 1
-}
-function restoreState(s: Snapshot) {
-  completedLines.value = s.completed.map(l => l.map(p => ({ ...p })))
-  currentPoints.value = s.current.map(p => ({ ...p }))
-  startedFromExisting.value = s.startedExisting
-}
-function undo() {
-  if (historyIdx.value > 0) { historyIdx.value--; restoreState(history.value[historyIdx.value]) }
-}
-function redo() {
-  if (historyIdx.value < history.value.length - 1) { historyIdx.value++; restoreState(history.value[historyIdx.value]) }
-}
-const canUndo = computed(() => historyIdx.value > 0)
-const canRedo = computed(() => historyIdx.value < history.value.length - 1)
+function undo() { splitHistory.undo() }
+function redo() { splitHistory.redo() }
+const canUndo = splitHistory.canUndo
+const canRedo = splitHistory.canRedo
 
 // --- Image data ---
 const { x: ox, y: oy, w: sw, h: sh } = props.sprite.rect
@@ -222,7 +219,10 @@ function onSvgMouseMove(e: MouseEvent) {
 
   if (dragPointRef.value && !isDragging.value && downClientPos) {
     const moved = Math.hypot(e.clientX - downClientPos.x, e.clientY - downClientPos.y)
-    if (moved > DRAG_THRESHOLD) isDragging.value = true
+    if (moved > DRAG_THRESHOLD) {
+      isDragging.value = true
+      dragTx = splitHistory.transaction()
+    }
   }
 
   const threshold = svgSnapThreshold()
@@ -256,7 +256,8 @@ function onSvgMouseUp(e: MouseEvent) {
   if (isDragging.value) {
     isDragging.value = false
     dragPointRef.value = null
-    pushState()
+    dragTx?.commit()
+    dragTx = null
     downClientPos = null
     return
   }
@@ -287,7 +288,10 @@ function onDocMouseMove(e: MouseEvent) {
 
   if (dragPointRef.value && !isDragging.value && downClientPos) {
     const moved = Math.hypot(e.clientX - downClientPos.x, e.clientY - downClientPos.y)
-    if (moved > DRAG_THRESHOLD) isDragging.value = true
+    if (moved > DRAG_THRESHOLD) {
+      isDragging.value = true
+      dragTx = splitHistory.transaction()
+    }
   }
 
   if (isDragging.value && dragPointRef.value) {
@@ -318,7 +322,8 @@ function onDocMouseUp(e: MouseEvent) {
   if (isDragging.value) {
     isDragging.value = false
     dragPointRef.value = null
-    pushState()
+    dragTx?.commit()
+    dragTx = null
     downClientPos = null
   }
 }
@@ -327,13 +332,12 @@ function handleClick(pos: Point, shift: boolean) {
   const threshold = svgSnapThreshold()
 
   if (mode.value === 'edit') {
-    // Edit mode: click on line segment → insert control point
     const nearSeg = findNearestLineSeg(pos, threshold)
     if (nearSeg) {
+      recordBefore()
       const newLines = completedLines.value.map(l => l.map(p => ({ ...p })))
       newLines[nearSeg.lineIdx].splice(nearSeg.segIdx + 1, 0, nearSeg.point)
       completedLines.value = newLines
-      pushState()
     }
     return
   }
@@ -342,27 +346,27 @@ function handleClick(pos: Point, shift: boolean) {
   if (currentPoints.value.length === 0) {
     const nearPt = findNearestPoint(pos, threshold)
     if (nearPt && nearPt.lineIdx >= 0) {
+      recordBefore()
       const pt = completedLines.value[nearPt.lineIdx][nearPt.ptIdx]
       currentPoints.value = [{ ...pt }]
       startedFromExisting.value = true
-      pushState()
       return
     }
 
     const nearSeg = findNearestLineSeg(pos, threshold)
     if (nearSeg) {
+      recordBefore()
       const newLines = completedLines.value.map(l => l.map(p => ({ ...p })))
       newLines[nearSeg.lineIdx].splice(nearSeg.segIdx + 1, 0, nearSeg.point)
       completedLines.value = newLines
       currentPoints.value = [{ ...nearSeg.point }]
       startedFromExisting.value = true
-      pushState()
       return
     }
 
+    recordBefore()
     currentPoints.value = [snapToBoundary(pos, threshold)]
     startedFromExisting.value = false
-    pushState()
   } else {
     const last = currentPoints.value[currentPoints.value.length - 1]
     const constrained = constrainAngle(last, pos, shift)
@@ -371,8 +375,8 @@ function handleClick(pos: Point, shift: boolean) {
     const nearSeg = findNearestLineSeg(snapped, threshold)
     const finalPt = nearSeg ? nearSeg.point : snapped
 
+    recordBefore()
     currentPoints.value = [...currentPoints.value, finalPt]
-    pushState()
   }
 }
 
@@ -394,17 +398,17 @@ function finishLine() {
   const endHit = findClosestHit(points[n - 1], endDir, otherLines)
   if (endHit) result[n - 1] = endHit
 
+  recordBefore()
   completedLines.value = [...completedLines.value, result]
   currentPoints.value = []
   startedFromExisting.value = false
-  pushState()
 }
 
 function clearAll() {
+  recordBefore()
   completedLines.value = []
   currentPoints.value = []
   startedFromExisting.value = false
-  pushState()
 }
 
 async function apply() {
@@ -426,6 +430,7 @@ async function apply() {
 }
 
 function deletePoint(ref: PointRef) {
+  recordBefore()
   if (ref.lineIdx < 0) {
     const pts = [...currentPoints.value]
     pts.splice(ref.ptIdx, 1)
@@ -439,7 +444,6 @@ function deletePoint(ref: PointRef) {
     }
     completedLines.value = newLines
   }
-  pushState()
 }
 
 function onContextMenu(e: MouseEvent) {

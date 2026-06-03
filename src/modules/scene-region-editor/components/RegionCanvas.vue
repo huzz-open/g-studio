@@ -4,10 +4,13 @@ import ImageCanvas from '../../../shared/components/ImageCanvas.vue'
 import RegionDrawTool from '../../../shared/components/draw-tools/RegionDrawTool.vue'
 import type { DrawnPolygon, DrawPoint } from '../../../shared/components/draw-tools/types'
 import type { SceneRegionStore } from '../store'
+import type { Transaction } from '../../../shared/history'
 
 const props = defineProps<{
   store: SceneRegionStore
 }>()
+
+let vertexDragTx: Transaction | null = null
 
 const visibleRegionPolygons = computed<DrawnPolygon[]>(() =>
   props.store.visibleRegions.value.map(r => ({
@@ -34,11 +37,23 @@ function onRegionCreated(vertices: DrawPoint[]) {
 }
 
 function onRegionUpdated(payload: { id: string; vertices: DrawPoint[] }) {
+  if (!vertexDragTx) {
+    props.store.history.record()
+  }
   props.store.updateRegionVertices(payload.id, payload.vertices)
 }
 
 function onRegionSelected(id: string | null) {
   props.store.selectRegion(id)
+}
+
+function onVertexDragStart() {
+  vertexDragTx = props.store.history.transaction()
+}
+
+function onVertexDragEnd() {
+  vertexDragTx?.commit()
+  vertexDragTx = null
 }
 </script>
 
@@ -68,6 +83,8 @@ function onRegionSelected(id: string | null) {
         @polygon-created="onRegionCreated"
         @polygon-updated="onRegionUpdated"
         @polygon-selected="onRegionSelected"
+        @vertex-drag-start="onVertexDragStart"
+        @vertex-drag-end="onVertexDragEnd"
       />
     </template>
   </ImageCanvas>

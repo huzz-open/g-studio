@@ -2,6 +2,7 @@ import { reactive, computed, watch } from 'vue'
 import type { SceneRegion, RegionType, RegionPreset, SceneRegionData } from './core/types'
 import type { DrawPoint } from '../../shared/components/draw-tools/types'
 import { generateTscn } from './core/tscn-export'
+import { createHistoryStack } from '../../shared/history'
 
 let _counter = 0
 function nextId(): string {
@@ -106,12 +107,20 @@ function _createStore() {
     return map
   })
 
+  interface RegionSnapshot { regions: SceneRegion[] }
+
+  const history = createHistoryStack<RegionSnapshot>({
+    capture: () => ({ regions: JSON.parse(JSON.stringify(state.regions)) }),
+    restore: (snap) => { state.regions = snap.regions },
+  })
+
   function loadImage(url: string, w: number, h: number) {
     state.imageUrl = url
     state.imageSize = { w, h }
   }
 
   function addRegion(vertices: DrawPoint[], createdAs: 'rect' | 'polygon') {
+    history.record()
     const idx = state.regions.length
     const region: SceneRegion = {
       id: nextId(),
@@ -133,6 +142,7 @@ function _createStore() {
   function removeRegion(id: string) {
     const idx = state.regions.findIndex(r => r.id === id)
     if (idx < 0) return
+    history.record()
     state.regions.splice(idx, 1)
     if (state.selectedRegionId === id) {
       state.selectedRegionId = null
@@ -149,6 +159,7 @@ function _createStore() {
   function updateRegionProps(id: string, props: Partial<Pick<SceneRegion, 'name' | 'type' | 'groups' | 'color' | 'colorManuallySet'>>) {
     const region = state.regions.find(r => r.id === id)
     if (!region) return
+    history.record()
     if (props.name !== undefined) region.name = props.name
     if (props.type !== undefined) region.type = props.type
     if (props.groups !== undefined) region.groups = props.groups
@@ -167,6 +178,7 @@ function _createStore() {
   function toggleRegionVisibility(id: string) {
     const region = state.regions.find(r => r.id === id)
     if (!region) return
+    history.record()
     region.visible = !region.visible
   }
 
@@ -225,10 +237,12 @@ function _createStore() {
       colorManuallySet: r.colorManuallySet ?? false,
     }))
     state.selectedRegionId = null
+    history.clear()
   }
 
   return {
     state,
+    history,
     selectedRegion,
     filteredRegions,
     visibleRegions,

@@ -4,10 +4,12 @@ import { useI18n } from '../../../shared/i18n'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import type { MapEditorInstance } from '../store'
 import type { MapLocation } from '../types'
+import type { Transaction } from '../../../shared/history'
 
 const props = defineProps<{ store: MapEditorInstance }>()
 const { t } = useI18n()
 const iconInput = ref<HTMLInputElement>()
+let activeTx: Transaction | null = null
 
 const state = toRef(props.store, 'state')
 
@@ -47,8 +49,8 @@ function onPositionChange(axis: 'x' | 'y', val: string) {
   props.store.updateLocationPosition(loc.id, axis === 'x' ? num : (loc.position.x ?? 0), axis === 'y' ? num : (loc.position.y ?? 0))
 }
 
-function beginTransaction() { props.store.beginEditTransaction() }
-function endTransaction() { props.store.endEditTransaction() }
+function beginTransaction() { activeTx = props.store.beginDragTransaction() }
+function endTransaction() { activeTx?.commit(); activeTx = null }
 </script>
 
 <template>

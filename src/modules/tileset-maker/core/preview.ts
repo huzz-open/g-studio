@@ -88,39 +88,6 @@ export interface TerrainSnapshot {
   originY: number
 }
 
-function cloneSnapshot(s: TerrainSnapshot): TerrainSnapshot {
+export function cloneTerrainSnapshot(s: TerrainSnapshot): TerrainSnapshot {
   return { grid: cloneGrid(s.grid), originX: s.originX, originY: s.originY }
-}
-
-export class TerrainHistory {
-  private undoStack: TerrainSnapshot[] = []
-  private redoStack: TerrainSnapshot[] = []
-  private maxSize: number
-
-  constructor(maxSize = 50) {
-    this.maxSize = maxSize
-  }
-
-  push(snapshot: TerrainSnapshot): void {
-    this.undoStack.push(cloneSnapshot(snapshot))
-    if (this.undoStack.length > this.maxSize) {
-      this.undoStack.shift()
-    }
-    this.redoStack = []
-  }
-
-  undo(current: TerrainSnapshot): TerrainSnapshot | null {
-    if (this.undoStack.length === 0) return null
-    this.redoStack.push(cloneSnapshot(current))
-    return this.undoStack.pop()!
-  }
-
-  redo(current: TerrainSnapshot): TerrainSnapshot | null {
-    if (this.redoStack.length === 0) return null
-    this.undoStack.push(cloneSnapshot(current))
-    return this.redoStack.pop()!
-  }
-
-  get canUndo(): boolean { return this.undoStack.length > 0 }
-  get canRedo(): boolean { return this.redoStack.length > 0 }
 }

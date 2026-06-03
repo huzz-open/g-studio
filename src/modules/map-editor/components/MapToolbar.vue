@@ -12,8 +12,8 @@ const { t } = useI18n()
 const jsonInput = ref<HTMLInputElement>()
 const baseMapInput = ref<HTMLInputElement>()
 const state = toRef(props.store, 'state')
-const canUndo = computed(() => props.store.undoStack.value.length > 0)
-const canRedo = computed(() => props.store.redoStack.value.length > 0)
+const canUndo = computed(() => props.store.canUndo.value)
+const canRedo = computed(() => props.store.canRedo.value)
 
 function onImportJson(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]

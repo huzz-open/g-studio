@@ -2,7 +2,9 @@ import { reactive, computed, type Ref } from 'vue'
 import type { LayoutName } from './core/types'
 import type { TilesetInstance } from './store'
 import type { TerrainGrid, TerrainSnapshot } from './core/preview'
-import { createTerrainGrid, TerrainHistory } from './core/preview'
+import { createTerrainGrid, cloneTerrainSnapshot } from './core/preview'
+import { createHistoryStack } from '../../shared/history'
+import type { Transaction } from '../../shared/history'
 import { useSettings } from '../../shared/settings'
 
 export interface TilesetRef {
@@ -37,7 +39,16 @@ export function createSharedTerrainState(instancesRef: Ref<TilesetInstance[]>) {
     originY: 0,
   })
 
-  const history = new TerrainHistory(50)
+  const history = createHistoryStack<TerrainSnapshot>({
+    capture(): TerrainSnapshot {
+      return cloneTerrainSnapshot({ grid: state.terrainGrid, originX: state.originX, originY: state.originY })
+    },
+    restore(snap: TerrainSnapshot) {
+      state.terrainGrid = snap.grid
+      state.originX = snap.originX
+      state.originY = snap.originY
+    },
+  })
 
   const availableTilesets = computed<TilesetRef[]>(() => {
     const result: TilesetRef[] = []
@@ -67,19 +78,15 @@ export function createSharedTerrainState(instancesRef: Ref<TilesetInstance[]>) {
   const gridRows = computed(() => state.terrainGrid.length)
   const originX = computed(() => state.originX)
   const originY = computed(() => state.originY)
-  const canUndo = computed(() => history.canUndo)
-  const canRedo = computed(() => history.canRedo)
+  const canUndo = history.canUndo
+  const canRedo = history.canRedo
 
   function setActiveTileset(id: string) {
     state.activeTilesetId = id
   }
 
-  function snapshot(): TerrainSnapshot {
-    return { grid: state.terrainGrid, originX: state.originX, originY: state.originY }
-  }
-
-  function beginStroke() {
-    history.push(snapshot())
+  function beginStroke(): Transaction {
+    return history.transaction()
   }
 
   function terrainDraw(x: number, y: number, tilesetId: string | null) {
@@ -114,25 +121,15 @@ export function createSharedTerrainState(instancesRef: Ref<TilesetInstance[]>) {
   }
 
   function terrainUndo() {
-    const prev = history.undo(snapshot())
-    if (prev) {
-      state.terrainGrid = prev.grid
-      state.originX = prev.originX
-      state.originY = prev.originY
-    }
+    history.undo()
   }
 
   function terrainRedo() {
-    const next = history.redo(snapshot())
-    if (next) {
-      state.terrainGrid = next.grid
-      state.originX = next.originX
-      state.originY = next.originY
-    }
+    history.redo()
   }
 
   function resizeTerrain(newCols: number, newRows: number) {
-    history.push(snapshot())
+    history.record()
     const oldGrid = state.terrainGrid
     const oldRows = oldGrid.length
     const oldCols = oldGrid[0]?.length ?? 0
@@ -148,7 +145,7 @@ export function createSharedTerrainState(instancesRef: Ref<TilesetInstance[]>) {
   }
 
   function clearTerrain() {
-    history.push(snapshot())
+    history.record()
     state.terrainGrid = createTerrainGrid(
       settings.tilesetMaker.defaults.terrainCols,
       settings.tilesetMaker.defaults.terrainRows,
@@ -159,6 +156,7 @@ export function createSharedTerrainState(instancesRef: Ref<TilesetInstance[]>) {
 
   return {
     state,
+    history,
     availableTilesets,
     activeTileset,
     gridCols,

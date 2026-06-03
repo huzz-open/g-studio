@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import PanZoomViewport from '../../../shared/components/PanZoomViewport.vue'
 import type { MapEditorInstance } from '../store'
 import type { MapLocation, Region, WaterFeature } from '../types'
+import type { Transaction } from '../../../shared/history'
 
 const props = defineProps<{ store: MapEditorInstance }>()
 
@@ -12,6 +13,7 @@ let ctx: CanvasRenderingContext2D | null = null
 let baseImage: HTMLImageElement | null = null
 let dragTarget: MapLocation | null = null
 let dragOffset = { x: 0, y: 0 }
+let dragTx: Transaction | null = null
 
 const BASE_W = 1280
 const BASE_H = 960
@@ -162,7 +164,7 @@ function onCanvasMouseDown(e: MouseEvent) {
     props.store.selectLocation(hit.id)
     dragTarget = hit
     dragOffset = { x: world.x - hit.position.x!, y: world.y - hit.position.y! }
-    props.store.beginEditTransaction()
+    dragTx = props.store.beginDragTransaction()
   } else {
     props.store.selectLocation(null)
   }
@@ -181,8 +183,9 @@ function onDocMouseMove(e: MouseEvent) {
 }
 
 function onDocMouseUp() {
-  if (dragTarget) props.store.endEditTransaction()
+  if (dragTarget && dragTx) dragTx.commit()
   dragTarget = null
+  dragTx = null
 }
 
 function onDblClick(e: MouseEvent) {

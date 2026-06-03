@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from '../../../shared/i18n'
 import { EditorShell, definePanelConfig } from '../../../shared/components/editor-shell'
 import type { TabItem, DropModifiers } from '../../../shared/components/editor-shell'
@@ -26,6 +26,17 @@ const tabs = computed<TabItem[]>(() => {
 const activeTabId = ref<string | null>('main')
 
 const showEmpty = computed(() => !store.state.imageUrl)
+
+function onKeyDown(e: KeyboardEvent) {
+  const ctrl = e.ctrlKey || e.metaKey
+  if (!ctrl) return
+  if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); store.history.undo() }
+  else if (e.key === 'z' && e.shiftKey) { e.preventDefault(); store.history.redo() }
+  else if (e.key === 'y') { e.preventDefault(); store.history.redo() }
+}
+
+onMounted(() => window.addEventListener('keydown', onKeyDown))
+onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
 
 function onViewportDrop(files: File[], _modifiers: DropModifiers) {
   const file = files[0]

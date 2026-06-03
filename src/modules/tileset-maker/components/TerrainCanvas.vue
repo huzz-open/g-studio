@@ -6,6 +6,7 @@ import GridCanvas from '../../../shared/components/GridCanvas.vue'
 import type { SharedTerrainState, TilesetRef } from '../terrain-state'
 import { computePeering, findTilePosition } from '../core/preview'
 import { getLayout } from '../core/layouts'
+import type { Transaction } from '../../../shared/history'
 
 const { t } = useI18n()
 const props = defineProps<{ terrain: SharedTerrainState }>()
@@ -95,10 +96,11 @@ function paintCells(ctx: CanvasRenderingContext2D) {
 
 // --- Cell interaction ---
 let drawErasing = false
+let strokeTx: Transaction | null = null
 
 function onCellDown(x: number, y: number, button: number) {
   drawErasing = button === 2
-  props.terrain.beginStroke()
+  strokeTx = props.terrain.beginStroke()
   if (drawErasing) {
     props.terrain.terrainDraw(x, y, null)
   } else {
@@ -118,16 +120,22 @@ function onCellMove(x: number, y: number) {
   }
 }
 
+function onCellUp() {
+  strokeTx?.commit()
+  strokeTx = null
+}
+
 function onRectFill(x1: number, y1: number, x2: number, y2: number, button: number) {
   const erasing = button === 2
   const tsId = erasing ? null : (props.terrain.activeTileset.value?.id ?? null)
   if (!erasing && !tsId) return
-  props.terrain.beginStroke()
-  for (let y = y1; y <= y2; y++) {
-    for (let x = x1; x <= x2; x++) {
-      props.terrain.terrainDraw(x, y, tsId)
+  props.terrain.history.batch(() => {
+    for (let y = y1; y <= y2; y++) {
+      for (let x = x1; x <= x2; x++) {
+        props.terrain.terrainDraw(x, y, tsId)
+      }
     }
-  }
+  })
 }
 
 function onClear() {
@@ -156,6 +164,7 @@ function onKeydown(e: KeyboardEvent) {
     :paint-cells="paintCells"
     @cell-down="onCellDown"
     @cell-move="onCellMove"
+    @cell-up="onCellUp"
     @rect-fill="onRectFill"
     @keydown="onKeydown"
     @contextmenu.prevent

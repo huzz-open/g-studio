@@ -1,20 +1,12 @@
-import { reactive, computed, ref } from 'vue'
+import { reactive, computed } from 'vue'
 import type { WorldMapData, MapLocation } from './types'
 import { getLocationStatus, REALM_ORDER } from './types'
+import { createHistoryStack } from '../../shared/history'
+import type { HistoryStack, Transaction } from '../../shared/history'
 
-export interface EditorSnapshot {
+export interface MapSnapshot {
   mapData: WorldMapData
   icons: Array<[number, string]>
-}
-
-const MAX_HISTORY = 50
-
-function deepClone<T>(obj: T): T {
-  return JSON.parse(JSON.stringify(obj)) as T
-}
-
-function snapshotsEqual(a: EditorSnapshot, b: EditorSnapshot): boolean {
-  return JSON.stringify(a) === JSON.stringify(b)
 }
 
 export interface MapEditorState {
@@ -50,18 +42,25 @@ export function createMapEditorInstance(id: string) {
     iconLibrary: new Map(),
   })
 
-  const undoStack = ref<EditorSnapshot[]>([])
-  const redoStack = ref<EditorSnapshot[]>([])
-  let isRestoring = false
-  let transactionDepth = 0
-  let transactionSnapshot: EditorSnapshot | null = null
+  const history: HistoryStack<MapSnapshot> = createHistoryStack<MapSnapshot>({
+    capture() {
+      return {
+        mapData: JSON.parse(JSON.stringify(state.mapData)) as WorldMapData,
+        icons: Array.from(state.iconImages.entries()),
+      }
+    },
+    restore(snap) {
+      state.mapData = JSON.parse(JSON.stringify(snap.mapData)) as WorldMapData
+      state.iconImages = new Map(snap.icons)
+      state.assetsLoaded = true
+    },
+  })
 
-  const canUndo = computed(() => undoStack.value.length > 0 && state.mapData !== null)
-  const canRedo = computed(() => redoStack.value.length > 0 && state.mapData !== null)
+  const canUndo = computed(() => history.canUndo.value && state.mapData !== null)
+  const canRedo = computed(() => history.canRedo.value && state.mapData !== null)
 
   const selectedLocation = computed<MapLocation | null>(() => {
     if (!state.mapData || state.selectedLocationId === null) return null
-    // .find() may miss if ID is stale after map reload — acceptable, UI shows empty panel
     return state.mapData.locations.find(l => l.id === state.selectedLocationId) ?? null
   })
 
@@ -95,51 +94,6 @@ export function createMapEditorInstance(id: string) {
     return { total: locs.length, placed, positioned, pending }
   })
 
-  function createSnapshot(mapData: WorldMapData, iconImages: Map<number, string>): EditorSnapshot {
-    return { mapData: deepClone(mapData), icons: Array.from(iconImages.entries()) }
-  }
-
-  function pushUndo(snapshot: EditorSnapshot) {
-    undoStack.value.push(snapshot)
-    if (undoStack.value.length > MAX_HISTORY) undoStack.value.shift()
-  }
-
-  function getSnapshot(): EditorSnapshot | null {
-    if (!state.mapData) return null
-    return createSnapshot(state.mapData, state.iconImages)
-  }
-
-  function applySnapshot(snapshot: EditorSnapshot) {
-    state.mapData = JSON.parse(JSON.stringify(snapshot.mapData)) as WorldMapData
-    state.iconImages = new Map(snapshot.icons)
-    state.assetsLoaded = true
-  }
-
-  function beginEditTransaction() {
-    if (isRestoring) return
-    const snap = getSnapshot()
-    if (transactionDepth === 0 && snap) transactionSnapshot = snap
-    transactionDepth++
-  }
-
-  function endEditTransaction() {
-    if (transactionDepth <= 0) return
-    transactionDepth--
-    if (transactionDepth > 0) return
-    const before = transactionSnapshot
-    transactionSnapshot = null
-    const current = getSnapshot()
-    if (!before || !current || snapshotsEqual(before, current)) return
-    pushUndo(before)
-    redoStack.value = []
-  }
-
-  function recordImmediate(before: EditorSnapshot, after: EditorSnapshot) {
-    if (isRestoring || snapshotsEqual(before, after)) return
-    pushUndo(before)
-    redoStack.value = []
-  }
-
   function selectLocation(locId: number | null) {
     state.selectedLocationId = locId
   }
@@ -151,70 +105,44 @@ export function createMapEditorInstance(id: string) {
   }
 
   function updateLocationIcon(locId: number, dataUrl: string) {
-    const before = getSnapshot()
-    state.iconImages.set(locId, dataUrl)
     if (!state.mapData) return
+    history.record()
+    state.iconImages.set(locId, dataUrl)
     const loc = state.mapData.locations.find(l => l.id === locId)
     if (loc) {
       loc.iconPath = `icons/${loc.name}.png`
-      const after = getSnapshot()
-      if (before && after) recordImmediate(before, after)
     }
   }
 
   function assignLibraryIcon(locationId: number, iconName: string) {
     const dataUrl = state.iconLibrary.get(iconName)
     if (!dataUrl || !state.mapData) return
-    const before = getSnapshot()
+    history.record()
     state.iconImages.set(locationId, dataUrl)
     const loc = state.mapData.locations.find(l => l.id === locationId)
     if (loc) {
       loc.iconPath = `icons/${iconName}.png`
-      const after = getSnapshot()
-      if (before && after) recordImmediate(before, after)
     }
   }
 
   function placePendingLocation(locId: number, x: number, y: number) {
-    const before = getSnapshot()
+    history.record()
     updateLocationPosition(locId, x, y)
-    const after = getSnapshot()
-    if (before && after) recordImmediate(before, after)
   }
 
-  function undo() {
-    const current = getSnapshot()!
-    const prev = undoStack.value.pop()
-    if (!prev) return
-    redoStack.value.push(current)
-    isRestoring = true
-    transactionDepth = 0
-    transactionSnapshot = null
-    applySnapshot(prev)
-    isRestoring = false
+  function beginDragTransaction(): Transaction {
+    return history.transaction()
   }
 
-  function redo() {
-    const current = getSnapshot()!
-    const next = redoStack.value.pop()
-    if (!next) return
-    undoStack.value.push(current)
-    isRestoring = true
-    transactionDepth = 0
-    transactionSnapshot = null
-    applySnapshot(next)
-    isRestoring = false
-  }
+  function undo() { history.undo() }
+  function redo() { history.redo() }
 
   async function loadMapData(data: WorldMapData) {
     state.mapData = data
     state.selectedLocationId = null
     state.iconImages.clear()
     state.assetsLoaded = false
-    undoStack.value = []
-    redoStack.value = []
-    transactionSnapshot = null
-    transactionDepth = 0
+    history.clear()
     await loadIconsFromResourceService()
   }
 
@@ -283,24 +211,19 @@ export function createMapEditorInstance(id: string) {
   return {
     id,
     state,
-    undoStack,
-    redoStack,
+    history,
     canUndo,
     canRedo,
     selectedLocation,
     filteredLocations,
     groupedLocations,
     stats,
-    getSnapshot,
-    createSnapshot,
-    beginEditTransaction,
-    endEditTransaction,
-    recordImmediate,
     selectLocation,
     updateLocationPosition,
     updateLocationIcon,
     assignLibraryIcon,
     placePendingLocation,
+    beginDragTransaction,
     undo,
     redo,
     loadMapData,

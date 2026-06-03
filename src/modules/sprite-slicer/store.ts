@@ -12,6 +12,8 @@ import { autoArrangeRects } from './core/layout/bin-packer'
 import { splitSpriteByLines, type Point } from './core/split/line-splitter'
 import { imageDataToDataUrl, createOffscreenCanvas } from './core/utils/canvas-utils'
 import { useSettings } from '../../shared/settings'
+import { createHistoryStack } from '../../shared/history'
+import type { Rect } from '../../shared/types'
 import type { SlicerSliceConfig, SlicerSpriteEntry } from '../resource-manager'
 
 function sortByReadingOrder(arr: DetectedSprite[], threshold = 20) {
@@ -108,6 +110,64 @@ function createSlicerStore() {
   let cleanImageData: ImageData | null = null
   const cleanImageUrl = ref<string | null>(null)
   const arrangeMode = ref<'none' | 'standardize' | 'bin-pack'>('none')
+
+  // --- Pixel cache: stores imageData+dataUrl by sprite id, survives undo/redo ---
+  const _pixelCache = new Map<number, { imageData: ImageData; dataUrl: string }>()
+
+  function cacheSprite(sprite: DetectedSprite) {
+    _pixelCache.set(sprite.id, { imageData: sprite.imageData, dataUrl: sprite.dataUrl })
+  }
+
+  function cacheAllSprites() {
+    for (const s of sprites.value) cacheSprite(s)
+  }
+
+  // --- History (undo/redo for structural sprite operations) ---
+  interface SpriteSnapshotEntry {
+    id: number
+    rect: Rect
+    name: string
+    mergedFrom?: number[]
+    mergedFromRects?: Rect[]
+    splitFrom?: number
+  }
+  interface SlicerHistorySnapshot {
+    sprites: SpriteSnapshotEntry[]
+    selected: number[]
+  }
+
+  const history = createHistoryStack<SlicerHistorySnapshot>({
+    capture() {
+      return {
+        sprites: sprites.value.map(s => ({
+          id: s.id,
+          rect: { ...s.rect },
+          name: s.name,
+          mergedFrom: s.mergedFrom ? [...s.mergedFrom] : undefined,
+          mergedFromRects: s.mergedFromRects ? s.mergedFromRects.map(r => ({ ...r })) : undefined,
+          splitFrom: s.splitFrom,
+        })),
+        selected: [...selected.value],
+      }
+    },
+    restore(snap) {
+      sprites.value = snap.sprites.map(entry => {
+        const cached = _pixelCache.get(entry.id)!
+        return {
+          id: entry.id,
+          rect: { ...entry.rect },
+          name: entry.name,
+          imageData: cached.imageData,
+          dataUrl: cached.dataUrl,
+          mergedFrom: entry.mergedFrom,
+          mergedFromRects: entry.mergedFromRects,
+          splitFrom: entry.splitFrom,
+        }
+      })
+      selected.value = new Set(snap.selected)
+      if (arrangeMode.value !== 'none') applyArrange()
+    },
+  })
 
   // Preload OpenCV WASM in background
   preloadCV()
@@ -331,6 +391,8 @@ function createSlicerStore() {
     arrangeMode.value = d.arrangeMode
     _origCleanImageUrl = null
     _origImgSize = null
+    _pixelCache.clear()
+    history.clear()
   }
 
   function addEmptyTab(): string {
@@ -466,6 +528,8 @@ function createSlicerStore() {
       })
       sprites.value = all
       selected.value = new Set(all.map(s => s.id))
+      cacheAllSprites()
+      history.clear()
     } else {
       await runDetection()
     }
@@ -512,6 +576,8 @@ function createSlicerStore() {
 
     sprites.value = detected
     selected.value = new Set(detected.map(s => s.id))
+    cacheAllSprites()
+    history.clear()
 
     if (detectionMode.value === 'auto' && detected.length > 0) {
       const autoCols = Math.ceil(Math.sqrt(detected.length))
@@ -530,6 +596,8 @@ function createSlicerStore() {
 
     const toMerge = sprites.value.filter(s => ids.includes(s.id))
     if (toMerge.length < 2) return
+
+    history.record()
 
     let mx = Infinity, my = Infinity, mx2 = 0, my2 = 0
     for (const s of toMerge) {
@@ -559,6 +627,7 @@ function createSlicerStore() {
     const mergeSet = new Set(ids)
     const remaining = sprites.value.filter(s => !mergeSet.has(s.id))
     remaining.push(mergedSprite)
+    cacheSprite(mergedSprite)
 
     sortByReadingOrder(remaining)
 
@@ -576,6 +645,7 @@ function createSlicerStore() {
     const sprite = sprites.value.find(s => s.id === spriteId)
     if (!sprite?.mergedFromRects || sprite.mergedFromRects.length < 2) return false
 
+    history.record()
     const fullW = imgSize.value.w, fullH = imgSize.value.h
     let nextId = Math.max(...sprites.value.map(s => s.id)) + 1
     const restored: DetectedSprite[] = sprite.mergedFromRects.map((rect, i) => {
@@ -591,6 +661,7 @@ function createSlicerStore() {
 
     const remaining = sprites.value.filter(s => s.id !== spriteId)
     remaining.push(...restored)
+    for (const s of restored) cacheSprite(s)
     sortByReadingOrder(remaining)
 
     sprites.value = remaining
@@ -613,7 +684,11 @@ function createSlicerStore() {
     const newSprites = splitSpriteByLines(sprite, lines, maxId)
     if (newSprites.length < 2) return
 
-    for (const s of newSprites) s.splitFrom = spriteId
+    history.record()
+    for (const s of newSprites) {
+      s.splitFrom = spriteId
+      cacheSprite(s)
+    }
 
     const remaining = sprites.value.filter(s => s.id !== spriteId)
     remaining.push(...newSprites)
@@ -720,6 +795,7 @@ function createSlicerStore() {
     if (duplicate) return false
     const sprite = sprites.value.find(s => s.id === id)
     if (!sprite) return false
+    history.record()
     sprite.name = trimmed
     sprites.value = [...sprites.value]
     return true
@@ -742,6 +818,7 @@ function createSlicerStore() {
     sprites, selected, namePrefix,
     cleanImageUrl, arrangeMode, stdOptions,
     currentBgRemover, selectedSprites, bgOptions,
+    history,
     processBackground, runDetection, loadFile, getCleanImageData,
     getSliceConfig, applySliceConfig, getSpriteSnapshot,
     renameSprite, isSpriteNameTaken,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from '../../../shared/i18n'
 import { useSlicerStore } from '../store'
@@ -39,6 +39,16 @@ const { settings: appSettings } = useSettings()
 const showAnimPreview = ref(false)
 const loadingResource = ref(false)
 const leftCollapsed = ref(false)
+
+function onKeyDown(e: KeyboardEvent) {
+  const ctrl = e.ctrlKey || e.metaKey
+  if (!ctrl) return
+  if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); store.history.undo() }
+  else if (e.key === 'z' && e.shiftKey) { e.preventDefault(); store.history.redo() }
+  else if (e.key === 'y') { e.preventDefault(); store.history.redo() }
+}
+onMounted(() => window.addEventListener('keydown', onKeyDown))
+onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
 
 const leftPanelConfig = definePanelConfig('slicer-sidebar-width', 300)
 

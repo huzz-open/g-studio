@@ -21,6 +21,8 @@ const emit = defineEmits<{
   'polygon-created': [vertices: DrawPoint[]]
   'polygon-updated': [payload: { id: string; vertices: DrawPoint[] }]
   'polygon-selected': [id: string | null]
+  'vertex-drag-start': []
+  'vertex-drag-end': []
 }>()
 
 const svgEl = ref<SVGSVGElement>()
@@ -163,6 +165,7 @@ function onSvgMouseDown(e: MouseEvent) {
     for (let i = 0; i < poly.vertices.length; i++) {
       if (distScreen(pt, poly.vertices[i]) < CLOSE_THRESHOLD) {
         draggingVertexIndex.value = i
+        emit('vertex-drag-start')
         e.preventDefault()
         e.stopPropagation()
         return
@@ -177,6 +180,7 @@ function onSvgMouseDown(e: MouseEvent) {
       newVerts.splice(i + 1, 0, cp.point)
       emit('polygon-updated', { id: poly.id, vertices: newVerts })
       draggingVertexIndex.value = i + 1
+      emit('vertex-drag-start')
       hoverEdgeIndex.value = null
       hoverEdgePoint.value = null
       e.preventDefault()
@@ -276,6 +280,7 @@ function onSvgMouseMove(e: MouseEvent) {
 function onSvgMouseUp(e: MouseEvent) {
   if (draggingVertexIndex.value !== null) {
     draggingVertexIndex.value = null
+    emit('vertex-drag-end')
     return
   }
 
