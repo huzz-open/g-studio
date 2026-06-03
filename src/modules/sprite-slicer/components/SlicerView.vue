@@ -478,7 +478,7 @@ async function saveToWorkspace(payload: OutputPayload) {
             dir,
             tags: payload.tags,
             origin: { ...originBase, method: 'sprite-slicer/meta-export' },
-            pipeline: [{ step: 'meta-export', at: now, detail: 'sprite metadata JSON' }],
+            pipeline: [{ step: 'meta-export', at: now, detail: 'sprite metadata json' }],
             relations: derivedRelations,
             sourceUid,
           })

@@ -24,7 +24,7 @@ function onImportJson(e: Event) {
       const data = JSON.parse(reader.result as string) as WorldMapData
       void props.store.loadMapData(data)
     } catch (err) {
-      alert('JSON parse failed: ' + (err as Error).message)
+      alert('json parse failed: ' + (err as Error).message)
     }
   }
   reader.readAsText(file)
