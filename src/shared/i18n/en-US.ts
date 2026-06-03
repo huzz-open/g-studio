@@ -362,7 +362,6 @@ export default {
   'dashboard.sceneRegionEditor.desc': 'Draw occlusion and collision regions on scene backgrounds, export as Godot tscn files',
 
   'sceneEditor.title': 'Scene Region Editor',
-  'sceneEditor.tool.select': 'Select',
   'sceneEditor.tool.rect': 'Rectangle',
   'sceneEditor.tool.polygon': 'Polygon',
   'sceneEditor.preset.title': 'Creation Preset',
@@ -383,8 +382,7 @@ export default {
   'sceneEditor.property.name': 'Name',
   'sceneEditor.property.color': 'Color',
   'sceneEditor.property.shape': 'Shape',
-  'sceneEditor.property.shapeRect': 'Rectangle (unedited)',
-  'sceneEditor.property.shapeRectEdited': 'Rectangle (edited → polygon)',
+  'sceneEditor.property.shapeRect': 'Rectangle',
   'sceneEditor.property.shapePoly': 'Polygon ({count} vertices)',
   'sceneEditor.property.purpose': 'Purpose',
   'sceneEditor.property.godotGroups': 'Occlusion Behavior',

@@ -55,7 +55,7 @@ function _createStore() {
     imageSize: { w: 0, h: 0 },
     regions: [] as SceneRegion[],
     selectedRegionId: null as string | null,
-    activeTool: 'select' as 'select' | 'rect' | 'polygon',
+    activeTool: 'rect' as 'rect' | 'polygon',
     listFilter: 'all' as 'all' | 'occlude' | 'collision',
     searchQuery: '' as string,
     creationPreset: {
@@ -119,7 +119,7 @@ function _createStore() {
     state.imageSize = { w, h }
   }
 
-  function addRegion(vertices: DrawPoint[], createdAs: 'rect' | 'polygon') {
+  function addRegion(vertices: DrawPoint[]) {
     history.record()
     const idx = state.regions.length
     const region: SceneRegion = {
@@ -127,8 +127,6 @@ function _createStore() {
       name: `Region_${idx + 1}`,
       type: state.creationPreset.type,
       vertices: vertices.map(v => [v.x, v.y]),
-      createdAs,
-      verticesEdited: false,
       groups: [...state.creationPreset.groups],
       color: state.creationPreset.color,
       colorManuallySet: state.creationPreset.colorManuallySet,
@@ -153,7 +151,6 @@ function _createStore() {
     const region = state.regions.find(r => r.id === id)
     if (!region) return
     region.vertices = vertices.map(v => [v.x, v.y])
-    region.verticesEdited = true
   }
 
   function updateRegionProps(id: string, props: Partial<Pick<SceneRegion, 'name' | 'type' | 'groups' | 'color' | 'colorManuallySet'>>) {
@@ -233,8 +230,14 @@ function _createStore() {
     const data = JSON.parse(json) as SceneRegionData
     state.imageSize = data.imageSize
     state.regions = data.regions.map(r => ({
-      ...r,
+      id: r.id,
+      name: r.name,
+      type: r.type,
+      vertices: r.vertices,
+      groups: r.groups,
+      color: r.color,
       colorManuallySet: r.colorManuallySet ?? false,
+      visible: r.visible,
     }))
     state.selectedRegionId = null
     history.clear()

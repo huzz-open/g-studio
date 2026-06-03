@@ -14,6 +14,7 @@ import type { RadioOption, ActionButton } from '../../../shared/components/edito
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import { confirm } from '../../../shared/components/confirm'
 import type { SceneRegionStore } from '../store'
+import { isRectRegion } from '../core/types'
 
 const props = defineProps<{
   store: SceneRegionStore
@@ -26,11 +27,8 @@ const region = computed(() => props.store.selectedRegion.value)
 const shapeLabel = computed(() => {
   const r = region.value
   if (!r) return ''
-  if (r.createdAs === 'rect' && !r.verticesEdited) {
+  if (isRectRegion(r.vertices)) {
     return t('sceneEditor.property.shapeRect')
-  }
-  if (r.createdAs === 'rect' && r.verticesEdited) {
-    return t('sceneEditor.property.shapeRectEdited')
   }
   return t('sceneEditor.property.shapePoly', { count: r.vertices.length })
 })
@@ -106,7 +104,7 @@ const exportPreview = computed(() => {
   const r = region.value
   if (!r) return null
   if (r.type === 'occlude') {
-    const shapeType = r.createdAs === 'rect' && !r.verticesEdited
+    const shapeType = isRectRegion(r.vertices)
       ? 'CollisionShape2D (RectangleShape2D)'
       : 'CollisionPolygon2D'
     return {
@@ -117,7 +115,7 @@ const exportPreview = computed(() => {
       groups: r.groups.filter(g => g.startsWith('occlude_')),
     }
   }
-  const shapeType = r.createdAs === 'rect' && !r.verticesEdited
+  const shapeType = isRectRegion(r.vertices)
     ? 'CollisionShape2D (RectangleShape2D)'
     : 'CollisionPolygon2D'
   return {

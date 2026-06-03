@@ -14,6 +14,7 @@ import type { RadioOption, ActionButton } from '../../../shared/components/edito
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import { prompt } from '../../../shared/components/prompt'
 import type { SceneRegionStore } from '../store'
+import { isRectRegion } from '../core/types'
 
 const props = defineProps<{
   store: SceneRegionStore
@@ -26,10 +27,6 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-
-const isCreationMode = computed(() =>
-  props.store.state.activeTool !== 'select'
-)
 
 const filterOptions = computed(() => [
   { value: 'all', label: t('sceneEditor.filter.all') },
@@ -110,16 +107,8 @@ function onExportAction(id: string) {
 </script>
 
 <template>
-  <!-- Toolbar: select / rect / polygon -->
+  <!-- Toolbar: rect / polygon -->
   <div class="tool-bar">
-    <button
-      class="tool-btn"
-      :class="{ active: store.state.activeTool === 'select' }"
-      :title="t('sceneEditor.tool.select')"
-      @click="store.state.activeTool = 'select'"
-    >
-      <SvgIcon name="cursor" :size="14" />
-    </button>
     <div class="tool-group">
       <button
         class="tool-btn"
@@ -140,9 +129,8 @@ function onExportAction(id: string) {
     </div>
   </div>
 
-  <!-- Creation Preset (only in creation mode) -->
+  <!-- Creation Preset -->
   <SidebarSection
-    v-if="isCreationMode"
     :title="t('sceneEditor.preset.title')"
     icon="settings"
   >
@@ -250,7 +238,7 @@ function onExportAction(id: string) {
         <span class="region-color-dot" :style="{ background: r.color }" />
         <span class="region-name">{{ r.name }}</span>
         <SvgIcon
-          :name="r.createdAs === 'rect' && !r.verticesEdited ? 'rect-select' : 'pentagon'"
+          :name="isRectRegion(r.vertices) ? 'rect-select' : 'pentagon'"
           :size="10"
           class="region-shape-icon"
         />

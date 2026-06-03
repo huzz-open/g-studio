@@ -1,13 +1,10 @@
 import type { SceneRegion, SceneRegionData } from './types'
+import { isRectRegion } from './types'
 
 interface SubResource {
   id: string
   type: string
   props: Record<string, string>
-}
-
-function isUnmodifiedRect(region: SceneRegion): boolean {
-  return region.createdAs === 'rect' && !region.verticesEdited && region.vertices.length === 4
 }
 
 function rectCenter(verts: [number, number][]): { x: number; y: number } {
@@ -65,10 +62,10 @@ export function generateTscn(data: SceneRegionData): string {
   }
 
   for (const r of occludeRegions) {
-    if (isUnmodifiedRect(r)) getOrCreateRectSubRes(r)
+    if (isRectRegion(r.vertices)) getOrCreateRectSubRes(r)
   }
   for (const r of collisionRegions) {
-    if (isUnmodifiedRect(r)) getOrCreateRectSubRes(r)
+    if (isRectRegion(r.vertices)) getOrCreateRectSubRes(r)
   }
 
   const loadSteps = subResources.length + 1
@@ -100,7 +97,7 @@ export function generateTscn(data: SceneRegionData): string {
       lines.push(`[node name="${safeName}" type="Area2D" parent="Obstacles"${groupsStr}]`)
       lines.push('')
 
-      if (isUnmodifiedRect(r)) {
+      if (isRectRegion(r.vertices)) {
         const subResId = rectSubResMap.get(r.id)!
         const center = rectCenter(r.vertices)
         lines.push(`[node name="CollisionShape2D" type="CollisionShape2D" parent="Obstacles/${safeName}"]`)
@@ -120,7 +117,7 @@ export function generateTscn(data: SceneRegionData): string {
 
     for (const r of collisionRegions) {
       const safeName = escapeNodeName(r.name)
-      if (isUnmodifiedRect(r)) {
+      if (isRectRegion(r.vertices)) {
         const subResId = rectSubResMap.get(r.id)!
         const center = rectCenter(r.vertices)
         lines.push(`[node name="${safeName}" type="CollisionShape2D" parent="Collision"]`)

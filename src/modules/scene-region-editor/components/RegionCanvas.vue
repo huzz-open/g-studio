@@ -23,17 +23,8 @@ const creationMode = computed<'rect' | 'polygon'>(() =>
   props.store.state.activeTool === 'rect' ? 'rect' : 'polygon'
 )
 
-const isActive = computed(() =>
-  props.store.state.activeTool !== 'select'
-)
-
-const viewportCursor = computed(() =>
-  isActive.value ? 'crosshair' : 'default'
-)
-
 function onRegionCreated(vertices: DrawPoint[]) {
-  const createdAs = props.store.state.activeTool === 'rect' ? 'rect' as const : 'polygon' as const
-  props.store.addRegion(vertices, createdAs)
+  props.store.addRegion(vertices)
 }
 
 function onRegionUpdated(payload: { id: string; vertices: DrawPoint[] }) {
@@ -65,7 +56,7 @@ function onVertexDragEnd() {
     :min-scale="0.1"
     :max-scale="16"
     :keep-view-on-src-change="true"
-    :viewport-cursor="viewportCursor"
+    viewport-cursor="crosshair"
     pan-mode="middle"
     controls-position="bottom-right"
   >
@@ -75,7 +66,7 @@ function onVertexDragEnd() {
         :image-height="store.state.imageSize.h"
         :polygons="visibleRegionPolygons"
         :selected-id="store.state.selectedRegionId"
-        :active="isActive"
+        :active="true"
         :creation-mode="creationMode"
         :polygon-colors="store.regionColorMap.value"
         :preview-fill="true"
