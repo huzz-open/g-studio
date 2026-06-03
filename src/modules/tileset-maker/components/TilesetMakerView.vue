@@ -2,7 +2,7 @@
 import { ref, shallowRef, computed, watch, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from '../../../shared/i18n'
-import { EditorShell, SidebarSection, definePanelConfig, useRouteResource } from '../../../shared/components/editor-shell'
+import { EditorShell, SidebarSection, SegmentedControl, definePanelConfig, useRouteResource } from '../../../shared/components/editor-shell'
 import type { TabItem, DropModifiers } from '../../../shared/components/editor-shell'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import { ActionButtons } from '../../../shared/components/editor-shell'
@@ -184,17 +184,15 @@ onUnmounted(() => {
     <!-- Left sidebar -->
     <template #left>
       <template v-if="sidebarInstance">
-        <SidebarSection :title="t('tileset.mode.title')" icon="layers" :default-open="true">
-          <div class="mode-tabs">
-            <button
-              :class="{ active: sidebarInstance.state.mode === 'sdf' }"
-              @click="sidebarInstance.setMode('sdf')"
-            >{{ t('tileset.mode.sdf') }}</button>
-            <button
-              :class="{ active: sidebarInstance.state.mode === 'subtile' }"
-              @click="sidebarInstance.setMode('subtile')"
-            >{{ t('tileset.mode.subtile') }}</button>
-          </div>
+        <SidebarSection :title="t('tileset.mode.title')" :collapsible="false">
+          <SegmentedControl
+            :model-value="sidebarInstance.state.mode"
+            :options="[
+              { value: 'sdf', label: t('tileset.mode.sdf') },
+              { value: 'subtile', label: t('tileset.mode.subtile') },
+            ]"
+            @update:model-value="sidebarInstance.setMode($event as any)"
+          />
         </SidebarSection>
         <TextureSourcePanel v-if="sidebarInstance.state.mode === 'sdf'" :store="sidebarInstance" />
         <NineGridSourcePanel v-else :store="sidebarInstance" />
@@ -250,33 +248,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.mode-tabs {
-  display: flex;
-  gap: 0;
-}
-.mode-tabs button {
-  flex: 1;
-  padding: 6px 12px;
-  font-size: 11px;
-  border: 1px solid #444;
-  background: #2a2a2a;
-  color: #888;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.mode-tabs button:first-child {
-  border-radius: 4px 0 0 4px;
-}
-.mode-tabs button:last-child {
-  border-radius: 0 4px 4px 0;
-  border-left: none;
-}
-.mode-tabs button.active {
-  background: #2a3a2e;
-  color: #ade;
-  border-color: #6a8;
-}
-
 /* Sidebar empty state */
 .sidebar-empty {
   display: flex;

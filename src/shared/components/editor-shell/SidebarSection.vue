@@ -6,21 +6,24 @@ const props = withDefaults(defineProps<{
   title: string
   icon?: string
   defaultOpen?: boolean
+  collapsible?: boolean
 }>(), {
   defaultOpen: true,
+  collapsible: true,
 })
 
 const open = ref(props.defaultOpen)
 
 function toggle() {
-  open.value = !open.value
+  if (props.collapsible) open.value = !open.value
 }
 </script>
 
 <template>
   <div class="sidebar-section" :class="{ closed: !open }">
-    <div class="section-header" @click="toggle">
+    <div class="section-header" :class="{ static: !collapsible }" @click="toggle">
       <SvgIcon
+        v-if="collapsible"
         name="chevron-right"
         :size="10"
         class="section-arrow"
@@ -51,7 +54,10 @@ function toggle() {
   color: #aaa;
   transition: background 0.1s;
 }
-.section-header:hover {
+.section-header.static {
+  cursor: default;
+}
+.section-header:not(.static):hover {
   background: #2a2a2a;
   color: #ddd;
 }

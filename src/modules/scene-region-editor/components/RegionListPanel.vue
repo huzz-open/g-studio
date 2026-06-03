@@ -9,8 +9,9 @@ import {
   RadioGroup,
   CheckboxRow,
   ActionButtons,
+  SegmentedControl,
 } from '../../../shared/components/editor-shell'
-import type { RadioOption, ActionButton } from '../../../shared/components/editor-shell'
+import type { RadioOption, ActionButton, SegmentOption } from '../../../shared/components/editor-shell'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import { prompt } from '../../../shared/components/prompt'
 import type { SceneRegionStore } from '../store'
@@ -27,6 +28,11 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+const toolOptions = computed<SegmentOption[]>(() => [
+  { value: 'rect', label: t('sceneEditor.tool.rect') },
+  { value: 'polygon', label: t('sceneEditor.tool.polygon') },
+])
 
 const filterOptions = computed(() => [
   { value: 'all', label: t('sceneEditor.filter.all') },
@@ -108,31 +114,18 @@ function onExportAction(id: string) {
 
 <template>
   <!-- Toolbar: rect / polygon -->
-  <div class="tool-bar">
-    <div class="tool-group">
-      <button
-        class="tool-btn"
-        :class="{ active: store.state.activeTool === 'rect' }"
-        :title="t('sceneEditor.tool.rect')"
-        @click="store.state.activeTool = 'rect'"
-      >
-        <SvgIcon name="rect-select" :size="14" />
-      </button>
-      <button
-        class="tool-btn"
-        :class="{ active: store.state.activeTool === 'polygon' }"
-        :title="t('sceneEditor.tool.polygon')"
-        @click="store.state.activeTool = 'polygon'"
-      >
-        <SvgIcon name="pentagon" :size="14" />
-      </button>
-    </div>
-  </div>
+  <SidebarSection :title="t('sceneEditor.tool.createRegion')" :collapsible="false">
+    <SegmentedControl
+      :model-value="store.state.activeTool"
+      :options="toolOptions"
+      @update:model-value="store.state.activeTool = $event as any"
+    />
+  </SidebarSection>
 
   <!-- Creation Preset -->
   <SidebarSection
     :title="t('sceneEditor.preset.title')"
-    icon="settings"
+    :collapsible="false"
   >
     <RadioGroup
       :label="t('sceneEditor.preset.type')"
@@ -198,7 +191,7 @@ function onExportAction(id: string) {
   </SidebarSection>
 
   <!-- Region List -->
-  <SidebarSection :title="t('sceneEditor.regionList')" icon="layers">
+  <SidebarSection :title="t('sceneEditor.regionList')">
     <template #header-extra>
       <span class="region-count">{{ store.state.regions.length }}</span>
     </template>
@@ -260,50 +253,6 @@ function onExportAction(id: string) {
 </template>
 
 <style scoped>
-.tool-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-bottom: 1px solid #333;
-}
-.tool-group {
-  display: flex;
-  border: 1px solid #444;
-  border-radius: 5px;
-  overflow: hidden;
-}
-.tool-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 28px;
-  background: transparent;
-  border: 1px solid #444;
-  border-radius: 5px;
-  color: #888;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-.tool-group .tool-btn {
-  border: none;
-  border-radius: 0;
-  border-right: 1px solid #444;
-}
-.tool-group .tool-btn:last-child {
-  border-right: none;
-}
-.tool-btn:hover {
-  background: #333;
-  color: #bbb;
-}
-.tool-btn.active {
-  background: #3a3a3a;
-  color: #eee;
-  box-shadow: inset 0 -2px 0 #7aa2d4;
-}
-
 .group-section-label {
   font-size: 10px;
   color: #666;

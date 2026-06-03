@@ -219,26 +219,15 @@ function onOutputAction(id: string) {
     <!-- Detection Mode -->
     <div class="sidebar-section">
       <h4>{{ t('slicer.detection') }}</h4>
-      <div class="seg-group">
-        <button
-          class="seg-item"
-          :class="{ active: store.detectionMode.value === 'auto' }"
-          :disabled="!hasImage"
-          @click="store.detectionMode.value = 'auto'; store.runDetection()"
-        >
-          <SvgIcon name="wand" :size="12" />
-          {{ t('slicer.detection.auto') }}
-        </button>
-        <button
-          class="seg-item"
-          :class="{ active: store.detectionMode.value === 'grid' }"
-          :disabled="!hasImage"
-          @click="store.detectionMode.value = 'grid'; store.runDetection()"
-        >
-          <SvgIcon name="grid" :size="12" />
-          {{ t('slicer.detection.grid') }}
-        </button>
-      </div>
+      <SegmentedControl
+        :model-value="store.detectionMode.value"
+        :options="[
+          { value: 'auto', labelKey: 'slicer.detection.auto' },
+          { value: 'grid', labelKey: 'slicer.detection.grid' },
+        ]"
+        :disabled="!hasImage"
+        @update:model-value="store.detectionMode.value = $event as any; store.runDetection()"
+      />
     </div>
 
     <!-- Auto Detection Params -->
@@ -386,12 +375,6 @@ function onOutputAction(id: string) {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-.seg-group { display: flex; border: 1px solid #444; border-radius: 5px; overflow: hidden; }
-.seg-item { flex: 1; padding: 5px 6px; background: transparent; color: #888; border: none; font-size: 11px; cursor: pointer; text-align: center; display: flex; align-items: center; justify-content: center; gap: 4px; transition: background 0.15s, color 0.15s; border-right: 1px solid #444; }
-.seg-item:last-child { border-right: none; }
-.seg-item:hover:not(:disabled) { background: #333; color: #bbb; }
-.seg-item.active { background: #3a3a3a; color: #eee; box-shadow: inset 0 -2px 0 #7aa2d4; }
-.seg-item:disabled { cursor: default; }
 .param-row { display: flex; gap: 8px; }
 .param-row label {
   display: flex;

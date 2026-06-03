@@ -3,10 +3,11 @@ import { useI18n } from '../i18n'
 
 export interface SegmentOption {
   value: string
-  labelKey: string
+  label?: string
+  labelKey?: string
 }
 
-const props = defineProps<{
+defineProps<{
   modelValue: string
   options: SegmentOption[]
   disabled?: boolean
@@ -17,6 +18,12 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+function getLabel(opt: SegmentOption): string {
+  if (opt.label) return opt.label
+  if (opt.labelKey) return t(opt.labelKey)
+  return opt.value
+}
 </script>
 
 <template>
@@ -28,7 +35,7 @@ const { t } = useI18n()
       :class="{ active: modelValue === opt.value }"
       :disabled="disabled"
       @click="emit('update:modelValue', opt.value)"
-    >{{ t(opt.labelKey) }}</button>
+    >{{ getLabel(opt) }}</button>
   </div>
 </template>
 
@@ -39,7 +46,9 @@ const { t } = useI18n()
   border-radius: 5px;
   overflow: hidden;
 }
-.seg-ctrl.disabled { opacity: 0.4; }
+.seg-ctrl.disabled {
+  opacity: 0.4;
+}
 .seg-ctrl-item {
   flex: 1;
   padding: 5px 6px;
@@ -54,11 +63,16 @@ const { t } = useI18n()
   white-space: nowrap;
 }
 .seg-ctrl-item:last-child { border-right: none; }
-.seg-ctrl-item:hover:not(:disabled) { background: #333; color: #bbb; }
+.seg-ctrl-item:hover:not(:disabled):not(.active) { background: #333; color: #bbb; }
 .seg-ctrl-item.active {
   background: #3a3a3a;
   color: #eee;
   box-shadow: inset 0 -2px 0 #7aa2d4;
+}
+.seg-ctrl.disabled .seg-ctrl-item.active {
+  background: transparent;
+  color: #888;
+  box-shadow: inset 0 -2px 0 #555;
 }
 .seg-ctrl-item:disabled { cursor: default; }
 </style>
