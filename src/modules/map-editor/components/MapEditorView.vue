@@ -20,7 +20,7 @@ const { instances: tabInstances, activeTabId, activeInstance, createTab: createT
 const leftCollapsed = ref(false)
 const rightCollapsed = ref(false)
 
-const leftPanelConfig = definePanelConfig('map-editor-left', 240)
+const leftPanelConfig = definePanelConfig('map-editor-left', 300)
 const rightPanelConfig = definePanelConfig('map-editor-right')
 
 const tabs = computed<TabItem[]>(() =>

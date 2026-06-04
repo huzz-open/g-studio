@@ -2,7 +2,7 @@ import type { PanelConfig } from './types'
 
 export function definePanelConfig(
   persistKey: string,
-  defaultWidth = 260,
+  defaultWidth = 300,
   min = 180,
   max = 480,
 ): PanelConfig {

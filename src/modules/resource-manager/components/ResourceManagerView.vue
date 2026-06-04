@@ -35,7 +35,7 @@ const rootHandle = ref<FileSystemDirectoryHandle | null>(null)
 const selectedDirPath = ref('')
 const expandedPaths = ref<Set<string>>(new Set())
 
-const leftPanelConfig = definePanelConfig('rm-tree-width', 240)
+const leftPanelConfig = definePanelConfig('rm-tree-width', 300)
 const rightPanelConfig = definePanelConfig('rm-preview-width')
 
 const wsFiles = computed<FsEntry[]>(() => {

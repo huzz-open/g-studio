@@ -15,7 +15,7 @@ const { instances, activeTabId, activeInstance, createTab, switchTab: onTabSwitc
 const leftCollapsed = ref(false)
 const rightCollapsed = ref(false)
 
-const leftPanelConfig = definePanelConfig('scene-region-left', 260)
+const leftPanelConfig = definePanelConfig('scene-region-left', 300)
 const rightPanelConfig = definePanelConfig('scene-region-right', 280)
 
 const sidebarInstance = shallowRef<SceneRegionStore | null>(null)
