@@ -6,12 +6,11 @@ import {
   ColorRow,
   SliderRow,
   SelectRow,
-  RadioGroup,
   CheckboxRow,
   ActionButtons,
   SegmentedControl,
 } from '../../../shared/components/editor-shell'
-import type { RadioOption, ActionButton, SegmentOption } from '../../../shared/components/editor-shell'
+import type { ActionButton, SegmentOption } from '../../../shared/components/editor-shell'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import { prompt } from '../../../shared/components/prompt'
 import type { SceneRegionStore } from '../store'
@@ -41,47 +40,47 @@ const filterOptions = computed(() => [
 ])
 
 const presetOpacity = computed(() => {
-  const g = props.store.state.creationPreset.groups.find(g => g.startsWith('occlude_opacity_'))
+  const g = props.store.state.creationConfig.groups.find(g => g.startsWith('occlude_opacity_'))
   if (!g) return 0
   return parseInt(g.replace('occlude_opacity_', ''), 10)
 })
 
 function setPresetOpacity(val: number) {
-  const groups = props.store.state.creationPreset.groups.filter(g => !g.startsWith('occlude_opacity_'))
+  const groups = props.store.state.creationConfig.groups.filter(g => !g.startsWith('occlude_opacity_'))
   groups.push(`occlude_opacity_${val}`)
-  props.store.state.creationPreset.groups = groups
+  props.store.state.creationConfig.groups = groups
 }
 
-const typeOptions = computed<RadioOption[]>(() => [
+const typeOptions = computed<SegmentOption[]>(() => [
   { value: 'occlude', label: t('sceneEditor.type.occlude') },
   { value: 'collision', label: t('sceneEditor.type.collision') },
 ])
 
-const depthOptions = computed<RadioOption[]>(() => [
-  { value: 'top_layer', label: t('sceneEditor.group.topLayer'), title: t('sceneEditor.group.topLayer.tip') },
-  { value: 'y_sort', label: t('sceneEditor.group.ySort'), title: t('sceneEditor.group.ySort.tip') },
+const depthOptions = computed<SegmentOption[]>(() => [
+  { value: 'top_layer', label: t('sceneEditor.group.topLayer') },
+  { value: 'y_sort', label: t('sceneEditor.group.ySort') },
 ])
 
 const presetDepthMode = computed(() => {
-  const groups = props.store.state.creationPreset.groups
+  const groups = props.store.state.creationConfig.groups
   if (groups.includes('occlude_y_sort')) return 'y_sort'
   return 'top_layer'
 })
 
 function setPresetDepthMode(mode: string) {
-  const groups = props.store.state.creationPreset.groups.filter(
+  const groups = props.store.state.creationConfig.groups.filter(
     g => g !== 'occlude_top_layer' && g !== 'occlude_y_sort'
   )
   groups.push(mode === 'y_sort' ? 'occlude_y_sort' : 'occlude_top_layer')
-  props.store.state.creationPreset.groups = groups
+  props.store.state.creationConfig.groups = groups
 }
 
 const isPresetScreenMask = computed(() =>
-  props.store.state.creationPreset.groups.includes('occlude_screen_mask')
+  props.store.state.creationConfig.groups.includes('occlude_screen_mask')
 )
 
 function togglePresetScreenMask(val: boolean) {
-  const groups = props.store.state.creationPreset.groups
+  const groups = props.store.state.creationConfig.groups
   const idx = groups.indexOf('occlude_screen_mask')
   if (val && idx < 0) groups.push('occlude_screen_mask')
   else if (!val && idx >= 0) groups.splice(idx, 1)
@@ -113,39 +112,29 @@ function onExportAction(id: string) {
 </script>
 
 <template>
-  <!-- Toolbar: rect / polygon -->
-  <SidebarSection :title="t('sceneEditor.tool.createRegion')" :collapsible="false">
-    <SegmentedControl
-      :model-value="store.state.activeTool"
-      :options="toolOptions"
-      @update:model-value="store.state.activeTool = $event as any"
-    />
-  </SidebarSection>
-
-  <!-- Creation Preset -->
+  <!-- Region Properties -->
   <SidebarSection
     :title="t('sceneEditor.preset.title')"
     :collapsible="false"
   >
-    <RadioGroup
-      :label="t('sceneEditor.preset.type')"
-      :model-value="store.state.creationPreset.type"
+    <SegmentedControl
+      :model-value="store.state.activeTool"
+      :options="toolOptions"
+      :indicator="false"
+      @update:model-value="store.state.activeTool = $event as any"
+    />
+
+    <SegmentedControl
+      :model-value="store.state.creationConfig.type"
       :options="typeOptions"
-      @update:model-value="store.state.creationPreset.type = $event as any"
+      @update:model-value="store.state.creationConfig.type = $event as any"
     />
 
-    <ColorRow
-      :label="t('sceneEditor.preset.color')"
-      :model-value="store.state.creationPreset.color"
-      @update:model-value="store.setPresetColorManual($event)"
-    />
-
-    <template v-if="store.state.creationPreset.type === 'occlude'">
-      <RadioGroup
-        :label="t('sceneEditor.preset.depthMode')"
+    <template v-if="store.state.creationConfig.type === 'occlude'">
+      <SegmentedControl
         :model-value="presetDepthMode"
         :options="depthOptions"
-        direction="row"
+        :indicator="false"
         @update:model-value="setPresetDepthMode"
       />
 
@@ -166,6 +155,12 @@ function onExportAction(id: string) {
         @update:model-value="setPresetOpacity($event)"
       />
     </template>
+
+    <ColorRow
+      :label="t('sceneEditor.preset.color')"
+      :model-value="store.state.creationConfig.color"
+      @update:model-value="store.setConfigColorManual($event)"
+    />
 
     <ActionButtons
       :buttons="[{ id: 'save', label: t('sceneEditor.preset.saveAs') }]"

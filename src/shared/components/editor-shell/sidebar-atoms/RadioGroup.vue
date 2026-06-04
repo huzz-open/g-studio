@@ -46,7 +46,6 @@ const emit = defineEmits<{
 
 <style scoped>
 .radio-group {
-  margin-bottom: 6px;
 }
 .radio-group-label {
   display: block;

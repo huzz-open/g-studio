@@ -5,12 +5,12 @@ import {
   SidebarSection,
   ColorRow,
   SliderRow,
-  RadioGroup,
   CheckboxRow,
   TextRow,
   ActionButtons,
+  SegmentedControl,
 } from '../../../shared/components/editor-shell'
-import type { RadioOption, ActionButton } from '../../../shared/components/editor-shell'
+import type { ActionButton, SegmentOption } from '../../../shared/components/editor-shell'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import { confirm } from '../../../shared/components/confirm'
 import type { SceneRegionStore } from '../store'
@@ -49,14 +49,14 @@ function setOpacity(val: number) {
   props.store.updateRegionProps(r.id, { groups: newGroups })
 }
 
-const typeOptions = computed<RadioOption[]>(() => [
+const typeOptions = computed<SegmentOption[]>(() => [
   { value: 'occlude', label: t('sceneEditor.type.occlude') },
   { value: 'collision', label: t('sceneEditor.type.collision') },
 ])
 
-const depthOptions = computed<RadioOption[]>(() => [
-  { value: 'top_layer', label: t('sceneEditor.group.topLayer'), title: t('sceneEditor.group.topLayer.tip') },
-  { value: 'y_sort', label: t('sceneEditor.group.ySort'), title: t('sceneEditor.group.ySort.tip') },
+const depthOptions = computed<SegmentOption[]>(() => [
+  { value: 'top_layer', label: t('sceneEditor.group.topLayer') },
+  { value: 'y_sort', label: t('sceneEditor.group.ySort') },
 ])
 
 const depthMode = computed(() => {
@@ -167,8 +167,8 @@ async function onDeleteAction() {
     </SidebarSection>
 
     <!-- Purpose -->
-    <SidebarSection :title="t('sceneEditor.property.purpose')">
-      <RadioGroup
+    <SidebarSection :title="t('sceneEditor.property.purpose')" :collapsible="false">
+      <SegmentedControl
         :model-value="region.type"
         :options="typeOptions"
         @update:model-value="onTypeChange"
@@ -180,11 +180,10 @@ async function onDeleteAction() {
       v-if="region.type === 'occlude'"
       :title="t('sceneEditor.property.godotGroups')"
     >
-      <RadioGroup
-        :label="t('sceneEditor.preset.depthMode')"
+      <SegmentedControl
         :model-value="depthMode"
         :options="depthOptions"
-        direction="row"
+        :indicator="false"
         @update:model-value="setDepthMode"
       />
 

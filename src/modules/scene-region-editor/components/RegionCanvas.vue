@@ -70,7 +70,7 @@ function onVertexDragEnd() {
         :creation-mode="creationMode"
         :polygon-colors="store.regionColorMap.value"
         :preview-fill="true"
-        :preview-color="store.state.creationPreset.color"
+        :preview-color="store.state.creationConfig.color"
         @polygon-created="onRegionCreated"
         @polygon-updated="onRegionUpdated"
         @polygon-selected="onRegionSelected"

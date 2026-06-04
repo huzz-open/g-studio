@@ -28,14 +28,13 @@ const emit = defineEmits<{
 .color-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  margin-bottom: 6px;
 }
 .color-label {
   font-size: 11px;
   color: #aaa;
   white-space: nowrap;
+  min-width: 48px;
 }
 .color-input-wrap {
   display: flex;

@@ -7,11 +7,14 @@ export interface SegmentOption {
   labelKey?: string
 }
 
-defineProps<{
+withDefaults(defineProps<{
   modelValue: string
   options: SegmentOption[]
   disabled?: boolean
-}>()
+  indicator?: boolean
+}>(), {
+  indicator: true,
+})
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
@@ -27,7 +30,7 @@ function getLabel(opt: SegmentOption): string {
 </script>
 
 <template>
-  <div class="seg-ctrl" :class="{ disabled }">
+  <div class="seg-ctrl" :class="{ disabled, 'no-indicator': !indicator }">
     <button
       v-for="opt in options"
       :key="opt.value"
@@ -69,10 +72,16 @@ function getLabel(opt: SegmentOption): string {
   color: #eee;
   box-shadow: inset 0 -2px 0 #7aa2d4;
 }
+.seg-ctrl.no-indicator .seg-ctrl-item.active {
+  box-shadow: none;
+}
 .seg-ctrl.disabled .seg-ctrl-item.active {
   background: transparent;
   color: #888;
   box-shadow: inset 0 -2px 0 #555;
+}
+.seg-ctrl.disabled.no-indicator .seg-ctrl-item.active {
+  box-shadow: none;
 }
 .seg-ctrl-item:disabled { cursor: default; }
 </style>

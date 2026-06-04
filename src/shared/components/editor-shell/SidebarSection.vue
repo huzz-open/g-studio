@@ -81,5 +81,8 @@ function toggle() {
 }
 .section-body {
   padding: 6px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 </style>

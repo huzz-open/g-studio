@@ -58,7 +58,7 @@ function _createStore() {
     activeTool: 'rect' as 'rect' | 'polygon',
     listFilter: 'all' as 'all' | 'occlude' | 'collision',
     searchQuery: '' as string,
-    creationPreset: {
+    creationConfig: {
       type: 'occlude' as RegionType,
       groups: ['occlude_top_layer'] as string[],
       color: '#4ade80',
@@ -68,10 +68,10 @@ function _createStore() {
   })
 
   watch(
-    () => configFingerprint(state.creationPreset.type, state.creationPreset.groups),
+    () => configFingerprint(state.creationConfig.type, state.creationConfig.groups),
     () => {
-      if (!state.creationPreset.colorManuallySet) {
-        state.creationPreset.color = colorForConfig(state.creationPreset.type, state.creationPreset.groups)
+      if (!state.creationConfig.colorManuallySet) {
+        state.creationConfig.color = colorForConfig(state.creationConfig.type, state.creationConfig.groups)
       }
     },
     { immediate: true },
@@ -125,11 +125,11 @@ function _createStore() {
     const region: SceneRegion = {
       id: nextId(),
       name: `Region_${idx + 1}`,
-      type: state.creationPreset.type,
+      type: state.creationConfig.type,
       vertices: vertices.map(v => [v.x, v.y]),
-      groups: [...state.creationPreset.groups],
-      color: state.creationPreset.color,
-      colorManuallySet: state.creationPreset.colorManuallySet,
+      groups: [...state.creationConfig.groups],
+      color: state.creationConfig.color,
+      colorManuallySet: state.creationConfig.colorManuallySet,
       visible: true,
     }
     state.regions.push(region)
@@ -179,25 +179,25 @@ function _createStore() {
     region.visible = !region.visible
   }
 
-  function setPresetColorManual(color: string) {
-    state.creationPreset.color = color
-    state.creationPreset.colorManuallySet = true
+  function setConfigColorManual(color: string) {
+    state.creationConfig.color = color
+    state.creationConfig.colorManuallySet = true
   }
 
   function applyPreset(preset: RegionPreset) {
-    state.creationPreset.type = preset.type
-    state.creationPreset.groups = [...preset.groups]
-    state.creationPreset.color = preset.color
-    state.creationPreset.colorManuallySet = false
+    state.creationConfig.type = preset.type
+    state.creationConfig.groups = [...preset.groups]
+    state.creationConfig.color = preset.color
+    state.creationConfig.colorManuallySet = false
   }
 
   function savePreset(name: string): RegionPreset {
     const preset: RegionPreset = {
       id: `preset-${Date.now().toString(36)}`,
       name,
-      type: state.creationPreset.type,
-      groups: [...state.creationPreset.groups],
-      color: state.creationPreset.color,
+      type: state.creationConfig.type,
+      groups: [...state.creationConfig.groups],
+      color: state.creationConfig.color,
     }
     state.savedPresets.push(preset)
     return preset
@@ -257,7 +257,7 @@ function _createStore() {
     updateRegionProps,
     selectRegion,
     toggleRegionVisibility,
-    setPresetColorManual,
+    setConfigColorManual,
     applyPreset,
     savePreset,
     deletePreset,

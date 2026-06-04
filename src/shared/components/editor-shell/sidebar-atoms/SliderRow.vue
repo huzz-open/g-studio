@@ -27,10 +27,7 @@ const displayVal = computed(() =>
 
 <template>
   <div class="slider-row" :class="{ disabled }">
-    <div class="slider-label">
-      <span>{{ label }}</span>
-      <span class="slider-value">{{ displayVal }}</span>
-    </div>
+    <span class="slider-label">{{ label }}</span>
     <input
       type="range"
       class="slider-input"
@@ -41,34 +38,31 @@ const displayVal = computed(() =>
       :disabled="disabled"
       @input="emit('update:modelValue', +($event.target as HTMLInputElement).value)"
     />
+    <span class="slider-value">{{ displayVal }}</span>
   </div>
 </template>
 
 <style scoped>
 .slider-row {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 6px;
+  align-items: center;
+  gap: 8px;
 }
 .slider-label {
-  display: flex;
-  justify-content: space-between;
   font-size: 11px;
   color: #aaa;
-}
-.slider-value {
-  color: #8ab4f8;
-  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  min-width: 48px;
 }
 .slider-input {
-  width: 100%;
+  flex: 1;
   height: 4px;
   appearance: none;
   background: #3a3a3a;
   border-radius: 2px;
   outline: none;
   cursor: pointer;
+  min-width: 0;
 }
 .slider-input::-webkit-slider-thumb {
   appearance: none;
@@ -77,6 +71,13 @@ const displayVal = computed(() =>
   border-radius: 50%;
   background: #8ab4f8;
   cursor: pointer;
+}
+.slider-value {
+  font-size: 11px;
+  color: #8ab4f8;
+  font-variant-numeric: tabular-nums;
+  min-width: 28px;
+  text-align: right;
 }
 .slider-row.disabled { opacity: 0.4; pointer-events: none; }
 </style>

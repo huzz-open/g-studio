@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from '../../../shared/i18n'
 import type { TilesetInstance } from '../store'
 import { PROFILE_NAMES, SLIDER_DEFS, getProfile } from '../core/sdf/profiles'
 import type { TileSize } from '../core/types'
 import FileDropZone from '../../../shared/components/FileDropZone.vue'
+import { SegmentedControl } from '../../../shared/components/editor-shell'
+import type { SegmentOption } from '../../../shared/components/editor-shell'
 
 const { t } = useI18n()
 const props = defineProps<{ store: TilesetInstance }>()
@@ -19,9 +22,14 @@ function onSlider(key: string, e: Event) {
 
 const TILE_SIZES: TileSize[] = [16, 24, 32, 64]
 
-function onTileSize(size: TileSize) {
-  props.store.setTileSize(size)
-}
+const tileSizeOptions = computed<SegmentOption[]>(() =>
+  TILE_SIZES.map(s => ({ value: String(s), label: `${s}px` }))
+)
+
+const layoutOptions: SegmentOption[] = [
+  { value: '8x6', label: '8×6' },
+  { value: '11x5', label: '11×5' },
+]
 </script>
 
 <template>
@@ -45,31 +53,22 @@ function onTileSize(size: TileSize) {
 
     <div class="section">
       <label class="section-title">{{ t('tileset.tileSize') }}</label>
-      <div class="option-chips">
-        <button
-          v-for="size in TILE_SIZES"
-          :key="size"
-          class="chip"
-          :class="{ active: props.store.state.tileSize === size }"
-          @click="onTileSize(size)"
-        >{{ size }}px</button>
-      </div>
+      <SegmentedControl
+        :model-value="String(props.store.state.tileSize)"
+        :options="tileSizeOptions"
+        :indicator="false"
+        @update:model-value="props.store.setTileSize(Number($event) as TileSize)"
+      />
     </div>
 
     <div class="section">
       <label class="section-title">{{ t('tileset.layout') }}</label>
-      <div class="option-chips">
-        <button
-          :class="{ active: props.store.state.layout === '8x6' }"
-          @click="props.store.setLayout('8x6')"
-          class="chip"
-        >8×6</button>
-        <button
-          :class="{ active: props.store.state.layout === '11x5' }"
-          @click="props.store.setLayout('11x5')"
-          class="chip"
-        >11×5</button>
-      </div>
+      <SegmentedControl
+        :model-value="props.store.state.layout"
+        :options="layoutOptions"
+        :indicator="false"
+        @update:model-value="props.store.setLayout($event as any)"
+      />
     </div>
 
     <div class="section">
@@ -132,7 +131,6 @@ function onTileSize(size: TileSize) {
   cursor: pointer;
 }
 .btn-sm:hover { border-color: #888; color: #eee; }
-.option-chips,
 .style-chips {
   display: flex;
   flex-wrap: wrap;

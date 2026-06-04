@@ -362,10 +362,9 @@ export default {
   'dashboard.sceneRegionEditor.desc': '在场景底图上绘制遮挡与碰撞区域，导出为 Godot tscn 文件',
 
   'sceneEditor.title': '场景区域编辑器',
-  'sceneEditor.tool.createRegion': '创建区域',
   'sceneEditor.tool.rect': '矩形',
   'sceneEditor.tool.polygon': '多边形',
-  'sceneEditor.preset.title': '创建预设',
+  'sceneEditor.preset.title': '区域属性',
   'sceneEditor.preset.type': '类型',
   'sceneEditor.preset.color': '颜色',
   'sceneEditor.preset.groups': '遮挡行为',

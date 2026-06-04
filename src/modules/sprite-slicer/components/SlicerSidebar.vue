@@ -269,6 +269,7 @@ function onOutputAction(id: string) {
         :model-value="store.arrangeMode.value"
         :options="arrangeModeOptions"
         :disabled="!hasImage"
+        :indicator="false"
         @update:model-value="store.arrangeMode.value = $event as any"
       />
     </div>

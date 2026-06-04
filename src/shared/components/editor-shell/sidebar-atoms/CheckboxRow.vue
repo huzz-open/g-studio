@@ -15,6 +15,7 @@ const emit = defineEmits<{
 <template>
   <div class="checkbox-row">
     <label class="checkbox-label">
+      <span class="checkbox-text">{{ label }}</span>
       <input
         type="checkbox"
         class="checkbox-input"
@@ -22,14 +23,12 @@ const emit = defineEmits<{
         :disabled="disabled"
         @change="emit('update:modelValue', ($event.target as HTMLInputElement).checked)"
       />
-      <span class="checkbox-text">{{ label }}</span>
     </label>
   </div>
 </template>
 
 <style scoped>
 .checkbox-row {
-  margin-bottom: 6px;
 }
 .checkbox-label {
   display: flex;
@@ -40,14 +39,15 @@ const emit = defineEmits<{
   color: #aaa;
 }
 .checkbox-label:hover { color: #ddd; }
+.checkbox-text {
+  user-select: none;
+  min-width: 48px;
+}
 .checkbox-input {
   width: 14px;
   height: 14px;
   accent-color: #5577aa;
   cursor: pointer;
-}
-.checkbox-text {
-  user-select: none;
 }
 .checkbox-input:disabled { opacity: 0.4; cursor: default; }
 .checkbox-input:disabled ~ .checkbox-text { opacity: 0.4; }
