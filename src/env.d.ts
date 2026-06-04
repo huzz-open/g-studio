@@ -1,15 +1,24 @@
 /// <reference types="vite/client" />
 
-interface FileSystemDirectoryHandle {
-  queryPermission(desc: { mode: 'read' | 'readwrite' }): Promise<PermissionState>
-  requestPermission(desc: { mode: 'read' | 'readwrite' }): Promise<PermissionState>
+interface ImportMetaEnv {
+  readonly VITE_OPENCV_MODE: 'local' | 'auto'
+  readonly VITE_OPENCV_DOWNLOAD_TIMEOUT: string
 }
 
+interface ImportMeta {
+  readonly env: ImportMetaEnv
+}
+
+// File System Access API (experimental, not in default TS lib)
+interface FileSystemHandlePermissionDescriptor {
+  mode?: 'read' | 'readwrite'
+}
+
+interface FileSystemDirectoryHandle {
+  queryPermission(descriptor?: FileSystemHandlePermissionDescriptor): Promise<PermissionState>
+  requestPermission(descriptor?: FileSystemHandlePermissionDescriptor): Promise<PermissionState>
+}
 
 interface Window {
-  showDirectoryPicker(options?: {
-    id?: string
-    mode?: 'read' | 'readwrite'
-    startIn?: FileSystemHandle | 'desktop' | 'documents' | 'downloads' | 'music' | 'pictures' | 'videos'
-  }): Promise<FileSystemDirectoryHandle>
+  showDirectoryPicker(options?: { mode?: 'read' | 'readwrite' }): Promise<FileSystemDirectoryHandle>
 }
