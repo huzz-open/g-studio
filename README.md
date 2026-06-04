@@ -4,9 +4,19 @@
 
 **Lightweight Game Asset Workbench** — slice sprites, generate tilesets, draw regions, edit maps, all in one place.
 
+**[Live Demo](https://huzz-open.github.io/g-studio/)** · [GitHub](https://github.com/huzz-open/g-studio)
+
 ---
 
 G-Studio is a browser-based toolset for 2D game development, designed especially for Godot Engine projects. All data stays local — no server, no login required.
+
+## Try It Out
+
+A sample sprite sheet is included in the [`samples/`](./samples/) directory for testing:
+
+![Sample sprite sheet](./samples/沧澜水乡_snippet.png)
+
+Open the Sprite Slicer module, drag and drop this image in, and try the auto-detection feature.
 
 ## Features
 

@@ -4,9 +4,19 @@
 
 **轻量级游戏资源工作台** — 切图、拼图、画区域、编地图，一站搞定。
 
+**[在线体验](https://huzz-open.github.io/g-studio/)** · [GitHub](https://github.com/huzz-open/g-studio)
+
 ---
 
 G-Studio 是一个运行在浏览器中的游戏开发辅助工具集，专为 2D 游戏（特别是 Godot 引擎项目）设计。所有数据保存在本地，无需服务器，无需登录。
+
+## 试一试
+
+[`samples/`](./samples/) 目录中包含一张测试用的 Sprite Sheet：
+
+![示例素材](./samples/沧澜水乡_snippet.png)
+
+打开切图工具模块，将这张图片拖入，即可体验自动检测切割功能。
 
 ## 功能模块
 
