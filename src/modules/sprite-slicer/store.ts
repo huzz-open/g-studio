@@ -7,7 +7,6 @@ import { NullRemover } from './core/background/null-remover'
 import { CcaDetector } from './core/detection/cca-detector'
 import { GridDetector } from './core/detection/grid-detector'
 import { opencvDetect } from './core/detection/opencv-detector'
-import { preloadCV } from './core/opencv/loader'
 import { autoArrangeRects } from './core/layout/bin-packer'
 import { splitSpriteByLines, type Point } from './core/split/line-splitter'
 import { imageDataToDataUrl, createOffscreenCanvas } from './core/utils/canvas-utils'
@@ -168,9 +167,6 @@ function createSlicerStore() {
       if (arrangeMode.value !== 'none') applyArrange()
     },
   })
-
-  // Preload OpenCV WASM in background
-  preloadCV()
 
   const currentBgRemover = computed(() =>
     bgRemovers.find(r => r.id === bgRemoverId.value)!,

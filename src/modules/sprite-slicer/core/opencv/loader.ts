@@ -1,5 +1,3 @@
-const TIMEOUT_MS = 30_000
-
 let _cv: any = null
 let _promise: Promise<any> | null = null
 
@@ -12,17 +10,16 @@ let _promise: Promise<any> | null = null
  */
 function loadCV(): Promise<any> {
   const t0 = performance.now()
+  let settled = false
+
   return new Promise((resolve, reject) => {
     const script = document.createElement('script')
     script.src = `${import.meta.env.BASE_URL}opencv.js`
     script.async = true
 
-    const timer = setTimeout(() => {
-      fail(new Error(`OpenCV WASM init timed out (${TIMEOUT_MS}ms)`))
-    }, TIMEOUT_MS)
-
     const done = (cv: any) => {
-      clearTimeout(timer)
+      if (settled) return
+      settled = true
       delete cv.then
       _cv = cv
       console.log(`[OpenCV] ready (${Math.round(performance.now() - t0)}ms)`)
@@ -30,7 +27,8 @@ function loadCV(): Promise<any> {
     }
 
     const fail = (err: Error) => {
-      clearTimeout(timer)
+      if (settled) return
+      settled = true
       _promise = null
       console.error('[OpenCV]', err.message)
       reject(err)
