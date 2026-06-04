@@ -1,4 +1,4 @@
-import type { FsEntry, MetaFile, ScanResult } from '../interfaces/meta'
+import type { FsEntry, ScanResult } from '../interfaces/meta'
 import { isMetaFile, isSystemFile, mainFileNameFromMeta, readMetaFileByHandleFsResult } from './meta-service'
 import { writeFile, deleteFile as fsDeleteFile } from '../../../shared/workspace/fs'
 

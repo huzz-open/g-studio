@@ -174,7 +174,6 @@ export default {
   'slicer.save.asSpritesheetHint': '保存原始图片 + 切分配置到资源库，可重新打开编辑',
   'resource.openInSlicer': '在切分器中打开',
   'workspace.switchOther': '打开其他工作区…',
-  'workspace.reconnect': '重新连接',
   'workspace.lightweight': '轻量模式',
   'workspace.lightweightHint': '未连接工作区，部分功能不可用',
   'workspace.close': '关闭工作区',

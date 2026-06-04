@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, unref } from 'vue'
 import { useI18n } from '../../../shared/i18n'
 import {
   SidebarSection,
@@ -22,7 +22,7 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-const region = computed(() => props.store.selectedRegion)
+const region = computed(() => unref(props.store.selectedRegion))
 
 const shapeLabel = computed(() => {
   const r = region.value
@@ -146,7 +146,7 @@ async function onDeleteAction() {
 </script>
 
 <template>
-  <template v-if="region">
+  <div v-if="region" class="region-property-content">
     <SidebarSection :title="t('sceneEditor.property.title')" icon="edit">
       <TextRow
         :label="t('sceneEditor.property.name')"
@@ -237,17 +237,21 @@ async function onDeleteAction() {
         @click="onDeleteAction"
       />
     </div>
-  </template>
+  </div>
 
-  <template v-else>
-    <div class="no-selection">
-      <SvgIcon name="edit" :size="20" class="no-sel-icon" />
-      <span>{{ t('sceneEditor.noSelection') }}</span>
-    </div>
-  </template>
+  <div v-else class="no-selection">
+    <SvgIcon name="edit" :size="20" class="no-sel-icon" />
+    <span>{{ t('sceneEditor.noSelection') }}</span>
+  </div>
 </template>
 
 <style scoped>
+.region-property-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
 .prop-row {
   display: flex;
   align-items: center;

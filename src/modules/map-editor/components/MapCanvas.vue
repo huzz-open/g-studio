@@ -103,9 +103,10 @@ function drawWaterFeatures(features: WaterFeature[]) {
 }
 
 function drawRoads() {
-  if (!ctx || !props.store.state.mapData!.roads.length) return
-  const locsById = new Map(props.store.state.mapData.locations.map(l => [l.id, l]))
-  for (const road of props.store.state.mapData.roads) {
+  const mapData = props.store.state.mapData
+  if (!ctx || !mapData?.roads.length) return
+  const locsById = new Map(mapData.locations.map(l => [l.id, l]))
+  for (const road of mapData.roads) {
     const a = locsById.get(road.from), b = locsById.get(road.to)
     if (!a || !b) continue
     if (a.position.x === null || a.position.y === null || b.position.x === null || b.position.y === null) continue

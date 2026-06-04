@@ -8,12 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@techstark/opencv-js':
+        specifier: github:TechStark/opencv-js#92e4734
+        version: https://codeload.github.com/TechStark/opencv-js/tar.gz/92e4734e416e2334061a1457c8965611412164bb
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
-      opencv-js-wasm:
-        specifier: 5.0.0-alpha
-        version: 5.0.0-alpha
       vue:
         specifier: ^3.5.34
         version: 3.5.34(typescript@6.0.3)
@@ -177,6 +177,10 @@ packages:
 
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
+
+  '@techstark/opencv-js@https://codeload.github.com/TechStark/opencv-js/tar.gz/92e4734e416e2334061a1457c8965611412164bb':
+    resolution: {tarball: https://codeload.github.com/TechStark/opencv-js/tar.gz/92e4734e416e2334061a1457c8965611412164bb}
+    version: 4.12.0-release.1
 
   '@tybys/wasm-util@0.10.2':
     resolution: {integrity: sha512-RoBvJ2X0wuKlWFIjrwffGw1IqZHKQqzIchKaadZZfnNpsAYp2mM0h36JtPCjNDAHGgYez/15uMBpfGwchhiMgg==}
@@ -379,10 +383,6 @@ packages:
     resolution: {integrity: sha512-ZB9RH/39qpq5Vu6Y+NmUaFhQR6pp+M2Xt76XBnEwDaGcVAqhlvxrl3B2bKS5D3NH3QR76v3aSrKaF/Kiy7lEtQ==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
-
-  opencv-js-wasm@5.0.0-alpha:
-    resolution: {integrity: sha512-gs+E/Bwi+ouX+bbxfbh2ICL/QOBqLdNaL8/A1CviMtBbiXhHnn21lB92C2C29FkUwlIOf433AYEw5koGRY3e6A==}
-    engines: {node: '>=12.0.0'}
 
   pako@1.0.11:
     resolution: {integrity: sha512-4hLB8Py4zZce5s4yd9XzopqwVv/yGNhV1Bl8NTmCq1763HeK2+EwVTv+leGeL13Dnh2wfbqowVPXCIO0z4taYw==}
@@ -601,6 +601,8 @@ snapshots:
 
   '@rolldown/pluginutils@1.0.1': {}
 
+  '@techstark/opencv-js@https://codeload.github.com/TechStark/opencv-js/tar.gz/92e4734e416e2334061a1457c8965611412164bb': {}
+
   '@tybys/wasm-util@0.10.2':
     dependencies:
       tslib: 2.8.1
@@ -791,8 +793,6 @@ snapshots:
   muggle-string@0.4.1: {}
 
   nanoid@3.3.12: {}
-
-  opencv-js-wasm@5.0.0-alpha: {}
 
   pako@1.0.11: {}
 

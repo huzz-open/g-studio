@@ -18,7 +18,7 @@ export interface Transaction {
   cancel(): void
 }
 
-export interface HistoryStack<T> {
+export interface HistoryStack<_T = unknown> {
   readonly canUndo: ComputedRef<boolean>
   readonly canRedo: ComputedRef<boolean>
   /** 正在恢复快照中（模块可据此跳过 watcher 副作用） */

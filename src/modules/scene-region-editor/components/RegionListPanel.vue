@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, unref } from 'vue'
 import { useI18n } from '../../../shared/i18n'
 import {
   SidebarSection,
@@ -96,6 +96,8 @@ async function onSavePreset() {
   }
 }
 
+const filteredRegions = computed(() => unref(props.store.filteredRegions))
+const isFilteredEmpty = computed(() => filteredRegions.value.length === 0)
 const hasRegions = computed(() => props.store.state.regions.length > 0)
 
 const exportButtons = computed<ActionButton[]>(() => [
@@ -210,7 +212,7 @@ function onExportAction(id: string) {
 
     <div class="region-list">
       <div
-        v-for="r in store.filteredRegions"
+        v-for="r in filteredRegions"
         :key="r.id"
         class="region-item"
         :class="{ selected: r.id === store.state.selectedRegionId }"
@@ -231,7 +233,7 @@ function onExportAction(id: string) {
           class="region-shape-icon"
         />
       </div>
-      <div v-if="store.filteredRegions.length === 0" class="empty-list">
+      <div v-if="isFilteredEmpty" class="empty-list">
         —
       </div>
     </div>

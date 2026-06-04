@@ -24,7 +24,7 @@ watch(activeInstance, (inst) => {
 }, { immediate: true })
 
 const tabs = computed<TabItem[]>(() =>
-  instances.value.map(inst => ({
+  instances.value.map((inst: SceneRegionStore) => ({
     id: inst.id,
     label: inst.state.imageUrl ? t('sceneEditor.title') : t('common.newTab'),
   }))

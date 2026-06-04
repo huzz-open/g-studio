@@ -14,13 +14,6 @@ const emit = defineEmits<{
 
 const inputVal = ref('')
 
-function addTag() {
-  const tag = inputVal.value.trim()
-  if (!tag) return
-  emit('update:modelValue', [...new Set([...arguments[0], tag])])
-  inputVal.value = ''
-}
-
 function removeTag(tag: string, tags: string[]) {
   emit('update:modelValue', tags.filter(t => t !== tag))
 }

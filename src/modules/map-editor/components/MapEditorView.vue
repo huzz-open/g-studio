@@ -26,7 +26,7 @@ const rightPanelConfig = definePanelConfig('map-editor-right')
 const tabs = computed<TabItem[]>(() =>
   tabInstances.value.map(inst => ({
     id: inst.id,
-    label: inst.state.mapData?.name || t('common.newTab'),
+    label: inst.state.mapData?.meta.description || t('common.newTab'),
     dirty: inst.canUndo.value,
   }))
 )

@@ -174,7 +174,6 @@ export default {
   'slicer.save.asSpritesheetHint': 'Save original image + slice config to resources, can be re-opened for editing',
   'resource.openInSlicer': 'Open in Slicer',
   'workspace.switchOther': 'Open Other Workspace…',
-  'workspace.reconnect': 'Reconnect',
   'workspace.lightweight': 'Lightweight Mode',
   'workspace.lightweightHint': 'No workspace connected, some features unavailable',
   'workspace.close': 'Close Workspace',

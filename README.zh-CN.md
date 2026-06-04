@@ -1,8 +1,12 @@
 **中文** | [English](./README.md)
 
-# G-Studio
+<p align="center">
+  <img src="./public/favicon.svg" width="128" height="128" alt="G-Studio Logo">
+</p>
 
-**轻量级游戏资源工作台** — 切图、拼图、画区域、编地图，一站搞定。
+<h1 align="center">G-Studio</h1>
+
+<p align="center"><strong>轻量级游戏资源工作台</strong> — 切图、拼图、画区域、编地图，一站搞定。</p>
 
 **[在线体验](https://huzz-open.github.io/g-studio/)** · [GitHub](https://github.com/huzz-open/g-studio)
 

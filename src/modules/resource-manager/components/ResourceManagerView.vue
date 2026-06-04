@@ -264,7 +264,7 @@ const showRightPanel = computed(() => !!selectedFile.value)
         <SvgIcon name="folder" :size="48" />
         <h3>{{ t('resource.noWorkspace') }}</h3>
         <p>{{ t('resource.noWorkspaceHint') }}</p>
-        <button class="btn btn-primary" @click="openWorkspace">
+        <button class="btn btn-primary" @click="openWorkspace()">
           <SvgIcon name="folder" :size="14" />
           {{ t('resource.openWorkspace') }}
         </button>

@@ -37,11 +37,11 @@ watch(() => props.file, async (f) => {
 }, { immediate: true })
 
 function openInSlicer() {
-  router.push({ path: '/sprite-slicer', query: { resource: props.file.meta!.uid, path: props.file.path } })
+  router.push({ path: '/sprite-slicer', query: { resource: props.file!.meta!.uid, path: props.file!.path } })
 }
 
 function openInTilesetMaker() {
-  router.push({ path: '/tileset-maker', query: { resource: props.file.meta!.uid, path: props.file.path } })
+  router.push({ path: '/tileset-maker', query: { resource: props.file!.meta!.uid, path: props.file!.path } })
 }
 
 function formatDate(ts?: number): string {

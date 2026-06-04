@@ -16,7 +16,7 @@ const props = defineProps<{ store: TilesetInstance; terrain: SharedTerrainState 
 async function exportPng() {
   const s = props.store.state
   const name = props.terrain.state.terrainName || 'tileset'
-  const blob = await pixelsToBlob(s.atlasPixels, s.atlasWidth, s.atlasHeight)
+  const blob = await pixelsToBlob(s.atlasPixels!, s.atlasWidth, s.atlasHeight)
   downloadBlob(blob, `${name}.png`)
 }
 

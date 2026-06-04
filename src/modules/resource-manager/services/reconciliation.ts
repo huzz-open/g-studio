@@ -1,6 +1,6 @@
-import type { ScanResult, FsEntry, MetaFile, UidIndex } from '../interfaces/meta'
+import type { ScanResult, FsEntry, MetaFile } from '../interfaces/meta'
 import { computeContentHash } from './content-hash'
-import { createMetaForFile, writeMetaFile, readMetaFile } from './meta-service'
+import { createMetaForFile, writeMetaFile } from './meta-service'
 import { generateUid } from './uid'
 import { readUidIndex, writeUidIndex, buildUidIndexFromLinked } from './uid-index'
 import { resolveDir, splitPath, readJsonFileOrNull, deleteFile as fsDeleteFile } from '../../../shared/workspace/fs'

@@ -106,8 +106,9 @@ export async function saveFileBatch(filesOrOpts: SaveFileOptions[] | BatchOption
     ? { files: filesOrOpts, sourceMetaUpdate: undefined }
     : filesOrOpts
 
-  const root = getWorkspaceHandle()
-  if (!root) throw new Error('No workspace connected')
+  const rootOrNull = getWorkspaceHandle()
+  if (!rootOrNull) throw new Error('No workspace connected')
+  const root = rootOrNull
 
   const index = await readUidIndex(root)
   const producesQueue: Array<{ sourceUid: string; producedUid: string }> = []
@@ -270,7 +271,7 @@ async function syncUidIndex(root: FileSystemDirectoryHandle, uid: string, path: 
 
 export async function deleteFileFromWorkspace(
   filePath: string,
-): Promise<{ deletedUid?: string; referencedBy?: string[] }> {
+): Promise<{ deletedUid?: string; referencedBy?: string[]; relationCheckFailed?: boolean }> {
   const root = getWorkspaceHandle()
   if (!root) throw new Error('No workspace connected')
 

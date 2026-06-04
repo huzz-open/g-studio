@@ -29,7 +29,7 @@ const leftCollapsed = ref(false)
 const splitPercent = ref(50)
 
 const tabs = computed<TabItem[]>(() =>
-  tabInstances.value.map(inst => ({
+  tabInstances.value.map((inst: TilesetInstance) => ({
     id: inst.id,
     label: inst.state.textureFileName || inst.state.nineGridFileName || t('common.newTab'),
     dirty: inst.state.isDirty,

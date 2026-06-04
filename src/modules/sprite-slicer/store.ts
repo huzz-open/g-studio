@@ -270,7 +270,7 @@ function createSlicerStore() {
       const totalW = numCols * tw
       const totalH = Math.ceil(sprites.value.length / numCols) * th
 
-      const { ctx: sheetCtx, canvas: sheetCv } = createOffscreenCanvas(totalW, totalH)
+      const { ctx: sheetCtx, canvas: _sheetCv } = createOffscreenCanvas(totalW, totalH)
       const { ctx: cellCtx, canvas: cellCv } = createOffscreenCanvas(tw, th)
 
       for (let i = 0; i < sprites.value.length; i++) {

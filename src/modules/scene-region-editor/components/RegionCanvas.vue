@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, unref } from 'vue'
 import ImageCanvas from '../../../shared/components/ImageCanvas.vue'
 import RegionDrawTool from '../../../shared/components/draw-tools/RegionDrawTool.vue'
 import type { DrawnPolygon, DrawPoint } from '../../../shared/components/draw-tools/types'
@@ -13,11 +13,13 @@ const props = defineProps<{
 let vertexDragTx: Transaction | null = null
 
 const visibleRegionPolygons = computed<DrawnPolygon[]>(() =>
-  props.store.visibleRegions.map(r => ({
+  unref(props.store.visibleRegions).map(r => ({
     id: r.id,
     vertices: r.vertices.map(([x, y]) => ({ x, y })),
   }))
 )
+
+const regionColorMap = computed(() => unref(props.store.regionColorMap))
 
 const creationMode = computed<'rect' | 'polygon'>(() =>
   props.store.state.activeTool === 'rect' ? 'rect' : 'polygon'
@@ -68,7 +70,7 @@ function onVertexDragEnd() {
         :selected-id="store.state.selectedRegionId"
         :active="true"
         :creation-mode="creationMode"
-        :polygon-colors="store.regionColorMap"
+        :polygon-colors="regionColorMap"
         :preview-fill="true"
         :preview-color="store.state.creationConfig.color"
         @polygon-created="onRegionCreated"

@@ -1,4 +1,4 @@
-import { ref, onMounted, onUnmounted, provide, type Ref } from 'vue'
+import { ref, onMounted, onUnmounted, provide } from 'vue'
 import type { EditorShellContext, ViewportState } from './types'
 
 export const EDITOR_SHELL_KEY = Symbol('editor-shell')

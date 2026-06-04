@@ -1,8 +1,12 @@
 [中文](./README.zh-CN.md) | **English**
 
-# G-Studio
+<p align="center">
+  <img src="./public/favicon.svg" width="128" height="128" alt="G-Studio Logo">
+</p>
 
-**Lightweight Game Asset Workbench** — slice sprites, generate tilesets, draw regions, edit maps, all in one place.
+<h1 align="center">G-Studio</h1>
+
+<p align="center"><strong>Lightweight Game Asset Workbench</strong> — slice sprites, generate tilesets, draw regions, edit maps, all in one place.</p>
 
 **[Live Demo](https://huzz-open.github.io/g-studio/)** · [GitHub](https://github.com/huzz-open/g-studio)
 

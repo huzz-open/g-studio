@@ -116,12 +116,6 @@ const selectedPolygon = computed(() =>
   props.selectedId ? props.polygons.find(p => p.id === props.selectedId) : null
 )
 
-const isCreating = computed(() => {
-  if (!props.active) return false
-  if (props.creationMode === 'rect') return isDrawingRect.value
-  return creatingPoints.value.length > 0
-})
-
 const rectPreview = computed<DrawPoint[] | null>(() => {
   if (!isDrawingRect.value || !rectStart.value || !mousePos.value) return null
   const s = rectStart.value, e = mousePos.value
@@ -170,8 +164,6 @@ function onSvgMouseDown(e: MouseEvent) {
 
   if (selectedPolygon.value) {
     const poly = selectedPolygon.value
-    const scale = getScreenScale()
-
     for (let i = 0; i < poly.vertices.length; i++) {
       if (distScreen(pt, poly.vertices[i]) < CLOSE_THRESHOLD) {
         draggingVertexIndex.value = i
@@ -331,7 +323,7 @@ function onSvgMouseMove(e: MouseEvent) {
   }
 }
 
-function onSvgMouseUp(e: MouseEvent) {
+function onSvgMouseUp(_e: MouseEvent) {
   if (draggingVertexIndex.value !== null) {
     draggingVertexIndex.value = null
     dragOrigin.value = null
