@@ -1,19 +1,14 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import SvgIcon from '../../icons/SvgIcon.vue'
+import { computed } from 'vue'
+import DropTarget from '../drop-target/DropTarget.vue'
+import EmptyDropHint from './EmptyDropHint.vue'
 import { useI18n } from '../../i18n'
-import { filterFilesByAccept } from '../../utils/file-accept'
 import type { DropModifiers } from './types'
-
-const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   accept?: string
   dropOverlayText?: string
   altDropOverlayText?: string
-  emptyIcon?: string
-  emptyTitle?: string
-  emptyDesc?: string
   showEmpty?: boolean
   loading?: boolean
 }>(), {
@@ -26,75 +21,62 @@ const emit = defineEmits<{
   drop: [files: File[], modifiers: DropModifiers]
 }>()
 
-const dragging = ref(false)
-let dragCounter = 0
+const { t } = useI18n()
 
-function onDragEnter(e: DragEvent) {
-  e.preventDefault()
-  dragCounter++
-  dragging.value = true
+function onDrop(files: File[], modifiers: DropModifiers) {
+  emit('drop', files, modifiers)
 }
 
-function onDragOver(e: DragEvent) {
-  e.preventDefault()
+function onFileSelect(file: File) {
+  emit('drop', [file], { alt: false, ctrl: false, shift: false })
 }
 
-function onDragLeave() {
-  dragCounter--
-  if (dragCounter <= 0) {
-    dragCounter = 0
-    dragging.value = false
-  }
-}
-
-function onDrop(e: DragEvent) {
-  e.preventDefault()
-  dragCounter = 0
-  dragging.value = false
-  const raw = Array.from(e.dataTransfer?.files ?? [])
-  if (!raw.length) return
-  const valid = filterFilesByAccept(raw, props.accept)
-  if (!valid.length) return
-  emit('drop', valid, { alt: e.altKey, ctrl: e.ctrlKey, shift: e.shiftKey })
-}
-
-const showOverlay = computed(() => dragging.value && (props.dropOverlayText || props.altDropOverlayText))
+const overlayText = computed(() => props.dropOverlayText ?? t('common.dropToOpen'))
+const altOverlayText = computed(() => props.altDropOverlayText ?? t('common.dropToReplace'))
 </script>
 
 <template>
-  <div
-    class="viewport-area"
-    @dragenter="onDragEnter"
-    @dragover="onDragOver"
-    @dragleave="onDragLeave"
+  <DropTarget
+    :accept="accept"
+    :default-overlay="false"
     @drop="onDrop"
+    v-slot="{ dragging, fetching }"
   >
-    <!-- Drop overlay -->
-    <Transition name="fade">
-      <div v-if="showOverlay" class="drop-overlay">
-        <div class="drop-message">
-          <SvgIcon name="upload" :size="32" />
-          <p>{{ dropOverlayText }}</p>
-          <p v-if="altDropOverlayText" class="drop-alt">Alt: {{ altDropOverlayText }}</p>
+    <div class="viewport-area">
+      <!-- Drop overlay -->
+      <Transition name="fade">
+        <div v-if="dragging" class="drop-overlay">
+          <div class="drop-message">
+            <p class="drop-main">{{ overlayText }}</p>
+            <p class="drop-alt">Alt: {{ altOverlayText }}</p>
+          </div>
         </div>
+      </Transition>
+
+      <!-- Fetch loading overlay -->
+      <Transition name="fade">
+        <div v-if="fetching" class="fetch-loading-overlay">
+          <div class="fetch-loading-spinner" />
+          <span class="fetch-loading-text">{{ t('common.loadingDot') }}<span class="dot-anim" /></span>
+        </div>
+      </Transition>
+
+      <!-- Empty state -->
+      <EmptyDropHint
+        v-if="showEmpty && !loading && !dragging"
+        :accept="accept"
+        @select="onFileSelect"
+      />
+
+      <!-- Loading -->
+      <div v-if="loading" class="loading-state">
+        <div class="loading-spinner" />
       </div>
-    </Transition>
 
-    <!-- Empty state -->
-    <div v-if="showEmpty && !loading && !dragging" class="empty-state">
-      <SvgIcon v-if="emptyIcon" :name="emptyIcon" :size="48" />
-      <p v-if="emptyTitle" class="empty-title">{{ emptyTitle }}</p>
-      <p v-if="emptyDesc" class="empty-desc">{{ emptyDesc }}</p>
+      <!-- Actual viewport content -->
+      <slot v-if="!showEmpty || loading" />
     </div>
-
-    <!-- Loading -->
-    <div v-if="loading" class="loading-state">
-      <div class="loading-spinner" />
-    </div>
-
-    <!-- Actual viewport content -->
-    <slot v-if="!showEmpty || loading" />
-  </div>
+  </DropTarget>
 </template>
 
 <style scoped>
@@ -120,37 +102,41 @@ const showOverlay = computed(() => dragging.value && (props.dropOverlayText || p
 }
 .drop-message {
   text-align: center;
+}
+.drop-main {
+  margin: 0;
+  font-size: 13px;
   color: #8ab4f8;
 }
-.drop-message p {
-  margin: 8px 0 0;
-  font-size: 13px;
-}
 .drop-alt {
-  font-size: 11px !important;
+  margin: 6px 0 0;
+  font-size: 11px;
   color: #aaa;
 }
 
-.empty-state {
+.fetch-loading-overlay {
   position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #666;
   gap: 8px;
+  background: rgba(30, 30, 30, 0.7);
+  z-index: 25;
   pointer-events: none;
 }
-.empty-title {
-  font-size: 14px;
-  color: #888;
-  margin: 0;
+.fetch-loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #444;
+  border-top-color: #8ab4f8;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
 }
-.empty-desc {
-  font-size: 12px;
-  color: #666;
-  margin: 0;
+.fetch-loading-text {
+  color: #ccc;
+  font-size: 13px;
 }
 
 .loading-state {
@@ -175,4 +161,16 @@ const showOverlay = computed(() => dragging.value && (props.dropOverlayText || p
 .fade-leave-active { transition: opacity 0.15s; }
 .fade-enter-from,
 .fade-leave-to { opacity: 0; }
+
+/* Dot animation */
+.dot-anim::after {
+  content: '';
+  animation: dots 1.2s steps(3, end) infinite;
+}
+@keyframes dots {
+  0%   { content: ''; }
+  33%  { content: '.'; }
+  66%  { content: '..'; }
+  100% { content: '...'; }
+}
 </style>

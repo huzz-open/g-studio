@@ -556,7 +556,7 @@ watch(() => store.namePrefix.value, () => {
     :show-empty="showEmpty"
     :loading="loadingResource"
     :auto-empty-tab="!route.query.resource"
-    :viewport="{ accept: 'image/png,image/jpeg,image/webp', dropOverlayText: t('common.dropToOpen'), altDropOverlayText: t('common.dropToReplace'), emptyState: { icon: 'upload', title: t('slicer.upload.desc'), desc: t('slicer.upload.hint') } }"
+    :viewport="{ accept: 'image/png,image/jpeg,image/webp' }"
     @tab-switch="onTabSwitch"
     @tab-close="onTabClose"
     @tab-add-empty="store.addEmptyTab()"

@@ -210,7 +210,7 @@ function onExportAction(id: string) {
 
     <div class="region-list">
       <div
-        v-for="r in store.filteredRegions.value"
+        v-for="r in store.filteredRegions"
         :key="r.id"
         class="region-item"
         :class="{ selected: r.id === store.state.selectedRegionId }"
@@ -231,7 +231,7 @@ function onExportAction(id: string) {
           class="region-shape-icon"
         />
       </div>
-      <div v-if="store.filteredRegions.value.length === 0" class="empty-list">
+      <div v-if="store.filteredRegions.length === 0" class="empty-list">
         —
       </div>
     </div>

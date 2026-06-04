@@ -48,14 +48,32 @@ function onTabAddFile(file: File) {
   reader.readAsText(file)
 }
 
-function onViewportDrop(files: File[], _modifiers: DropModifiers) {
+function onViewportDrop(files: File[], modifiers: DropModifiers) {
   const file = files[0]
   if (!file) return
   if (file.name.endsWith('.json')) {
-    onTabAddFile(file)
+    if (modifiers.alt && activeInstance.value) {
+      onTabLoadFile(file)
+    } else if (showEmpty.value && activeInstance.value) {
+      onTabLoadFile(file)
+    } else {
+      onTabAddFile(file)
+    }
   } else if (file.type.startsWith('image/') && activeInstance.value) {
     activeInstance.value.state.baseMapUrl = URL.createObjectURL(file)
   }
+}
+
+function onTabLoadFile(file: File) {
+  if (!file.name.endsWith('.json') || !activeInstance.value) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result as string) as WorldMapData
+      activeInstance.value!.loadMapData(data)
+    } catch { /* parse error */ }
+  }
+  reader.readAsText(file)
 }
 
 const showEmpty = computed(() => !activeInstance.value || !activeInstance.value.state.mapData)
@@ -74,7 +92,7 @@ createTab()
     :left-collapsed="leftCollapsed"
     :right-collapsed="rightCollapsed"
     :show-empty="showEmpty"
-    :viewport="{ accept: '.json,image/*', dropOverlayText: t('mapEditor.dropJson'), emptyState: { icon: 'map', title: t('mapEditor.empty.title'), desc: t('mapEditor.empty.desc') } }"
+    :viewport="{ accept: '.json,image/*' }"
     :managed-drop="false"
     @tab-switch="onTabSwitch"
     @tab-close="onTabClose"

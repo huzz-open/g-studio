@@ -22,7 +22,7 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-const region = computed(() => props.store.selectedRegion.value)
+const region = computed(() => props.store.selectedRegion)
 
 const shapeLabel = computed(() => {
   const r = region.value

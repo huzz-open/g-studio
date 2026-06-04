@@ -13,7 +13,7 @@ const props = defineProps<{
 let vertexDragTx: Transaction | null = null
 
 const visibleRegionPolygons = computed<DrawnPolygon[]>(() =>
-  props.store.visibleRegions.value.map(r => ({
+  props.store.visibleRegions.map(r => ({
     id: r.id,
     vertices: r.vertices.map(([x, y]) => ({ x, y })),
   }))
@@ -68,7 +68,7 @@ function onVertexDragEnd() {
         :selected-id="store.state.selectedRegionId"
         :active="true"
         :creation-mode="creationMode"
-        :polygon-colors="store.regionColorMap.value"
+        :polygon-colors="store.regionColorMap"
         :preview-fill="true"
         :preview-color="store.state.creationConfig.color"
         @polygon-created="onRegionCreated"

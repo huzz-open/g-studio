@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from '../../../shared/i18n'
 import { EditorShell, definePanelConfig } from '../../../shared/components/editor-shell'
-import type { TabItem, DropModifiers } from '../../../shared/components/editor-shell'
-import { useSceneRegionStore } from '../store'
+import type { TabItem } from '../../../shared/components/editor-shell'
+import { useSceneRegionTabs, type SceneRegionStore } from '../store'
 import RegionCanvas from './RegionCanvas.vue'
 import RegionListPanel from './RegionListPanel.vue'
 import RegionPropertyPanel from './RegionPropertyPanel.vue'
 
 const { t } = useI18n()
 
-const store = useSceneRegionStore()
+const { instances, activeTabId, activeInstance, createTab, switchTab: onTabSwitch, closeTab: onTabClose } = useSceneRegionTabs()
 
 const leftCollapsed = ref(false)
 const rightCollapsed = ref(false)
@@ -18,48 +18,56 @@ const rightCollapsed = ref(false)
 const leftPanelConfig = definePanelConfig('scene-region-left', 260)
 const rightPanelConfig = definePanelConfig('scene-region-right', 280)
 
-const tabs = computed<TabItem[]>(() => {
-  if (!store.state.imageUrl) return []
-  return [{ id: 'main', label: t('sceneEditor.title') }]
-})
+const sidebarInstance = shallowRef<SceneRegionStore | null>(null)
+watch(activeInstance, (inst) => {
+  if (inst) sidebarInstance.value = inst
+}, { immediate: true })
 
-const activeTabId = ref<string | null>('main')
+const tabs = computed<TabItem[]>(() =>
+  instances.value.map(inst => ({
+    id: inst.id,
+    label: inst.state.imageUrl ? t('sceneEditor.title') : t('common.newTab'),
+  }))
+)
 
-const showEmpty = computed(() => !store.state.imageUrl)
+const showEmpty = computed(() =>
+  !activeInstance.value?.state.imageUrl
+)
 
 function onKeyDown(e: KeyboardEvent) {
   const ctrl = e.ctrlKey || e.metaKey
-  if (!ctrl) return
-  if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); store.history.undo() }
-  else if (e.key === 'z' && e.shiftKey) { e.preventDefault(); store.history.redo() }
-  else if (e.key === 'y') { e.preventDefault(); store.history.redo() }
+  if (!ctrl || !activeInstance.value) return
+  if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); activeInstance.value.history.undo() }
+  else if (e.key === 'z' && e.shiftKey) { e.preventDefault(); activeInstance.value.history.redo() }
+  else if (e.key === 'y') { e.preventDefault(); activeInstance.value.history.redo() }
 }
 
 onMounted(() => window.addEventListener('keydown', onKeyDown))
 onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
 
-function onViewportDrop(files: File[], _modifiers: DropModifiers) {
-  const file = files[0]
-  if (!file || !file.type.startsWith('image/')) return
-  loadImageFile(file)
-}
-
 function onTabAddFile(file: File) {
   if (!file.type.startsWith('image/')) return
-  loadImageFile(file)
+  const inst = createTab()
+  loadImageToInstance(inst, file)
 }
 
-function loadImageFile(file: File) {
+function onTabLoadFile(file: File) {
+  if (!file.type.startsWith('image/') || !activeInstance.value) return
+  loadImageToInstance(activeInstance.value, file)
+}
+
+function loadImageToInstance(inst: SceneRegionStore, file: File) {
   const url = URL.createObjectURL(file)
   const img = new Image()
   img.onload = () => {
-    store.loadImage(url, img.naturalWidth, img.naturalHeight)
+    inst.loadImage(url, img.naturalWidth, img.naturalHeight)
   }
   img.src = url
 }
 
 function onExportTscn() {
-  const content = store.exportTscn()
+  if (!activeInstance.value) return
+  const content = activeInstance.value.exportTscn()
   const blob = new Blob([content], { type: 'text/plain' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -70,7 +78,8 @@ function onExportTscn() {
 }
 
 function onExportJson() {
-  const content = store.exportJson()
+  if (!activeInstance.value) return
+  const content = activeInstance.value.exportJson()
   const blob = new Blob([content], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -86,10 +95,10 @@ function onImportJson() {
   input.accept = '.json'
   input.onchange = () => {
     const file = input.files?.[0]
-    if (!file) return
+    if (!file || !activeInstance.value) return
     const reader = new FileReader()
     reader.onload = () => {
-      store.importJson(reader.result as string)
+      activeInstance.value!.importJson(reader.result as string)
     }
     reader.readAsText(file)
   }
@@ -107,20 +116,20 @@ function onImportJson() {
     :left-collapsed="leftCollapsed"
     :right-collapsed="rightCollapsed"
     :show-empty="showEmpty"
-    :viewport="{
-      accept: 'image/*',
-      dropOverlayText: t('sceneEditor.empty.desc'),
-      emptyState: { icon: 'layers', title: t('sceneEditor.empty.title'), desc: t('sceneEditor.empty.desc') },
-    }"
-    :managed-drop="false"
+    :auto-empty-tab="true"
+    :viewport="{ accept: 'image/*' }"
+    @tab-switch="onTabSwitch"
+    @tab-close="onTabClose"
+    @tab-add-empty="createTab()"
     @tab-add-file="onTabAddFile"
-    @viewport-drop="onViewportDrop"
+    @tab-load-file="onTabLoadFile"
     @update:left-collapsed="leftCollapsed = $event"
     @update:right-collapsed="rightCollapsed = $event"
   >
     <template #left>
       <RegionListPanel
-        :store="store"
+        v-if="sidebarInstance"
+        :store="sidebarInstance"
         @export-tscn="onExportTscn"
         @export-json="onExportJson"
         @import-json="onImportJson"
@@ -128,11 +137,11 @@ function onImportJson() {
     </template>
 
     <template #viewport>
-      <RegionCanvas v-if="store.state.imageUrl" :store="store" />
+      <RegionCanvas v-if="activeInstance?.state.imageUrl" :store="activeInstance" />
     </template>
 
     <template #right>
-      <RegionPropertyPanel :store="store" />
+      <RegionPropertyPanel v-if="sidebarInstance" :store="sidebarInstance" />
     </template>
   </EditorShell>
 </template>

@@ -11,6 +11,7 @@ export default {
   'common.search': 'Search',
   'common.filter': 'Filter',
   'common.loading': 'Loading…',
+  'common.loadingDot': 'Loading',
   'common.confirm': 'Confirm',
   'common.close': 'Close',
   'common.selectAll': 'Select All',
@@ -23,9 +24,11 @@ export default {
   'common.zoom100': 'Zoom to 100%',
   'common.fullscreen': 'Fullscreen',
   'common.fitView': 'Fit to View',
-  'common.dropToOpen': 'Drop to open in new tab · Hold Alt to replace',
+  'common.dropToOpen': 'Release to load file or image URL',
   'common.newTab': 'New Tab',
-  'common.dropToReplace': 'Drop to replace current image',
+  'common.dropToReplace': 'Replace current content',
+  'common.emptyDropHint': 'Drop files or image links here, or ',
+  'common.emptyClickAction': 'click to select',
 
   'workspace.title': 'Select Workspace',
   'workspace.subtitle': 'All project data will be saved to your chosen local folder',
@@ -87,7 +90,7 @@ export default {
 
   'slicer.title': 'Sprite Slicer',
   'slicer.upload.hint': 'Click or drag a sprite sheet here',
-  'slicer.upload.desc': 'Supports PNG / JPEG / WebP — auto background removal → smart slicing → save to resources',
+  'slicer.upload.desc': 'Supports PNG / JPEG / WebP',
   'slicer.upload.processing': 'Processing…',
   'slicer.upload.saveOffer': 'Save to Workspace',
   'slicer.upload.saveConfirmMsg': 'File "{name}" loaded. Save it to the local workspace?',
@@ -404,4 +407,12 @@ export default {
   'sceneEditor.empty.title': 'Load Scene Background',
   'sceneEditor.empty.desc': 'Drop a scene image here to start editing',
   'sceneEditor.noSelection': 'Select a region to view properties',
+
+  'dropTarget.dropHint': 'Drop to load',
+  'dropTarget.loading': 'Loading...',
+  'dropTarget.error.unrecognized': 'Cannot recognize dropped content',
+  'dropTarget.error.cors': 'This image blocks cross-origin access. Please save and drag the file instead',
+  'dropTarget.error.not-image': 'The link did not return an image. Try dragging the image element directly',
+  'dropTarget.error.timeout': 'Image loading timed out',
+  'dropTarget.error.generic': 'Image loading failed: {detail}',
 } as const

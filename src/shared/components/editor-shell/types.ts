@@ -16,11 +16,6 @@ export interface ViewportConfig {
   accept: string
   dropOverlayText?: string
   altDropOverlayText?: string
-  emptyState?: {
-    icon: string
-    title: string
-    desc?: string
-  }
 }
 
 export interface DropModifiers {

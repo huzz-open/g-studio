@@ -3,6 +3,8 @@ import type { SceneRegion, RegionType, RegionPreset, SceneRegionData } from './c
 import type { DrawPoint } from '../../shared/components/draw-tools/types'
 import { generateTscn } from './core/tscn-export'
 import { createHistoryStack } from '../../shared/history'
+import { createInstanceRegistry } from '../../shared/components/editor-shell/createInstanceRegistry'
+import { useEditorTabs, type UseEditorTabsReturn } from '../../shared/components/editor-shell'
 
 let _counter = 0
 function nextId(): string {
@@ -38,18 +40,28 @@ function colorForConfig(type: RegionType, groups: string[]): string {
   return OCCLUDE_COLOR_PALETTE[hashString(fp) % OCCLUDE_COLOR_PALETTE.length]
 }
 
-let _singleton: SceneRegionStore | null = null
-
-export function useSceneRegionStore(): SceneRegionStore {
-  if (!_singleton) _singleton = _createStore()
-  return _singleton
+function createSceneRegionInstance(id: string) {
+  return _createStore(id)
 }
 
-export function createSceneRegionStore() {
-  return _createStore()
+const registry = createInstanceRegistry(createSceneRegionInstance)
+export const getSceneRegionInstance = registry.get
+export const removeSceneRegionInstance = registry.remove
+
+let _tabs: UseEditorTabsReturn<SceneRegionStore> | null = null
+
+export function useSceneRegionTabs(): UseEditorTabsReturn<SceneRegionStore> {
+  if (!_tabs) {
+    _tabs = useEditorTabs<SceneRegionStore>({
+      prefix: 'scene-region',
+      factory: getSceneRegionInstance,
+      destroy: removeSceneRegionInstance,
+    })
+  }
+  return _tabs
 }
 
-function _createStore() {
+function _createStore(id: string) {
   const state = reactive({
     imageUrl: '' as string,
     imageSize: { w: 0, h: 0 },
@@ -244,6 +256,7 @@ function _createStore() {
   }
 
   return {
+    id,
     state,
     history,
     selectedRegion,

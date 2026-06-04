@@ -11,6 +11,7 @@ export default {
   'common.search': '搜索',
   'common.filter': '筛选',
   'common.loading': '加载中…',
+  'common.loadingDot': '加载中',
   'common.confirm': '确认',
   'common.close': '关闭',
   'common.selectAll': '全选',
@@ -23,9 +24,11 @@ export default {
   'common.zoom100': '缩放至 100%',
   'common.fullscreen': '全屏',
   'common.fitView': '适应视口',
-  'common.dropToOpen': '松开以新建标签页打开 · 按住 Alt 替换当前图片',
+  'common.dropToOpen': '释放鼠标以加载文件或链接',
   'common.newTab': '新标签页',
-  'common.dropToReplace': '松开以替换当前图片',
+  'common.dropToReplace': '替换当前内容',
+  'common.emptyDropHint': '拖放文件或图片链接到此处，或',
+  'common.emptyClickAction': '点击选择',
 
   'workspace.title': '选择工作区',
   'workspace.subtitle': '所有项目数据将保存在你选择的本地文件夹中',
@@ -87,7 +90,7 @@ export default {
 
   'slicer.title': '精灵图切分',
   'slicer.upload.hint': '点击或拖拽精灵表图片到此处',
-  'slicer.upload.desc': '支持 PNG / JPEG / WebP，自动去背 → 智能切图 → 保存到资源库',
+  'slicer.upload.desc': '支持 PNG / JPEG / WebP 格式',
   'slicer.upload.processing': '处理中…',
   'slicer.upload.saveOffer': '保存到工作区',
   'slicer.upload.saveConfirmMsg': '文件 "{name}" 已加载，是否同步保存到本地工作区？',
@@ -404,4 +407,12 @@ export default {
   'sceneEditor.empty.title': '加载场景底图',
   'sceneEditor.empty.desc': '拖放一张场景图片到此处开始编辑',
   'sceneEditor.noSelection': '选中区域以查看属性',
+
+  'dropTarget.dropHint': '松开以加载',
+  'dropTarget.loading': '加载中...',
+  'dropTarget.error.unrecognized': '无法识别拖入的内容',
+  'dropTarget.error.cors': '该图片不允许跨域加载，请右键保存后拖入',
+  'dropTarget.error.not-image': '链接返回的不是图片，请直接拖动图片本身',
+  'dropTarget.error.timeout': '图片加载超时',
+  'dropTarget.error.generic': '图片加载失败: {detail}',
 } as const

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import SvgIcon from '../icons/SvgIcon.vue'
-import { filterFilesByAccept } from '../utils/file-accept'
+import DropTarget from './drop-target/DropTarget.vue'
+import type { DropModifiers } from './editor-shell/types'
 
 const props = withDefaults(defineProps<{
   accept?: string
@@ -10,6 +11,7 @@ const props = withDefaults(defineProps<{
   description?: string
   fileName?: string
   loading?: boolean
+  loadingText?: string
   icon?: string
   multiple?: boolean
 }>(), {
@@ -19,6 +21,7 @@ const props = withDefaults(defineProps<{
   description: '',
   fileName: '',
   loading: false,
+  loadingText: '加载中',
   icon: 'upload',
   multiple: false,
 })
@@ -28,8 +31,10 @@ const emit = defineEmits<{
   (e: 'files', files: FileList): void
 }>()
 
-const dragging = ref(false)
 const fileInput = ref<HTMLInputElement>()
+const isFetching = ref(false)
+
+const isLoading = computed(() => props.loading || isFetching.value)
 
 function triggerPicker() {
   fileInput.value?.click()
@@ -47,74 +52,77 @@ function onInputChange(e: Event) {
   input.value = ''
 }
 
-function onDragOver(e: DragEvent) {
-  e.preventDefault()
-  dragging.value = true
-}
-
-function onDragLeave() {
-  dragging.value = false
-}
-
-function onDrop(e: DragEvent) {
-  e.preventDefault()
-  dragging.value = false
-  const raw = e.dataTransfer?.files
-  if (!raw || raw.length === 0) return
-  const valid = filterFilesByAccept(Array.from(raw), props.accept)
-  if (valid.length === 0) return
+function onDropFiles(files: File[], _modifiers: DropModifiers) {
   if (props.multiple) {
     const dt = new DataTransfer()
-    valid.forEach(f => dt.items.add(f))
+    files.forEach(f => dt.items.add(f))
     emit('files', dt.files)
   } else {
-    emit('file', valid[0])
+    emit('file', files[0])
   }
+}
+
+function onFetchStart() {
+  isFetching.value = true
+}
+
+function onFetchEnd() {
+  isFetching.value = false
 }
 
 defineExpose({ triggerPicker })
 </script>
 
 <template>
-  <div
-    class="dropzone"
-    :class="{
-      compact,
-      'drag-over': dragging,
-      'has-file': !!fileName,
-    }"
-    @click="triggerPicker"
-    @dragover="onDragOver"
-    @dragleave="onDragLeave"
-    @drop="onDrop"
+  <DropTarget
+    :accept="accept"
+    :default-overlay="false"
+    @drop="onDropFiles"
+    @fetch-start="onFetchStart"
+    @fetch-end="onFetchEnd"
+    v-slot="{ dragging }"
   >
-    <input
-      ref="fileInput"
-      type="file"
-      :accept="accept"
-      :multiple="multiple"
-      style="display:none"
-      @change="onInputChange"
-    />
+    <div
+      class="dropzone"
+      :class="{
+        compact,
+        'drag-over': dragging,
+        'has-file': !!fileName,
+        'is-fetching': isFetching,
+      }"
+      @click="triggerPicker"
+    >
+      <input
+        ref="fileInput"
+        type="file"
+        :accept="accept"
+        :multiple="multiple"
+        style="display:none"
+        @change="onInputChange"
+      />
 
-    <template v-if="compact">
-      <div class="compact-content">
-        <SvgIcon :name="fileName ? 'upload' : icon" :size="14" />
-        <span v-if="loading" class="compact-text loading">{{ $attrs['loading-text'] || '...' }}</span>
-        <template v-else-if="fileName">
-          <span class="compact-file" :title="fileName">{{ fileName }}</span>
-          <span class="compact-hint">{{ hint }}</span>
-        </template>
-        <span v-else class="compact-text">{{ hint }}</span>
-      </div>
-    </template>
+      <template v-if="compact">
+        <div class="compact-content">
+          <SvgIcon :name="fileName ? 'upload' : icon" :size="14" />
+          <span v-if="isLoading" class="compact-text loading">
+            {{ loadingText }}<span class="dot-anim" />
+          </span>
+          <template v-else-if="fileName">
+            <span class="compact-file" :title="fileName">{{ fileName }}</span>
+            <span class="compact-hint">{{ hint }}</span>
+          </template>
+          <span v-else class="compact-text">{{ hint }}</span>
+        </div>
+      </template>
 
-    <template v-else>
-      <SvgIcon :name="icon" :size="32" />
-      <p class="zone-title">{{ loading ? ($attrs['loading-text'] as string || '...') : hint }}</p>
-      <p v-if="description" class="zone-desc">{{ description }}</p>
-    </template>
-  </div>
+      <template v-else>
+        <SvgIcon :name="icon" :size="32" />
+        <p v-if="isLoading" class="zone-title">{{ loadingText }}<span class="dot-anim" /></p>
+        <p v-else class="zone-title">{{ hint }}</p>
+        <p v-if="description" class="zone-desc">{{ description }}</p>
+      </template>
+    </div>
+  </DropTarget>
 </template>
 
 <style scoped>
@@ -145,6 +153,10 @@ defineExpose({ triggerPicker })
   border-color: #8ab4f8;
   background: rgba(122, 154, 204, 0.08);
   transform: scale(1.01);
+}
+.dropzone.is-fetching {
+  pointer-events: none;
+  opacity: 0.7;
 }
 
 /* Compact mode (sidebar) */
@@ -199,5 +211,17 @@ defineExpose({ triggerPicker })
   margin: 0;
   line-height: 1.5;
   color: inherit;
+}
+
+/* Dot animation */
+.dot-anim::after {
+  content: '';
+  animation: dots 1.2s steps(3, end) infinite;
+}
+@keyframes dots {
+  0%   { content: ''; }
+  33%  { content: '.'; }
+  66%  { content: '..'; }
+  100% { content: '...'; }
 }
 </style>

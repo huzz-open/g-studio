@@ -2,9 +2,8 @@
 import { ref, shallowRef, computed, watch, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from '../../../shared/i18n'
-import { EditorShell, SidebarSection, SegmentedControl, definePanelConfig, useRouteResource } from '../../../shared/components/editor-shell'
+import { EditorShell, SidebarSection, SegmentedControl, definePanelConfig, useRouteResource, EmptyDropHint } from '../../../shared/components/editor-shell'
 import type { TabItem, DropModifiers } from '../../../shared/components/editor-shell'
-import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import { ActionButtons } from '../../../shared/components/editor-shell'
 import { useTilesetTabs, useTilesetTerrain, type TilesetInstance } from '../store'
 import TextureSourcePanel from './TextureSourcePanel.vue'
@@ -93,6 +92,12 @@ function onTabLoadFile(file: File) {
   loadFileToInstance(activeInstance.value, file)
 }
 
+function onEmptyFileSelect(file: File) {
+  if (!activeInstance.value) return
+  setFileNameForMode(activeInstance.value, file.name)
+  loadFileToInstance(activeInstance.value, file)
+}
+
 function setFileNameForMode(inst: TilesetInstance, name: string) {
   if (inst.state.mode === 'sdf') {
     inst.state.textureFileName = name
@@ -172,7 +177,7 @@ onUnmounted(() => {
     :loading="false"
     :auto-empty-tab="!hasRouteResource"
     :managed-drop="false"
-    :viewport="{ accept: 'image/png,image/jpeg,image/webp', dropOverlayText: t('common.dropToOpen'), altDropOverlayText: t('common.dropToReplace') }"
+    :viewport="{ accept: 'image/png,image/jpeg,image/webp' }"
     @tab-switch="onTabSwitch"
     @tab-close="onTabClose"
     @tab-add-empty="createTab()"
@@ -216,11 +221,11 @@ onUnmounted(() => {
             <div class="loading-spinner" />
           </div>
           <!-- Empty state -->
-          <div v-else-if="isTopEmpty" class="top-empty">
-            <SvgIcon name="upload" :size="48" />
-            <p class="top-empty-title">{{ t('tileset.empty.title') }}</p>
-            <p class="top-empty-desc">{{ activeInstance?.state.mode === 'sdf' ? t('tileset.empty.sdfHint') : t('tileset.empty.subtileHint') }}</p>
-          </div>
+          <EmptyDropHint
+            v-else-if="isTopEmpty"
+            accept="image/png,image/jpeg,image/webp"
+            @select="onEmptyFileSelect"
+          />
           <!-- Generate error -->
           <div v-else-if="isTopError" class="top-error">
             <span class="top-error-icon">⚠</span>
@@ -328,28 +333,6 @@ onUnmounted(() => {
   animation: spin 0.7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-.top-empty {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: #666;
-  gap: 8px;
-  pointer-events: none;
-}
-.top-empty-title {
-  font-size: 14px;
-  color: #888;
-  margin: 0;
-}
-.top-empty-desc {
-  font-size: 12px;
-  color: #666;
-  margin: 0;
-}
 
 .top-error {
   position: absolute;
