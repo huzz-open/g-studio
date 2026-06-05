@@ -1,7 +1,7 @@
-export { useWorkspace, openWorkspace, closeWorkspace, tryRestoreWorkspace, getWorkspaceHandle, onBeforeWorkspaceSwitch, listSavedWorkspaces, removeSavedWorkspace } from './workspace-manager'
+export { useWorkspace, openWorkspace, closeWorkspace, tryRestoreWorkspace, getWorkspaceHandle, getWorkspaceMode, onBeforeWorkspaceSwitch, listSavedWorkspaces, removeSavedWorkspace } from './workspace-manager'
 export type { SavedWorkspace } from './workspace-manager'
-export type { WorkspaceInfo, WorkspaceState } from './interfaces'
-export { WORKSPACE_DIRS } from './interfaces'
+export type { WorkspaceInfo, WorkspaceState, WorkspaceMode } from './interfaces'
+export { WORKSPACE_DIRS_LEGACY } from './interfaces'
 export {
   splitPath,
   joinPath,

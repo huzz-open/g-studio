@@ -1,7 +1,9 @@
 import { defineConfig, type Plugin } from 'vite'
 import { resolve } from 'path'
-import { createReadStream, existsSync, statSync, copyFileSync, mkdirSync } from 'fs'
+import { createReadStream, existsSync, statSync, copyFileSync, mkdirSync, readFileSync } from 'fs'
 import vue from '@vitejs/plugin-vue'
+
+const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'))
 
 /**
  * Serve opencv.js as a raw static file, bypassing Vite's ESM transformation
@@ -35,4 +37,7 @@ function opencvRawServe(): Plugin {
 export default defineConfig({
   base: process.env.GITHUB_ACTIONS ? '/g-studio/' : '/',
   plugins: [vue(), opencvRawServe()],
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
 })

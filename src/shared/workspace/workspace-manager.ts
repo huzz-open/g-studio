@@ -1,8 +1,10 @@
 import { ref, readonly } from 'vue'
-import { WORKSPACE_DIRS, WORKSPACE_SYSTEM_DIR, WORKSPACE_CONFIG_FILE } from './interfaces'
-import type { WorkspaceInfo } from './interfaces'
+import { WORKSPACE_SYSTEM_DIR, WORKSPACE_CONFIG_FILE } from './interfaces'
+import type { WorkspaceInfo, WorkspaceMode } from './interfaces'
 import { invalidateCache as invalidateRmCache } from '../../modules/resource-manager'
-import { readJsonFileOrNull, writeJsonFile } from './fs'
+import { readJsonFileOrNull, writeJsonFile, writeFile, fileExists } from './fs'
+
+declare const __APP_VERSION__: string
 
 const HANDLE_DB_NAME = 'g-studio-workspace-handle'
 const HANDLE_STORE = 'handles'
@@ -17,6 +19,7 @@ export interface SavedWorkspace {
 
 const isOpen = ref(false)
 const workspaceName = ref('')
+const workspaceMode = ref<WorkspaceMode | null>(null)
 let _dirHandle: FileSystemDirectoryHandle | null = null
 
 type WorkspaceSwitchHook = () => Promise<boolean>
@@ -128,22 +131,41 @@ export async function removeSavedWorkspace(name: string): Promise<void> {
   })
 }
 
-async function initWorkspaceStructure(root: FileSystemDirectoryHandle): Promise<void> {
-  for (const dir of WORKSPACE_DIRS) {
-    await root.getDirectoryHandle(dir, { create: true })
-  }
-
-  const sysDir = await root.getDirectoryHandle(WORKSPACE_SYSTEM_DIR, { create: true })
-  const existing = await readJsonFileOrNull<WorkspaceInfo>(sysDir, WORKSPACE_CONFIG_FILE)
-  const meta: WorkspaceInfo = existing
-    ? { ...existing, lastOpenedAt: Date.now() }
-    : { version: 1, name: root.name, createdAt: Date.now(), lastOpenedAt: Date.now() }
-
-  await writeJsonFile(sysDir, WORKSPACE_CONFIG_FILE, meta)
+async function detectWorkspaceMode(root: FileSystemDirectoryHandle): Promise<WorkspaceMode> {
+  const hasGodotProject = await fileExists(root, 'project.godot')
+  return hasGodotProject ? 'godot-project' : 'generic'
 }
 
-export async function openWorkspace(handle?: FileSystemDirectoryHandle): Promise<void> {
-  const h = handle ?? await window.showDirectoryPicker({ mode: 'readwrite' })
+async function initWorkspaceStructure(root: FileSystemDirectoryHandle): Promise<WorkspaceMode> {
+  const mode = await detectWorkspaceMode(root)
+
+  const sysDir = await root.getDirectoryHandle(WORKSPACE_SYSTEM_DIR, { create: true })
+
+  if (mode === 'godot-project') {
+    const hasGdIgnore = await fileExists(sysDir, '.gdignore')
+    if (!hasGdIgnore) {
+      await writeFile(sysDir, '.gdignore', '')
+    }
+  }
+
+  const existing = await readJsonFileOrNull<WorkspaceInfo>(sysDir, WORKSPACE_CONFIG_FILE)
+  const meta: WorkspaceInfo = existing
+    ? { ...existing, mode, lastOpenedAt: Date.now(), gStudioVersion: __APP_VERSION__ }
+    : { version: 1, name: root.name, mode, createdAt: Date.now(), lastOpenedAt: Date.now(), gStudioVersion: __APP_VERSION__ }
+
+  await writeJsonFile(sysDir, WORKSPACE_CONFIG_FILE, meta)
+
+  return mode
+}
+
+export async function openWorkspace(handle?: FileSystemDirectoryHandle): Promise<boolean> {
+  let h: FileSystemDirectoryHandle
+  try {
+    h = handle ?? await window.showDirectoryPicker({ mode: 'readwrite' })
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return false
+    throw e
+  }
 
   const perm = await h.requestPermission({ mode: 'readwrite' })
   if (perm !== 'granted') {
@@ -154,14 +176,15 @@ export async function openWorkspace(handle?: FileSystemDirectoryHandle): Promise
 
   if (_dirHandle && !isSame) {
     const canSwitch = await runSwitchHooks()
-    if (!canSwitch) return
+    if (!canSwitch) return false
     invalidateRmCache()
   }
 
-  await initWorkspaceStructure(h)
+  const mode = await initWorkspaceStructure(h)
 
   _dirHandle = h
   workspaceName.value = h.name
+  workspaceMode.value = mode
   isOpen.value = true
 
   try {
@@ -170,6 +193,8 @@ export async function openWorkspace(handle?: FileSystemDirectoryHandle): Promise
   } catch (e) {
     console.warn('[workspace-manager] IDB persistence failed:', e)
   }
+
+  return true
 }
 
 export async function closeWorkspace(): Promise<void> {
@@ -181,6 +206,7 @@ export async function closeWorkspace(): Promise<void> {
   invalidateRmCache()
   _dirHandle = null
   workspaceName.value = ''
+  workspaceMode.value = null
   isOpen.value = false
 
   try {
@@ -221,10 +247,15 @@ export function getWorkspaceHandle(): FileSystemDirectoryHandle | null {
   return _dirHandle
 }
 
+export function getWorkspaceMode(): WorkspaceMode | null {
+  return workspaceMode.value
+}
+
 export function useWorkspace() {
   return {
     isOpen: readonly(isOpen),
     workspaceName: readonly(workspaceName),
+    workspaceMode: readonly(workspaceMode),
     openWorkspace,
     closeWorkspace,
     tryRestoreWorkspace,
@@ -232,5 +263,6 @@ export function useWorkspace() {
     hasSavedHandle,
     listSavedWorkspaces,
     removeSavedWorkspace,
+    getWorkspaceMode,
   }
 }

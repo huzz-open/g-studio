@@ -23,9 +23,7 @@ async function handleOpen() {
   try {
     await openWorkspace()
   } catch (e) {
-    if (e instanceof Error && e.name !== 'AbortError') {
-      error.value = e.message
-    }
+    error.value = (e as Error).message
   }
 }
 </script>

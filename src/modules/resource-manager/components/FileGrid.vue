@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import type { FsEntry } from '../interfaces/meta'
+import { getHandlerByGsType } from '../../../shared/module-registry'
+import { GsType } from '../../../shared/gs-format/types'
+import { isImageFile, isGsFile } from '../../../shared/utils/file-type'
 
 const props = defineProps<{
   files: FsEntry[]
@@ -11,18 +14,32 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [entry: FsEntry]
   open: [entry: FsEntry]
+  contextmenu: [entry: FsEntry, event: MouseEvent]
 }>()
 
 const thumbCache = ref<Map<string, string>>(new Map())
+const gsInfoCache = ref<Map<string, { type: GsType; summary: string }>>(new Map())
 
-watch(() => props.files, () => {
+watch(() => props.files, (newFiles, oldFiles) => {
+  if (oldFiles) {
+    const newPaths = new Set(newFiles.map(f => f.path))
+    for (const [path, url] of thumbCache.value) {
+      if (!newPaths.has(path)) {
+        URL.revokeObjectURL(url)
+        thumbCache.value.delete(path)
+      }
+    }
+  }
   loadThumbnails()
+  loadGsInfo()
 }, { immediate: true })
 
-function isImageFile(name: string): boolean {
-  const n = name.toLowerCase()
-  return n.endsWith('.png') || n.endsWith('.jpg') || n.endsWith('.jpeg') || n.endsWith('.gif') || n.endsWith('.webp')
-}
+onUnmounted(() => {
+  for (const url of thumbCache.value.values()) {
+    URL.revokeObjectURL(url)
+  }
+})
+
 
 async function loadThumbnails() {
   for (const file of props.files) {
@@ -39,7 +56,33 @@ async function loadThumbnails() {
   }
 }
 
+async function loadGsInfo() {
+  for (const file of props.files) {
+    if (gsInfoCache.value.has(file.path)) continue
+    if (file.kind !== 'file') continue
+    if (!isGsFile(file.name)) continue
+
+    try {
+      const fh = file.handle as FileSystemFileHandle
+      const text = await (await fh.getFile()).text()
+      const parsed = JSON.parse(text)
+      const gsType = parsed.type as GsType
+      const handler = getHandlerByGsType(gsType)
+      const summary = handler ? handler.fileSummary(parsed.data) : ''
+      gsInfoCache.value = new Map(gsInfoCache.value).set(file.path, { type: gsType, summary })
+    } catch { /* skip */ }
+  }
+}
+
 function typeIcon(entry: FsEntry): string {
+  if (isGsFile(entry.name)) {
+    const info = gsInfoCache.value.get(entry.path)
+    if (info) {
+      const handler = getHandlerByGsType(info.type)
+      if (handler) return handler.icon
+    }
+    return 'file-text'
+  }
   if (entry.meta?.type === 'spritesheet') return 'grid'
   if (entry.meta?.type === 'map-data') return 'map'
   const name = entry.name.toLowerCase()
@@ -48,7 +91,26 @@ function typeIcon(entry: FsEntry): string {
 }
 
 function typeLabel(entry: FsEntry): string {
+  if (isGsFile(entry.name)) {
+    const info = gsInfoCache.value.get(entry.path)
+    if (info) {
+      const handler = getHandlerByGsType(info.type)
+      return handler ? handler.label : `gs:${info.type}`
+    }
+    return 'gs'
+  }
   return entry.meta?.type ?? 'generic'
+}
+
+function gsCardSummary(entry: FsEntry): string {
+  const info = gsInfoCache.value.get(entry.path)
+  return info?.summary ?? ''
+}
+
+function onContextMenu(entry: FsEntry, event: MouseEvent) {
+  event.preventDefault()
+  event.stopPropagation()
+  emit('contextmenu', entry, event)
 }
 </script>
 
@@ -58,9 +120,10 @@ function typeLabel(entry: FsEntry): string {
       v-for="file in files"
       :key="file.path"
       class="file-card"
-      :class="{ selected: selectedFile?.path === file.path }"
+      :class="{ selected: selectedFile?.path === file.path, 'gs-card': isGsFile(file.name) }"
       @click="emit('select', file)"
       @dblclick="emit('open', file)"
+      @contextmenu="onContextMenu(file, $event)"
     >
       <div class="card-thumb">
         <img
@@ -73,8 +136,12 @@ function typeLabel(entry: FsEntry): string {
       <div class="card-info">
         <span class="card-name" :title="file.name">{{ file.name }}</span>
         <span class="card-type">{{ typeLabel(file) }}</span>
+        <span v-if="isGsFile(file.name) && gsCardSummary(file)" class="card-summary">{{ gsCardSummary(file) }}</span>
       </div>
-      <div v-if="file.meta?.uid" class="card-badge" :title="file.meta.uid">
+      <div v-if="isGsFile(file.name)" class="card-badge gs-badge" title=".gs">
+        <SvgIcon name="file-text" :size="8" />
+      </div>
+      <div v-else-if="file.meta?.uid" class="card-badge" :title="file.meta.uid">
         <SvgIcon name="link" :size="8" />
       </div>
     </div>
@@ -146,6 +213,20 @@ function typeLabel(entry: FsEntry): string {
   border-radius: 3px;
   padding: 2px 4px;
   color: #8ab;
+}
+.file-card.gs-card {
+  border-color: rgba(100, 160, 120, 0.3);
+}
+.file-card.gs-card:hover {
+  border-color: rgba(100, 160, 120, 0.6);
+}
+.card-summary {
+  font-size: 9px;
+  color: #6a9;
+}
+.gs-badge {
+  background: rgba(60, 120, 80, 0.7);
+  color: #8cb8a0;
 }
 .file-empty {
   flex: 1;

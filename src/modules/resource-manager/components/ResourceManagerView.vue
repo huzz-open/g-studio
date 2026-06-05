@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router'
 import { useI18n } from '../../../shared/i18n'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import ConfirmDialog from '../../../shared/components/ConfirmDialog.vue'
+import ContextMenu from '../../../shared/components/ContextMenu.vue'
+import type { ContextMenuItem } from '../../../shared/components/ContextMenu.vue'
 import { showToast } from '../../../shared/components/toast'
 import { prompt } from '../../../shared/components/prompt'
 import { useWorkspace, getWorkspaceHandle } from '../../../shared/workspace'
@@ -17,6 +19,11 @@ import type { FsEntry } from '../interfaces/meta'
 import { createMetaForFile } from '../services/meta-service'
 import { deleteFileFromWorkspace } from '../services/workspace-file-ops'
 import { getWorkspaceCache, smartScan, fullScan, invalidateCache } from '../services/workspace-cache'
+import { getHandlerByGsType, getAllHandlers } from '../../../shared/module-registry'
+import { GsType } from '../../../shared/gs-format/types'
+import { createGsFile } from '../../../shared/gs-format/writer'
+import type { SceneRegionData } from '../../../shared/gs-format/types'
+import { isImageFile, isGsFile } from '../../../shared/utils/file-type'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -143,17 +150,174 @@ function handleShowRoot() {
   selectedFile.value = null
 }
 
+// --- Context menu state ---
+const ctxVisible = ref(false)
+const ctxX = ref(0)
+const ctxY = ref(0)
+const ctxItems = ref<ContextMenuItem[]>([])
+const ctxTarget = ref<{ type: 'file'; entry: FsEntry } | { type: 'dir'; path: string } | null>(null)
+
+
 function handleFileSelect(entry: FsEntry) {
   selectedFile.value = entry
 }
 
-function handleFileOpen(entry: FsEntry) {
-  if (!entry.meta) return
-  if (entry.meta.openWith === 'sprite-slicer' || entry.meta.type === 'spritesheet') {
-    router.push({ path: '/sprite-slicer', query: { resource: entry.meta.uid, path: entry.path } })
-  } else if (entry.meta.openWith === 'tileset-maker' || entry.meta.type === 'tile') {
-    router.push({ path: '/tileset-maker', query: { resource: entry.meta.uid, path: entry.path } })
+async function handleFileOpen(entry: FsEntry) {
+  if (isGsFile(entry.name)) {
+    await openGsFile(entry)
+    return
   }
+  // Legacy: .meta based routing
+  if (entry.meta) {
+    if (entry.meta.openWith === 'sprite-slicer' || entry.meta.type === 'spritesheet') {
+      router.push({ path: '/sprite-slicer', query: { resource: entry.meta.uid, path: entry.path } })
+    } else if (entry.meta.openWith === 'tileset-maker' || entry.meta.type === 'tile') {
+      router.push({ path: '/tileset-maker', query: { resource: entry.meta.uid, path: entry.path } })
+    }
+  }
+}
+
+async function openGsFile(entry: FsEntry) {
+  try {
+    const fh = entry.handle as FileSystemFileHandle
+    const text = await (await fh.getFile()).text()
+    const parsed = JSON.parse(text)
+    const handler = getHandlerByGsType(parsed.type)
+    if (!handler) {
+      showToast(`不支持的 .gs 类型: ${parsed.type}`, 'error')
+      return
+    }
+    router.push({ path: handler.route, query: { gs: entry.path } })
+  } catch (e) {
+    showToast(`打开 .gs 文件失败: ${(e as Error).message}`, 'error')
+  }
+}
+
+// --- File context menu ---
+function handleFileContextMenu(entry: FsEntry, event: MouseEvent) {
+  selectedFile.value = entry
+  const items: ContextMenuItem[] = []
+
+  if (isGsFile(entry.name)) {
+    items.push({ id: 'open', label: '打开', icon: 'edit' })
+    items.push({ id: 'sep-1', label: '', separator: true })
+    items.push({ id: 'rename', label: '重命名', icon: 'pencil' })
+    items.push({ id: 'delete', label: '删除', icon: 'trash' })
+  } else if (isImageFile(entry.name)) {
+    for (const handler of getAllHandlers()) {
+      items.push({ id: `create-${handler.gsType}`, label: handler.createLabel, icon: handler.icon })
+    }
+    items.push({ id: 'sep-1', label: '', separator: true })
+    items.push({ id: 'rename', label: '重命名', icon: 'pencil' })
+    items.push({ id: 'delete', label: '删除', icon: 'trash' })
+  } else {
+    items.push({ id: 'rename', label: '重命名', icon: 'pencil' })
+    items.push({ id: 'delete', label: '删除', icon: 'trash' })
+  }
+
+  ctxTarget.value = { type: 'file', entry }
+  ctxItems.value = items
+  ctxX.value = event.clientX
+  ctxY.value = event.clientY
+  ctxVisible.value = true
+}
+
+function handleDirContextMenu(path: string, event: MouseEvent) {
+  ctxTarget.value = { type: 'dir', path }
+  ctxItems.value = [
+    { id: 'new-folder', label: '新建文件夹', icon: 'folder' },
+    { id: 'upload', label: '上传文件', icon: 'upload' },
+    { id: 'sep-1', label: '', separator: true },
+    { id: 'delete-dir', label: '删除', icon: 'trash' },
+  ]
+  ctxX.value = event.clientX
+  ctxY.value = event.clientY
+  ctxVisible.value = true
+}
+
+async function handleCtxAction(id: string) {
+  const target = ctxTarget.value
+  if (!target) return
+
+  if (id === 'open' && target.type === 'file') {
+    await handleFileOpen(target.entry)
+  } else if (id === 'delete' && target.type === 'file') {
+    requestDelete(target.entry)
+  } else if (id === 'rename' && target.type === 'file') {
+    await handleRename(target.entry)
+  } else if (id === 'new-folder') {
+    await createFolder()
+  } else if (id === 'upload') {
+    triggerUpload()
+  } else if (id.startsWith('create-') && target.type === 'file') {
+    const gsType = Number(id.replace('create-', '')) as GsType
+    await createGsFromImage(target.entry, gsType)
+  }
+}
+
+async function handleRename(entry: FsEntry) {
+  const newName = await prompt({
+    title: '重命名',
+    placeholder: entry.name,
+    defaultValue: entry.name,
+  })
+  if (!newName || newName === entry.name) return
+
+  try {
+    const parentPath = entry.path.includes('/') ? entry.path.substring(0, entry.path.lastIndexOf('/')) : ''
+    const parentDir = await resolveDir(parentPath)
+    const fh = entry.handle as FileSystemFileHandle
+    const file = await fh.getFile()
+    const buffer = await file.arrayBuffer()
+    await fsWriteFile(parentDir, newName, new Uint8Array(buffer))
+    await parentDir.removeEntry(entry.name)
+    showToast(`已重命名为 ${newName}`, 'success')
+    selectedFile.value = null
+    await loadWorkspace()
+  } catch (e) {
+    showToast(`重命名失败: ${(e as Error).message}`, 'error')
+  }
+}
+
+async function createGsFromImage(entry: FsEntry, gsType: GsType) {
+  const baseName = entry.name.replace(/\.[^.]+$/, '')
+  const name = await prompt({
+    title: '新建资源',
+    placeholder: baseName,
+    defaultValue: baseName,
+  })
+  if (!name) return
+
+  try {
+    const parentPath = entry.path.includes('/') ? entry.path.substring(0, entry.path.lastIndexOf('/')) : ''
+    const gsPath = parentPath ? `${parentPath}/${name}.gs` : `${name}.gs`
+
+    if (gsType === GsType.SceneRegion) {
+      const fh = entry.handle as FileSystemFileHandle
+      const blob = await fh.getFile()
+      const bmp = await createImageBitmap(blob)
+      const data: SceneRegionData = {
+        name,
+        texture: `./${entry.name}`,
+        size: [bmp.width, bmp.height],
+        y_sort: true,
+        regions: [],
+      }
+      bmp.close()
+      await createGsFile({ path: gsPath, type: GsType.SceneRegion, data })
+    }
+
+    showToast(`已创建 ${name}.gs`, 'success')
+    await loadWorkspace()
+    router.push({ path: getHandlerByGsType(gsType)!.route, query: { gs: gsPath } })
+  } catch (e) {
+    showToast(`创建失败: ${(e as Error).message}`, 'error')
+  }
+}
+
+const uploadInput = ref<HTMLInputElement>()
+function triggerUpload() {
+  uploadInput.value?.click()
 }
 
 function requestDelete(entry: FsEntry) {
@@ -307,6 +471,7 @@ const showRightPanel = computed(() => !!selectedFile.value)
               :expanded-paths="expandedPaths"
               @select="(p: string) => handleTreeSelect(p)"
               @toggle="(p: string) => handleTreeToggle(p)"
+              @contextmenu="handleDirContextMenu"
             />
           </div>
         </template>
@@ -350,6 +515,7 @@ const showRightPanel = computed(() => !!selectedFile.value)
                 :selected-file="selectedFile"
                 @select="handleFileSelect"
                 @open="handleFileOpen"
+                @contextmenu="handleFileContextMenu"
               />
             </div>
           </div>
@@ -376,6 +542,17 @@ const showRightPanel = computed(() => !!selectedFile.value)
       @confirm="confirmDelete"
       @cancel="showDeleteConfirm = false"
     />
+
+    <ContextMenu
+      :visible="ctxVisible"
+      :x="ctxX"
+      :y="ctxY"
+      :items="ctxItems"
+      @action="handleCtxAction"
+      @close="ctxVisible = false"
+    />
+
+    <input ref="uploadInput" type="file" style="display:none" @change="onUploadFile" accept="*/*" />
   </div>
 </template>
 

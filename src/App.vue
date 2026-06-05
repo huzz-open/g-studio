@@ -80,26 +80,22 @@ async function toggleDropdown() {
 async function handleOpenWorkspace() {
   wsDropdownOpen.value = false
   try {
-    await openWorkspace()
-    await loadSettings()
+    const ok = await openWorkspace()
+    if (ok) await loadSettings()
   } catch (e: any) {
-    if (e?.name !== 'AbortError') {
-      console.error('[App] openWorkspace failed:', e)
-      showToast(String(e?.message || e), 'error')
-    }
+    console.error('[App] openWorkspace failed:', e)
+    showToast(String(e?.message || e), 'error')
   }
 }
 
 async function handleSwitchWorkspace() {
   wsDropdownOpen.value = false
   try {
-    await openWorkspace()
-    await loadSettings()
+    const ok = await openWorkspace()
+    if (ok) await loadSettings()
   } catch (e: any) {
-    if (e?.name !== 'AbortError') {
-      console.error('[App] switchWorkspace failed:', e)
-      showToast(String(e?.message || e), 'error')
-    }
+    console.error('[App] switchWorkspace failed:', e)
+    showToast(String(e?.message || e), 'error')
   }
 }
 
@@ -119,23 +115,19 @@ async function handleReconnect() {
     await reconnectWorkspace()
     await loadSettings()
   } catch (e: any) {
-    if (e?.name !== 'AbortError') {
-      console.error('[App] reconnect failed:', e)
-      showToast(String(e?.message || e), 'error')
-    }
+    console.error('[App] reconnect failed:', e)
+    showToast(String(e?.message || e), 'error')
   }
 }
 
 async function handleSwitchToRecent(ws: SavedWorkspace) {
   wsDropdownOpen.value = false
   try {
-    await openWorkspace(ws.handle)
-    await loadSettings()
+    const ok = await openWorkspace(ws.handle)
+    if (ok) await loadSettings()
   } catch (e: any) {
-    if (e?.name !== 'AbortError') {
-      console.error('[App] switchToRecent failed:', e)
-      showToast(String(e?.message || e), 'error')
-    }
+    console.error('[App] switchToRecent failed:', e)
+    showToast(String(e?.message || e), 'error')
   }
 }
 

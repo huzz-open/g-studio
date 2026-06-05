@@ -11,4 +11,4 @@ else
   echo '{"additional_context": "Build check passed."}'
 fi
 
-exit 0
+exit $exit_code

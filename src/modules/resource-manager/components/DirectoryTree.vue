@@ -12,6 +12,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [path: string, entry: FsEntry]
   toggle: [path: string]
+  contextmenu: [path: string, event: MouseEvent]
 }>()
 
 const dirs = computed(() =>
@@ -28,6 +29,12 @@ function handleClick(entry: FsEntry) {
     emit('toggle', entry.path)
   }
 }
+
+function handleContextMenu(path: string, event: MouseEvent) {
+  event.preventDefault()
+  event.stopPropagation()
+  emit('contextmenu', path, event)
+}
 </script>
 
 <template>
@@ -41,6 +48,7 @@ function handleClick(entry: FsEntry) {
         class="tree-label"
         :class="{ active: selectedPath === entry.path }"
         @click="handleClick(entry)"
+        @contextmenu="handleContextMenu(entry.path, $event)"
       >
         <SvgIcon
           :name="isExpanded(entry.path) ? 'chevron-down' : 'chevron-right'"
@@ -64,6 +72,7 @@ function handleClick(entry: FsEntry) {
           :expanded-paths="expandedPaths"
           @select="(p, e) => emit('select', p, e)"
           @toggle="(p) => emit('toggle', p)"
+          @contextmenu="(p, e) => emit('contextmenu', p, e)"
         />
       </div>
     </div>

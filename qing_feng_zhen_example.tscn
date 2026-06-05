@@ -1,0 +1,53 @@
+[gd_scene format=3 uid="uid://dec2b7fdfk131"]
+
+[ext_resource type="Texture2D" uid="uid://w1ywbsfwyq82" path="res://assets/清风镇2.png" id="1_7ymeh"]
+[ext_resource type="PackedScene" uid="uid://dfdg5iyw7fvkw" path="res://player.tscn" id="2_6ckbr"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_7ymeh"]
+size = Vector2(67, 61)
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_6ckbr"]
+radius = 24.5153
+
+[node name="QingFengZhen" type="Node2D" unique_id=720269454]
+y_sort_enabled = true
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=672854878]
+z_index = -1
+position = Vector2(1536, 1080)
+texture = ExtResource("1_7ymeh")
+
+[node name="Player" parent="." unique_id=260672662 instance=ExtResource("2_6ckbr")]
+position = Vector2(32, 72)
+
+[node name="StaticBody2D" type="StaticBody2D" parent="." unique_id=1521987754]
+position = Vector2(1536, 1080)
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="StaticBody2D" unique_id=25195348]
+polygon = PackedVector2Array(396, -584, 250, -537, 222, -555, -315, -469, -392, -469, -554, -438, -618, -419, -673, -443, -770, -421, -800, -427, -1010, -353, -1123, -490, 437, -726)
+
+[node name="CollisionShape2DRect" type="CollisionShape2D" parent="StaticBody2D" unique_id=1590812663]
+position = Vector2(-220, -116)
+shape = SubResource("RectangleShape2D_7ymeh")
+
+[node name="CollisionShape2DCircle" type="CollisionShape2D" parent="StaticBody2D" unique_id=792322369]
+position = Vector2(-92, -116)
+shape = SubResource("CircleShape2D_6ckbr")
+
+[node name="Obstacles" type="Node2D" parent="." unique_id=1003888434]
+position = Vector2(1536, 1080)
+
+[node name="NoticeBoard" type="Area2D" parent="Obstacles" unique_id=1781131503 groups=["occlude_opacity_50", "occlude_y_sort"]]
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Obstacles/NoticeBoard" unique_id=624355328]
+polygon = PackedVector2Array(-512, -176, -400, -208, -368, -160, -355, -153, -361, -148, -362, -141, -376, -136, -376, -88, -376, -64, -512, -40, -520, -56, -520, -128, -552, -144)
+
+[node name="House" type="Area2D" parent="Obstacles" unique_id=1974356230 groups=["occlude_top_layer"]]
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Obstacles/House" unique_id=1085188158]
+polygon = PackedVector2Array(1028, -138, 1056, -149, 1081, -166, 1100, -185, 1102, -195, 1108, -201, 1148, -191, 1238, -162, 1242, -168, 1256, -169, 1269, -161, 1278, -148, 1334, -133, 1333, -78, 1197, 14, 1050, -52, 1049, -116, 1031, -122)
+
+[node name="Tree" type="Area2D" parent="Obstacles" unique_id=1575607329 groups=["occlude_opacity_50", "occlude_screen_mask", "occlude_top_layer"]]
+
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Obstacles/Tree" unique_id=482051120]
+polygon = PackedVector2Array(-291, -378, -295, -396, -320, -402, -345, -394, -352, -416, -352, -454, -337, -476, -313, -498, -329, -562, 221, -597, 247, -549, 234, -533, 247, -529, 277, -541, 300, -524, 322, -480, 313, -459, 326, -442, 330, -416, 291, -406, 269, -392, 270, -368, 232, -363, 203, -380, 181, -395, 183, -416, 165, -440, 163, -410, 140, -394, 101, -394, 48, -398)

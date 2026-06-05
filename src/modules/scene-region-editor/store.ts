@@ -5,6 +5,12 @@ import { generateTscn } from './core/tscn-export'
 import { createHistoryStack } from '../../shared/history'
 import { createInstanceRegistry } from '../../shared/components/editor-shell/createInstanceRegistry'
 import { useEditorTabs, type UseEditorTabsReturn } from '../../shared/components/editor-shell'
+import { GsType } from '../../shared/gs-format/types'
+import type { SceneRegion as GsRegion } from '../../shared/gs-format/types'
+import { readSceneRegionGsFile, readGsVersion } from '../../shared/gs-format/reader'
+import { writeGsFile, type WriteGsResult } from '../../shared/gs-format/writer'
+import { buildGsSceneRegionData, gsRegionsToEditor } from './core/gs-convert'
+import { resolveDir, splitPath } from '../../shared/workspace/fs'
 
 let _counter = 0
 function nextId(): string {
@@ -77,6 +83,11 @@ function _createStore(id: string) {
       colorManuallySet: false,
     },
     savedPresets: [] as RegionPreset[],
+    gsPath: null as string | null,
+    gsLastKnownVersion: 0,
+    gsTexturePath: '' as string,
+    gsSceneName: '' as string,
+    dirty: false,
   })
 
   watch(
@@ -255,6 +266,90 @@ function _createStore(id: string) {
     history.clear()
   }
 
+  async function loadFromGsFile(gsPath: string): Promise<void> {
+    const result = await readSceneRegionGsFile(gsPath)
+    const gsData = result.file.data
+
+    state.gsPath = gsPath
+    state.gsLastKnownVersion = result.file.version
+    state.gsSceneName = gsData.name
+    state.gsTexturePath = gsData.texture
+    state.imageSize = { w: gsData.size[0], h: gsData.size[1] }
+
+    const editorRegions = gsRegionsToEditor(gsData.regions)
+    state.regions = editorRegions.map(r => ({
+      ...r,
+      color: colorForConfig(r.type, r.groups),
+    }))
+    state.selectedRegionId = null
+    state.dirty = false
+    history.clear()
+
+    const { dir } = splitPath(gsPath)
+    const texRelative = gsData.texture.replace(/^\.\//, '')
+    const dirHandle = await resolveDir(dir)
+    try {
+      const fh = await dirHandle.getFileHandle(texRelative)
+      const file = await fh.getFile()
+      state.imageUrl = URL.createObjectURL(file)
+    } catch {
+      state.imageUrl = ''
+    }
+  }
+
+  async function saveToGsFile(): Promise<WriteGsResult> {
+    if (!state.gsPath) {
+      throw new Error('No .gs file path bound to this instance')
+    }
+
+    const existingGsRegions: GsRegion[] = []
+    try {
+      const existing = await readSceneRegionGsFile(state.gsPath)
+      existingGsRegions.push(...existing.file.data.regions)
+    } catch { /* file might not exist yet */ }
+
+    const data = buildGsSceneRegionData(
+      state.regions,
+      state.imageSize,
+      state.gsSceneName,
+      state.gsTexturePath,
+      existingGsRegions,
+    )
+
+    const result = await writeGsFile({
+      path: state.gsPath,
+      type: GsType.SceneRegion,
+      data,
+      lastKnownVersion: state.gsLastKnownVersion,
+    })
+
+    if (result.status === 'ok') {
+      state.gsLastKnownVersion = result.newVersion
+      state.dirty = false
+    }
+
+    return result
+  }
+
+  async function checkExternalChange(): Promise<boolean> {
+    if (!state.gsPath) return false
+    try {
+      const diskVersion = await readGsVersion(state.gsPath)
+      return diskVersion > state.gsLastKnownVersion
+    } catch {
+      return false
+    }
+  }
+
+  async function reloadFromDisk(): Promise<void> {
+    if (!state.gsPath) return
+    await loadFromGsFile(state.gsPath)
+  }
+
+  function markDirty() {
+    state.dirty = true
+  }
+
   return {
     id,
     state,
@@ -277,6 +372,11 @@ function _createStore(id: string) {
     exportTscn,
     exportJson,
     importJson,
+    loadFromGsFile,
+    saveToGsFile,
+    checkExternalChange,
+    reloadFromDisk,
+    markDirty,
   }
 }
 

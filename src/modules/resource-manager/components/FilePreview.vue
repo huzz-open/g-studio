@@ -5,6 +5,9 @@ import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import { ActionButtons } from '../../../shared/components/editor-shell/sidebar-atoms'
 import type { ActionButton } from '../../../shared/components/editor-shell/sidebar-atoms'
 import type { FsEntry } from '../interfaces/meta'
+import { getHandlerByGsType } from '../../../shared/module-registry'
+import { GsType } from '../../../shared/gs-format/types'
+import { isImageFile, isGsFile } from '../../../shared/utils/file-type'
 
 const props = defineProps<{
   file: FsEntry | null
@@ -16,18 +19,34 @@ const emit = defineEmits<{
 
 const router = useRouter()
 const previewUrl = ref<string | null>(null)
+const gsInfo = ref<{ type: GsType; version: number; gen: string; summary: string } | null>(null)
 
-function isImageFile(name: string): boolean {
-  const n = name.toLowerCase()
-  return n.endsWith('.png') || n.endsWith('.jpg') || n.endsWith('.jpeg') || n.endsWith('.gif') || n.endsWith('.webp')
-}
 
 watch(() => props.file, async (f) => {
   if (previewUrl.value) {
     URL.revokeObjectURL(previewUrl.value)
     previewUrl.value = null
   }
+  gsInfo.value = null
+
   if (!f || f.kind !== 'file') return
+
+  if (isGsFile(f.name)) {
+    try {
+      const fh = f.handle as FileSystemFileHandle
+      const text = await (await fh.getFile()).text()
+      const parsed = JSON.parse(text)
+      const handler = getHandlerByGsType(parsed.type)
+      gsInfo.value = {
+        type: parsed.type,
+        version: parsed.version,
+        gen: parsed.gen,
+        summary: handler ? handler.fileSummary(parsed.data) : '',
+      }
+    } catch { /* skip */ }
+    return
+  }
+
   if (!isImageFile(f.name)) return
   try {
     const fh = f.handle as FileSystemFileHandle
@@ -35,14 +54,6 @@ watch(() => props.file, async (f) => {
     previewUrl.value = URL.createObjectURL(blob)
   } catch { /* skip */ }
 }, { immediate: true })
-
-function openInSlicer() {
-  router.push({ path: '/sprite-slicer', query: { resource: props.file!.meta!.uid, path: props.file!.path } })
-}
-
-function openInTilesetMaker() {
-  router.push({ path: '/tileset-maker', query: { resource: props.file!.meta!.uid, path: props.file!.path } })
-}
 
 function formatDate(ts?: number): string {
   if (!ts) return '-'
@@ -53,20 +64,38 @@ const actionButtons = computed<ActionButton[]>(() => {
   const btns: ActionButton[] = []
   const f = props.file
   if (!f) return btns
-  if (f.meta?.openWith === 'sprite-slicer' || f.meta?.type === 'spritesheet') {
+
+  if (isGsFile(f.name) && gsInfo.value) {
+    const handler = getHandlerByGsType(gsInfo.value.type)
+    if (handler) {
+      btns.push({ id: 'open-gs', label: `在${handler.label}中打开`, icon: handler.icon })
+    }
+  } else if (f.meta?.openWith === 'sprite-slicer' || f.meta?.type === 'spritesheet') {
     btns.push({ id: 'open-slicer', label: '在切分器中打开', icon: 'scissors' })
-  }
-  if (f.meta?.openWith === 'tileset-maker' || f.meta?.type === 'tile') {
+  } else if (f.meta?.openWith === 'tileset-maker' || f.meta?.type === 'tile') {
     btns.push({ id: 'open-tileset', label: '在瓦片集制作中打开', icon: 'grid' })
   }
+
   btns.push({ id: 'delete', label: '删除', icon: 'trash', variant: 'danger' })
   return btns
 })
 
 function onAction(id: string) {
-  if (id === 'open-slicer') openInSlicer()
-  else if (id === 'open-tileset') openInTilesetMaker()
-  else if (id === 'delete' && props.file) emit('delete', props.file)
+  const f = props.file
+  if (!f) return
+
+  if (id === 'open-gs' && gsInfo.value) {
+    const handler = getHandlerByGsType(gsInfo.value.type)
+    if (handler) {
+      router.push({ path: handler.route, query: { gs: f.path } })
+    }
+  } else if (id === 'open-slicer') {
+    router.push({ path: '/sprite-slicer', query: { resource: f.meta!.uid, path: f.path } })
+  } else if (id === 'open-tileset') {
+    router.push({ path: '/tileset-maker', query: { resource: f.meta!.uid, path: f.path } })
+  } else if (id === 'delete') {
+    emit('delete', f)
+  }
 }
 </script>
 
@@ -79,34 +108,54 @@ function onAction(id: string) {
     </div>
 
     <div class="preview-meta">
-      <div class="meta-row">
-        <span>类型</span>
-        <span>{{ file.meta?.type ?? 'generic' }}</span>
-      </div>
-      <div class="meta-row">
-        <span>UID</span>
-        <span class="uid-text">{{ file.meta?.uid ?? '-' }}</span>
-      </div>
-      <div v-if="file.meta?.tags?.length" class="meta-row">
-        <span>标签</span>
-        <span>{{ file.meta.tags.join(', ') }}</span>
-      </div>
-      <div class="meta-row">
-        <span>来源</span>
-        <span>{{ file.meta?.origin?.source ?? 'external' }}</span>
-      </div>
-      <div class="meta-row">
-        <span>创建时间</span>
-        <span>{{ formatDate(file.meta?.createdAt) }}</span>
-      </div>
-      <div class="meta-row">
-        <span>更新时间</span>
-        <span>{{ formatDate(file.meta?.updatedAt) }}</span>
-      </div>
-      <div v-if="file.meta?.description" class="meta-row">
-        <span>描述</span>
-        <span>{{ file.meta.description }}</span>
-      </div>
+      <template v-if="gsInfo">
+        <div class="meta-row">
+          <span>类型</span>
+          <span class="gs-type-badge">{{ gsInfo.type === 1 ? '场景区域' : gsInfo.type === 2 ? '瓦片集' : gsInfo.type === 3 ? '精灵切分' : '未知' }}</span>
+        </div>
+        <div class="meta-row">
+          <span>版本</span>
+          <span>v{{ gsInfo.version }}</span>
+        </div>
+        <div class="meta-row">
+          <span>生成工具</span>
+          <span>{{ gsInfo.gen }}</span>
+        </div>
+        <div v-if="gsInfo.summary" class="meta-row">
+          <span>摘要</span>
+          <span>{{ gsInfo.summary }}</span>
+        </div>
+      </template>
+      <template v-else>
+        <div class="meta-row">
+          <span>类型</span>
+          <span>{{ file.meta?.type ?? 'generic' }}</span>
+        </div>
+        <div class="meta-row">
+          <span>UID</span>
+          <span class="uid-text">{{ file.meta?.uid ?? '-' }}</span>
+        </div>
+        <div v-if="file.meta?.tags?.length" class="meta-row">
+          <span>标签</span>
+          <span>{{ file.meta.tags.join(', ') }}</span>
+        </div>
+        <div class="meta-row">
+          <span>来源</span>
+          <span>{{ file.meta?.origin?.source ?? 'external' }}</span>
+        </div>
+        <div class="meta-row">
+          <span>创建时间</span>
+          <span>{{ formatDate(file.meta?.createdAt) }}</span>
+        </div>
+        <div class="meta-row">
+          <span>更新时间</span>
+          <span>{{ formatDate(file.meta?.updatedAt) }}</span>
+        </div>
+        <div v-if="file.meta?.description" class="meta-row">
+          <span>描述</span>
+          <span>{{ file.meta.description }}</span>
+        </div>
+      </template>
     </div>
 
     <div class="preview-actions">
@@ -177,6 +226,7 @@ function onAction(id: string) {
 .meta-row span:first-child { color: #888; }
 .meta-row span:last-child { color: #ccc; text-align: right; max-width: 140px; word-break: break-all; }
 .uid-text { font-family: monospace; font-size: 10px; }
+.gs-type-badge { color: #8cb8a0; font-weight: 500; }
 .preview-actions {
   margin-bottom: 12px;
 }

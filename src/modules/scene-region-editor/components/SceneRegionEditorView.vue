@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from '../../../shared/i18n'
 import { EditorShell, definePanelConfig } from '../../../shared/components/editor-shell'
 import type { TabItem } from '../../../shared/components/editor-shell'
 import { useSceneRegionTabs, type SceneRegionStore } from '../store'
+import { showToast } from '../../../shared/components/toast'
+import { getWorkspaceHandle } from '../../../shared/workspace'
 import RegionCanvas from './RegionCanvas.vue'
 import RegionListPanel from './RegionListPanel.vue'
 import RegionPropertyPanel from './RegionPropertyPanel.vue'
 
 const { t } = useI18n()
+const route = useRoute()
 
 const { instances, activeTabId, activeInstance, createTab, switchTab: onTabSwitch, closeTab: onTabClose } = useSceneRegionTabs()
 
@@ -34,16 +38,71 @@ const showEmpty = computed(() =>
   !activeInstance.value?.state.imageUrl
 )
 
-function onKeyDown(e: KeyboardEvent) {
+async function onKeyDown(e: KeyboardEvent) {
   const ctrl = e.ctrlKey || e.metaKey
   if (!ctrl || !activeInstance.value) return
   if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); activeInstance.value.history.undo() }
   else if (e.key === 'z' && e.shiftKey) { e.preventDefault(); activeInstance.value.history.redo() }
   else if (e.key === 'y') { e.preventDefault(); activeInstance.value.history.redo() }
+  else if (e.key === 's') { e.preventDefault(); await handleSaveGs() }
 }
 
-onMounted(() => window.addEventListener('keydown', onKeyDown))
-onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
+async function handleSaveGs() {
+  const inst = activeInstance.value
+  if (!inst) return
+  if (!inst.state.gsPath) {
+    showToast('请先打开工作区以启用保存功能', 'info')
+    return
+  }
+  try {
+    const result = await inst.saveToGsFile()
+    if (result.status === 'ok') {
+      showToast('已保存', 'success')
+    } else {
+      showToast('文件已被外部修改，请重新加载后再保存', 'error')
+    }
+  } catch (e) {
+    showToast(`保存失败: ${(e as Error).message}`, 'error')
+  }
+}
+
+async function onVisibilityChange() {
+  if (document.visibilityState !== 'visible') return
+  const inst = activeInstance.value
+  if (!inst || !inst.state.gsPath) return
+  try {
+    const changed = await inst.checkExternalChange()
+    if (changed) {
+      if (inst.state.dirty) {
+        showToast('文件已被外部修改，建议重新加载', 'info')
+      } else {
+        await inst.reloadFromDisk()
+        showToast('已加载外部更新', 'info')
+      }
+    }
+  } catch { /* ignore read failures on focus */ }
+}
+
+async function loadFromQuery() {
+  const gsPath = route.query.gs as string | undefined
+  if (!gsPath || !getWorkspaceHandle()) return
+  const inst = createTab()
+  try {
+    await inst.loadFromGsFile(gsPath)
+  } catch (e) {
+    showToast(`打开 .gs 文件失败: ${(e as Error).message}`, 'error')
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeyDown)
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  loadFromQuery()
+})
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeyDown)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+})
 
 function onTabAddFile(file: File) {
   if (!file.type.startsWith('image/')) return
