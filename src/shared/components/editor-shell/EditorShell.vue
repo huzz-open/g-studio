@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import ShellTabBar from './ShellTabBar.vue'
 import SidePanel from './SidePanel.vue'
 import ViewportArea from './ViewportArea.vue'
@@ -44,6 +44,13 @@ const shell = useEditorShell()
 shell.leftCollapsed.value = props.leftCollapsed
 shell.rightCollapsed.value = props.rightCollapsed
 
+const mergedTabs = computed<TabItem[]>(() =>
+  props.tabs.map(tab => ({
+    ...tab,
+    dirty: tab.dirty || shell.dirtyTabs.value.has(tab.id),
+  }))
+)
+
 onMounted(() => {
   if (props.autoEmptyTab && props.tabs.length === 0) {
     emit('tab-add-empty')
@@ -86,7 +93,7 @@ function onViewportDrop(files: File[], modifiers: DropModifiers) {
     <!-- Center: tab bar + viewport -->
     <div class="shell-center">
       <ShellTabBar
-        :tabs="tabs"
+        :tabs="mergedTabs"
         :active-id="activeTabId"
         :accept="tabAccept"
         @switch="emit('tab-switch', $event)"

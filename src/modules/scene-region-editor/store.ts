@@ -88,6 +88,7 @@ function _createStore(id: string) {
     gsTexturePath: '' as string,
     gsSceneName: '' as string,
     dirty: false,
+    sourceFile: null as File | null,
   })
 
   watch(
@@ -137,9 +138,11 @@ function _createStore(id: string) {
     restore: (snap) => { state.regions = snap.regions },
   })
 
-  function loadImage(url: string, w: number, h: number) {
+  function loadImage(url: string, w: number, h: number, file?: File) {
     state.imageUrl = url
     state.imageSize = { w, h }
+    state.sourceFile = file ?? null
+    if (file) state.dirty = true
   }
 
   function addRegion(vertices: DrawPoint[]) {
@@ -157,6 +160,7 @@ function _createStore(id: string) {
     }
     state.regions.push(region)
     state.selectedRegionId = region.id
+    state.dirty = true
     return region
   }
 
@@ -168,12 +172,14 @@ function _createStore(id: string) {
     if (state.selectedRegionId === id) {
       state.selectedRegionId = null
     }
+    state.dirty = true
   }
 
   function updateRegionVertices(id: string, vertices: DrawPoint[]) {
     const region = state.regions.find(r => r.id === id)
     if (!region) return
     region.vertices = vertices.map(v => [v.x, v.y])
+    state.dirty = true
   }
 
   function updateRegionProps(id: string, props: Partial<Pick<SceneRegion, 'name' | 'type' | 'groups' | 'color' | 'colorManuallySet'>>) {
@@ -189,6 +195,7 @@ function _createStore(id: string) {
     } else if ((props.groups !== undefined || props.type !== undefined) && !region.colorManuallySet) {
       region.color = colorForConfig(region.type, region.groups)
     }
+    state.dirty = true
   }
 
   function selectRegion(id: string | null) {

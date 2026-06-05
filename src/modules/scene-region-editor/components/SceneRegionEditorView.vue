@@ -6,7 +6,12 @@ import { EditorShell, definePanelConfig } from '../../../shared/components/edito
 import type { TabItem } from '../../../shared/components/editor-shell'
 import { useSceneRegionTabs, type SceneRegionStore } from '../store'
 import { showToast } from '../../../shared/components/toast'
+import { prompt } from '../../../shared/components/prompt'
 import { getWorkspaceHandle } from '../../../shared/workspace'
+import { resolveDir, writeFile as fsWriteFile } from '../../../shared/workspace/fs'
+import { GsType } from '../../../shared/gs-format/types'
+import { createGsFile } from '../../../shared/gs-format/writer'
+import { buildGsSceneRegionData } from '../core/gs-convert'
 import RegionCanvas from './RegionCanvas.vue'
 import RegionListPanel from './RegionListPanel.vue'
 import RegionPropertyPanel from './RegionPropertyPanel.vue'
@@ -30,9 +35,17 @@ watch(activeInstance, (inst) => {
 const tabs = computed<TabItem[]>(() =>
   instances.value.map((inst: SceneRegionStore) => ({
     id: inst.id,
-    label: inst.state.imageUrl ? t('sceneEditor.title') : t('common.newTab'),
+    label: tabLabel(inst),
+    dirty: inst.state.dirty,
   }))
 )
+
+function tabLabel(inst: SceneRegionStore): string {
+  if (inst.state.gsSceneName) return inst.state.gsSceneName
+  if (inst.state.sourceFile) return inst.state.sourceFile.name.replace(/\.[^.]+$/, '')
+  if (inst.state.imageUrl) return t('sceneEditor.title')
+  return t('common.newTab')
+}
 
 const showEmpty = computed(() =>
   !activeInstance.value?.state.imageUrl
@@ -50,10 +63,16 @@ async function onKeyDown(e: KeyboardEvent) {
 async function handleSaveGs() {
   const inst = activeInstance.value
   if (!inst) return
+
   if (!inst.state.gsPath) {
-    showToast('请先打开工作区以启用保存功能', 'info')
+    if (!getWorkspaceHandle()) {
+      showToast('请先打开工作区以启用保存功能', 'info')
+      return
+    }
+    await handleSaveAsNewGs(inst)
     return
   }
+
   try {
     const result = await inst.saveToGsFile()
     if (result.status === 'ok') {
@@ -61,6 +80,55 @@ async function handleSaveGs() {
     } else {
       showToast('文件已被外部修改，请重新加载后再保存', 'error')
     }
+  } catch (e) {
+    showToast(`保存失败: ${(e as Error).message}`, 'error')
+  }
+}
+
+async function handleSaveAsNewGs(inst: SceneRegionStore) {
+  const sourceFile = inst.state.sourceFile
+  const defaultName = sourceFile
+    ? sourceFile.name.replace(/\.[^.]+$/, '')
+    : 'scene_region'
+
+  const name = await prompt({
+    title: '保存为 .gs 文件',
+    placeholder: defaultName,
+    defaultValue: defaultName,
+  })
+  if (!name) return
+
+  try {
+    const dirHandle = await resolveDir('', true)
+    let textureName: string
+
+    if (sourceFile) {
+      textureName = sourceFile.name
+      const buffer = await sourceFile.arrayBuffer()
+      await fsWriteFile(dirHandle, textureName, new Uint8Array(buffer))
+    } else if (inst.state.gsTexturePath) {
+      textureName = inst.state.gsTexturePath.replace(/^\.\//, '')
+    } else {
+      showToast('没有关联的图片文件', 'error')
+      return
+    }
+
+    const gsPath = `${name}.gs`
+    const data = buildGsSceneRegionData(
+      inst.state.regions,
+      inst.state.imageSize,
+      name,
+      `./${textureName}`,
+    )
+
+    await createGsFile({ path: gsPath, type: GsType.SceneRegion, data })
+    inst.state.gsPath = gsPath
+    inst.state.gsLastKnownVersion = 1
+    inst.state.gsSceneName = name
+    inst.state.gsTexturePath = `./${textureName}`
+    inst.state.sourceFile = null
+    inst.state.dirty = false
+    showToast(`已保存为 ${gsPath}`, 'success')
   } catch (e) {
     showToast(`保存失败: ${(e as Error).message}`, 'error')
   }
@@ -119,7 +187,7 @@ function loadImageToInstance(inst: SceneRegionStore, file: File) {
   const url = URL.createObjectURL(file)
   const img = new Image()
   img.onload = () => {
-    inst.loadImage(url, img.naturalWidth, img.naturalHeight)
+    inst.loadImage(url, img.naturalWidth, img.naturalHeight, file)
   }
   img.src = url
 }

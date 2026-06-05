@@ -354,7 +354,9 @@ async function onViewportDrop(files: File[], _modifiers: DropModifiers) {
     for (const file of files) {
       const buffer = await file.arrayBuffer()
       await fsWriteFile(targetDir, file.name, new Uint8Array(buffer))
-      await createMetaForFile(targetDir, file.name, buffer)
+      if (!isGsFile(file.name)) {
+        await createMetaForFile(targetDir, file.name, buffer)
+      }
     }
     showToast(`已上传 ${files.length} 个文件`, 'success')
     await loadWorkspace()
@@ -376,7 +378,9 @@ async function onUploadFile(e: Event) {
     const targetDir = await resolveDir(selectedDirPath.value, true)
     const buffer = await file.arrayBuffer()
     await fsWriteFile(targetDir, file.name, new Uint8Array(buffer))
-    await createMetaForFile(targetDir, file.name, buffer)
+    if (!isGsFile(file.name)) {
+      await createMetaForFile(targetDir, file.name, buffer)
+    }
     showToast(`已上传 ${file.name}`, 'success')
     await loadWorkspace()
   } finally {

@@ -78,10 +78,10 @@ function onMiddleClick(id: string, e: MouseEvent) {
       >
         <SvgIcon v-if="tab.icon" :name="tab.icon" :size="11" />
         <span class="tab-name">{{ tab.label }}</span>
-        <span v-if="tab.dirty" class="tab-dirty">●</span>
-        <button class="tab-close" @click.stop="emit('close', tab.id)">
+        <button v-if="!tab.dirty" class="tab-close" @click.stop="emit('close', tab.id)">
           <SvgIcon name="close" :size="10" />
         </button>
+        <span v-else class="tab-dirty" @click.stop="emit('close', tab.id)">●</span>
       </div>
       <button class="tab-add" @click="onClickAdd">
         <SvgIcon name="plus" :size="12" />
@@ -145,8 +145,19 @@ function onMiddleClick(id: string, e: MouseEvent) {
 }
 .tab-dirty {
   color: #8ab4f8;
-  font-size: 8px;
+  font-size: 9px;
   flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.tab-dirty:hover {
+  background: #444;
 }
 .tab-close {
   background: none;

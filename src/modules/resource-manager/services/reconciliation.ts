@@ -4,6 +4,7 @@ import { createMetaForFile, writeMetaFile } from './meta-service'
 import { generateUid } from './uid'
 import { readUidIndex, writeUidIndex, buildUidIndexFromLinked } from './uid-index'
 import { resolveDir, splitPath, readJsonFileOrNull, deleteFile as fsDeleteFile } from '../../../shared/workspace/fs'
+import { isGsFile } from '../../../shared/utils/file-type'
 
 export interface ReconciliationReport {
   repaired: number
@@ -86,6 +87,10 @@ export async function reconcile(
   for (let i = remainingUnmatched.length - 1; i >= 0; i--) {
     const file = remainingUnmatched[i]
     if (file.kind !== 'file') continue
+    if (isGsFile(file.name)) {
+      remainingUnmatched.splice(i, 1)
+      continue
+    }
 
     const fileHandle = file.handle as FileSystemFileHandle
     let fileObj: File

@@ -1,6 +1,7 @@
 import type { FsEntry, ScanResult } from '../interfaces/meta'
 import { isMetaFile, isSystemFile, mainFileNameFromMeta, readMetaFileByHandleFsResult } from './meta-service'
 import { writeFile, deleteFile as fsDeleteFile } from '../../../shared/workspace/fs'
+import { isGsFile } from '../../../shared/utils/file-type'
 
 /**
  * Recursively scan a workspace directory, building an FsEntry tree
@@ -60,7 +61,10 @@ async function scanDirectory(
       meta: null,
     }
 
-    if (metaHandle) {
+    if (isGsFile(fileName)) {
+      // .gs files are self-describing metadata; they never need .meta sidecar
+      if (metaHandle) metas.delete(metaName)
+    } else if (metaHandle) {
       const result = await readMetaFileByHandleFsResult(metaHandle)
       if (result.ok) {
         fsEntry.meta = result.data
