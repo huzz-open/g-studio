@@ -1,14 +1,13 @@
 <script setup lang="ts">
-import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, shallowRef, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from '../../../shared/i18n'
-import { EditorShell, SidebarSection, SegmentedControl, definePanelConfig, useTabRouteSync, EmptyDropHint } from '../../../shared/components/editor-shell'
+import { EditorShell, SidebarSection, SegmentedControl, definePanelConfig, useTabRouteSync, useEditorKeyboard, EmptyDropHint } from '../../../shared/components/editor-shell'
 import type { TabItem, DropModifiers } from '../../../shared/components/editor-shell'
 import { ActionButtons } from '../../../shared/components/editor-shell'
 import { useTilesetTabs, useTilesetTerrain, type TilesetInstance } from '../store'
-import { showToast } from '../../../shared/components/toast'
-import { prompt } from '../../../shared/components/prompt'
-import { getWorkspaceHandle, splitPath } from '../../../shared/workspace'
-import { resolveDir, writeFile as fsWriteFile } from '../../../shared/workspace/fs'
+import { GsType } from '../../../shared/gs-format/types'
+import { useSaveFlow } from '../../../shared/gs-format/save-flow'
+import { imageToPngBuffer } from '../../../shared/utils/image-buffer'
 import TextureSourcePanel from './TextureSourcePanel.vue'
 import NineGridSourcePanel from './NineGridSourcePanel.vue'
 import TexturePainter from './TexturePainter.vue'
@@ -42,11 +41,56 @@ watch(activeInstance, (inst) => {
 const leftCollapsed = ref(false)
 const splitPercent = ref(50)
 
+const { handleSave } = useSaveFlow({
+  type: GsType.Tileset,
+  tabsManager,
+  getInstance: () => activeInstance.value,
+  getSaveAsParams: (inst: TilesetInstance) => {
+    const bitmap = inst.state.mode === 'sdf' ? inst.state.texture : inst.state.nineGridImage
+    if (!bitmap) return null
+    const texName = inst.state.mode === 'sdf' ? inst.state.textureFileName : inst.state.nineGridFileName
+    if (!texName) return null
+    const defaultName = texName.replace(/\.[^.]+$/, '')
+    const textureSize: [number, number] = inst.state.mode === 'sdf'
+      ? [inst.state.tileSize, inst.state.tileSize]
+      : [inst.state.nineGridWidth, inst.state.nineGridHeight]
+    return {
+      defaultName,
+      imageFileName: texName,
+      imageBuffer: () => imageToPngBuffer(bitmap),
+      buildData: (texPath: string) => ({
+        texture: texPath,
+        size: textureSize,
+        mode: inst.state.mode as 'sdf' | 'subtile',
+        layout: inst.state.layout,
+        terrainName: defaultName,
+        sdfConfig: inst.state.mode === 'sdf' ? {
+          tileSize: inst.state.tileSize,
+          profile: { ...inst.state.profile },
+        } : undefined,
+        subtileConfig: inst.state.mode === 'subtile' ? {
+          useMagenta: inst.state.useMagenta,
+          magentaTolerance: inst.state.magentaTolerance,
+        } : undefined,
+      }),
+    }
+  },
+  onSaved: (inst: TilesetInstance, r) => {
+    inst.state.gsPath = r.gsPath
+    inst.state.gsLastKnownVersion = r.version
+    inst.state.dirty = false
+  },
+})
+
+useEditorKeyboard(() => activeInstance.value ? {
+  save: handleSave,
+} : null)
+
 const tabs = computed<TabItem[]>(() =>
   tabInstances.value.map((inst: TilesetInstance) => ({
     id: inst.id,
-    label: inst.state.textureFileName || inst.state.nineGridFileName || (inst.state.gsPath ? splitPath(inst.state.gsPath).fileName.replace('.gs', '') : t('common.newTab')),
-    dirty: inst.state.isDirty,
+    label: inst.getLabel() || t('common.newTab'),
+    dirty: inst.state.dirty,
   }))
 )
 
@@ -165,111 +209,7 @@ function onSplitUp() {
   document.body.style.userSelect = ''
 }
 
-async function onKeyDown(e: KeyboardEvent) {
-  const ctrl = e.ctrlKey || e.metaKey
-  if (!ctrl || !activeInstance.value) return
-  if (e.key === 's') {
-    e.preventDefault()
-    await handleSave()
-  }
-}
-
-async function handleSave() {
-  const inst = activeInstance.value
-  if (!inst) return
-
-  if (!inst.state.gsPath) {
-    if (!getWorkspaceHandle()) {
-      showToast(t('workspace.openFirst'), 'info')
-      return
-    }
-    await handleSaveAsNewGs(inst)
-    return
-  }
-
-  try {
-    const result = await inst.saveToGsFile()
-    if (result.status === 'ok') {
-      tabsManager.saveSession()
-      showToast(t('common.saved'), 'success')
-    } else {
-      showToast(t('common.saveFailed'), 'error')
-    }
-  } catch (e: any) {
-    showToast(e.message, 'error')
-  }
-}
-
-async function handleSaveAsNewGs(inst: TilesetInstance) {
-  const texName = inst.state.mode === 'sdf' ? inst.state.textureFileName : inst.state.nineGridFileName
-  if (!texName) {
-    showToast('没有关联的图片', 'error')
-    return
-  }
-  const defaultName = texName.replace(/\.[^.]+$/, '')
-  const name = await prompt({ title: t('tileset.saveAs'), defaultValue: defaultName })
-  if (!name) return
-
-  try {
-    const dirHandle = await resolveDir('', true)
-
-    const bitmap = inst.state.mode === 'sdf' ? inst.state.texture : inst.state.nineGridImage
-    if (!bitmap) {
-      showToast('没有关联的图片', 'error')
-      return
-    }
-    const cv = new OffscreenCanvas(bitmap.width, bitmap.height)
-    cv.getContext('2d')!.drawImage(bitmap, 0, 0)
-    const blob = await cv.convertToBlob({ type: 'image/png' })
-    const buffer = new Uint8Array(await blob.arrayBuffer())
-    await fsWriteFile(dirHandle, texName, buffer)
-
-    const gsPath = name.endsWith('.gs') ? name : `${name}.gs`
-
-    const { createGsFile } = await import('../../../shared/gs-format/writer')
-    const { GsType } = await import('../../../shared/gs-format/types')
-
-    const textureSize: [number, number] = inst.state.mode === 'sdf'
-      ? [inst.state.tileSize, inst.state.tileSize]
-      : [inst.state.nineGridWidth, inst.state.nineGridHeight]
-
-    const data: import('../../../shared/gs-format/types').TilesetData = {
-      texture: `./${texName}`,
-      size: textureSize,
-      mode: inst.state.mode as 'sdf' | 'subtile',
-      layout: inst.state.layout,
-      terrainName: defaultName,
-      sdfConfig: inst.state.mode === 'sdf' ? {
-        tileSize: inst.state.tileSize,
-        profile: { ...inst.state.profile },
-      } : undefined,
-      subtileConfig: inst.state.mode === 'subtile' ? {
-        useMagenta: inst.state.useMagenta,
-        magentaTolerance: inst.state.magentaTolerance,
-      } : undefined,
-    }
-
-    const result = await createGsFile({
-      path: gsPath,
-      type: GsType.Tileset,
-      data,
-    })
-
-    inst.state.gsPath = result.path
-    inst.state.gsLastKnownVersion = result.version
-    inst.state.isDirty = false
-    tabsManager.saveSession()
-    showToast(t('common.saved'), 'success')
-  } catch (e: any) {
-    showToast(`保存失败: ${e.message}`, 'error')
-  }
-}
-
-onMounted(() => {
-  window.addEventListener('keydown', onKeyDown)
-})
 onUnmounted(() => {
-  window.removeEventListener('keydown', onKeyDown)
   if (splitResizing) onSplitUp()
 })
 </script>

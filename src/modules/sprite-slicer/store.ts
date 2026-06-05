@@ -731,6 +731,12 @@ function createSlicerInstance(id: string) {
     })
   })
 
+  function getLabel(): string {
+    if (state.gsPath) return splitPath(state.gsPath).fileName.replace('.gs', '')
+    if (state.sourceFileName) return state.sourceFileName.replace(/\.[^.]+$/, '')
+    return ''
+  }
+
   function dispose() {
     clearTimeout(_bgDebounce)
     _scope.stop()
@@ -762,6 +768,7 @@ function createSlicerInstance(id: string) {
     getSpriteSnapshot,
     setPendingRestore,
     getCleanImageData,
+    getLabel,
     dispose,
   }
 }

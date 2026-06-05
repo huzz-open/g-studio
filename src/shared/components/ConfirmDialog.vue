@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import type { ConfirmOptions } from './confirm'
+import type { ConfirmOptions, ChoiceOptions, ChoiceOption } from './confirm'
 
 defineProps<{
   visible?: boolean
@@ -20,11 +20,23 @@ const imperativeVisible = ref(false)
 const imperativeOpts = ref<ConfirmOptions>({ title: '', message: '' })
 let imperativeResolve: ((value: boolean) => void) | null = null
 
+const choiceVisible = ref(false)
+const choiceOpts = ref<ChoiceOptions>({ title: '', message: '', options: [] })
+let choiceResolve: ((value: string | null) => void) | null = null
+
 function open(options: ConfirmOptions): Promise<boolean> {
   imperativeOpts.value = options
   imperativeVisible.value = true
   return new Promise<boolean>((resolve) => {
     imperativeResolve = resolve
+  })
+}
+
+function openChoice(options: ChoiceOptions): Promise<string | null> {
+  choiceOpts.value = options
+  choiceVisible.value = true
+  return new Promise<string | null>((resolve) => {
+    choiceResolve = resolve
   })
 }
 
@@ -43,12 +55,22 @@ function handleCancel() {
     imperativeVisible.value = false
     imperativeResolve?.(false)
     imperativeResolve = null
+  } else if (choiceVisible.value) {
+    choiceVisible.value = false
+    choiceResolve?.(null)
+    choiceResolve = null
   } else {
     emit('cancel')
   }
 }
 
-defineExpose({ open })
+function handleChoice(option: ChoiceOption) {
+  choiceVisible.value = false
+  choiceResolve?.(option.id)
+  choiceResolve = null
+}
+
+defineExpose({ open, openChoice })
 </script>
 
 <template>
@@ -76,6 +98,27 @@ defineExpose({ open })
           >
             {{ (imperativeVisible ? imperativeOpts.confirmText : confirmText) || '确认' }}
           </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-if="choiceVisible"
+      class="confirm-overlay"
+      @click.self="handleCancel"
+    >
+      <div class="confirm-card">
+        <h3 class="confirm-title">{{ choiceOpts.title }}</h3>
+        <p class="confirm-msg">{{ choiceOpts.message }}</p>
+        <div class="confirm-actions choice-actions">
+          <button class="confirm-btn cancel" @click="handleCancel">取消</button>
+          <button
+            v-for="opt in choiceOpts.options"
+            :key="opt.id"
+            class="confirm-btn"
+            :class="opt.danger ? 'danger' : 'primary'"
+            @click="handleChoice(opt)"
+          >{{ opt.label }}</button>
         </div>
       </div>
     </div>
@@ -148,5 +191,8 @@ defineExpose({ open })
 }
 .confirm-btn.danger:hover {
   background: #8a4040;
+}
+.choice-actions {
+  flex-wrap: wrap;
 }
 </style>

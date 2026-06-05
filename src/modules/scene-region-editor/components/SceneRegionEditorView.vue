@@ -1,15 +1,11 @@
 <script setup lang="ts">
-import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, shallowRef, computed, watch } from 'vue'
 import { useI18n } from '../../../shared/i18n'
-import { EditorShell, definePanelConfig, useTabRouteSync } from '../../../shared/components/editor-shell'
+import { EditorShell, definePanelConfig, useTabRouteSync, useEditorKeyboard, useExternalChangeWatch } from '../../../shared/components/editor-shell'
 import type { TabItem } from '../../../shared/components/editor-shell'
 import { useSceneRegionTabs, type SceneRegionStore } from '../store'
-import { showToast } from '../../../shared/components/toast'
-import { prompt } from '../../../shared/components/prompt'
-import { getWorkspaceHandle } from '../../../shared/workspace'
-import { resolveDir, writeFile as fsWriteFile, splitPath } from '../../../shared/workspace/fs'
 import { GsType } from '../../../shared/gs-format/types'
-import { createGsFile } from '../../../shared/gs-format/writer'
+import { useSaveFlow } from '../../../shared/gs-format/save-flow'
 import { buildGsSceneRegionData } from '../core/gs-convert'
 import RegionCanvas from './RegionCanvas.vue'
 import RegionListPanel from './RegionListPanel.vue'
@@ -42,136 +38,66 @@ watch(activeInstance, (inst) => {
   if (inst) sidebarInstance.value = inst
 }, { immediate: true })
 
+const { handleSave } = useSaveFlow({
+  type: GsType.SceneRegion,
+  tabsManager,
+  getInstance: () => activeInstance.value,
+  getSaveAsParams: (inst: SceneRegionStore) => {
+    const sourceFile = inst.state.sourceFile
+    if (!sourceFile && !inst.state.gsTexturePath) return null
+    const imageName = sourceFile ? sourceFile.name : inst.state.gsTexturePath!.replace(/^\.\//, '')
+    const defaultName = sourceFile
+      ? sourceFile.name.replace(/\.[^.]+$/, '')
+      : 'scene_region'
+    return {
+      defaultName,
+      imageFileName: imageName,
+      imageBuffer: async () => {
+        if (sourceFile) return new Uint8Array(await sourceFile.arrayBuffer())
+        const { resolveDir, readFile, splitPath } = await import('../../../shared/workspace/fs')
+        const { dir } = splitPath(inst.state.gsPath!)
+        const dirHandle = await resolveDir(dir)
+        const texFileName = inst.state.gsTexturePath!.replace(/^\.\//, '')
+        return readFile(dirHandle, texFileName)
+      },
+      buildData: (texPath: string) => buildGsSceneRegionData(
+        inst.state.regions,
+        inst.state.imageSize,
+        defaultName,
+        texPath,
+      ),
+    }
+  },
+  onSaved: (inst: SceneRegionStore, r) => {
+    inst.state.gsPath = r.gsPath
+    inst.state.gsLastKnownVersion = r.version
+    inst.state.gsSceneName = r.gsPath.replace(/\.gs$/, '').split('/').pop()!
+    inst.state.gsTexturePath = r.texturePath
+    inst.state.sourceFile = null
+    inst.state.dirty = false
+  },
+})
+
+useEditorKeyboard(() => activeInstance.value ? {
+  save: handleSave,
+  history: activeInstance.value.history,
+} : null)
+
+useExternalChangeWatch({
+  getInstance: () => activeInstance.value,
+})
+
 const tabs = computed<TabItem[]>(() =>
   instances.value.map((inst: SceneRegionStore) => ({
     id: inst.id,
-    label: tabLabel(inst),
+    label: inst.getLabel() || t('common.newTab'),
     dirty: inst.state.dirty,
   }))
 )
 
-function tabLabel(inst: SceneRegionStore): string {
-  if (inst.state.gsSceneName) return inst.state.gsSceneName
-  if (inst.state.gsPath) return splitPath(inst.state.gsPath).fileName.replace('.gs', '')
-  if (inst.state.sourceFile) return inst.state.sourceFile.name.replace(/\.[^.]+$/, '')
-  if (inst.state.imageUrl) return t('sceneEditor.title')
-  return t('common.newTab')
-}
-
 const showEmpty = computed(() =>
   !activeInstance.value?.state.imageUrl
 )
-
-async function onKeyDown(e: KeyboardEvent) {
-  const ctrl = e.ctrlKey || e.metaKey
-  if (!ctrl || !activeInstance.value) return
-  if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); activeInstance.value.history.undo() }
-  else if (e.key === 'z' && e.shiftKey) { e.preventDefault(); activeInstance.value.history.redo() }
-  else if (e.key === 'y') { e.preventDefault(); activeInstance.value.history.redo() }
-  else if (e.key === 's') { e.preventDefault(); await handleSaveGs() }
-}
-
-async function handleSaveGs() {
-  const inst = activeInstance.value
-  if (!inst) return
-
-  if (!inst.state.gsPath) {
-    if (!getWorkspaceHandle()) {
-      showToast('请先打开工作区以启用保存功能', 'info')
-      return
-    }
-    await handleSaveAsNewGs(inst)
-    return
-  }
-
-  try {
-    const result = await inst.saveToGsFile()
-    if (result.status === 'ok') {
-      tabsManager.saveSession()
-      showToast('已保存', 'success')
-    } else {
-      showToast('文件已被外部修改，请重新加载后再保存', 'error')
-    }
-  } catch (e) {
-    showToast(`保存失败: ${(e as Error).message}`, 'error')
-  }
-}
-
-async function handleSaveAsNewGs(inst: SceneRegionStore) {
-  const sourceFile = inst.state.sourceFile
-  const defaultName = sourceFile
-    ? sourceFile.name.replace(/\.[^.]+$/, '')
-    : 'scene_region'
-
-  const name = await prompt({
-    title: '保存为 .gs 文件',
-    placeholder: defaultName,
-    defaultValue: defaultName,
-  })
-  if (!name) return
-
-  try {
-    const dirHandle = await resolveDir('', true)
-    let textureName: string
-
-    if (sourceFile) {
-      textureName = sourceFile.name
-      const buffer = await sourceFile.arrayBuffer()
-      await fsWriteFile(dirHandle, textureName, new Uint8Array(buffer))
-    } else if (inst.state.gsTexturePath) {
-      textureName = inst.state.gsTexturePath.replace(/^\.\//, '')
-    } else {
-      showToast('没有关联的图片文件', 'error')
-      return
-    }
-
-    const gsPath = `${name}.gs`
-    const data = buildGsSceneRegionData(
-      inst.state.regions,
-      inst.state.imageSize,
-      name,
-      `./${textureName}`,
-    )
-
-    await createGsFile({ path: gsPath, type: GsType.SceneRegion, data })
-    inst.state.gsPath = gsPath
-    inst.state.gsLastKnownVersion = 1
-    inst.state.gsSceneName = name
-    inst.state.gsTexturePath = `./${textureName}`
-    inst.state.sourceFile = null
-    inst.state.dirty = false
-    tabsManager.saveSession()
-    showToast(`已保存为 ${gsPath}`, 'success')
-  } catch (e) {
-    showToast(`保存失败: ${(e as Error).message}`, 'error')
-  }
-}
-
-async function onVisibilityChange() {
-  if (document.visibilityState !== 'visible') return
-  const inst = activeInstance.value
-  if (!inst || !inst.state.gsPath) return
-  try {
-    const changed = await inst.checkExternalChange()
-    if (changed) {
-      if (inst.state.dirty) {
-        showToast('文件已被外部修改，建议重新加载', 'info')
-      } else {
-        await inst.reloadFromDisk()
-        showToast('已加载外部更新', 'info')
-      }
-    }
-  } catch { /* ignore read failures on focus */ }
-}
-
-onMounted(() => {
-  window.addEventListener('keydown', onKeyDown)
-  document.addEventListener('visibilitychange', onVisibilityChange)
-})
-onUnmounted(() => {
-  window.removeEventListener('keydown', onKeyDown)
-  document.removeEventListener('visibilitychange', onVisibilityChange)
-})
 
 function onTabAddFile(file: File) {
   if (!file.type.startsWith('image/')) return

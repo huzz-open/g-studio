@@ -1,5 +1,5 @@
 import { GS_FORMAT_VERSION, type GsFile, type GsType } from './types'
-import { resolveDir, writeFile, splitPath, readTextFile } from '../workspace/fs'
+import { resolveDir, writeFile, splitPath, readTextFile, fileExists } from '../workspace/fs'
 declare const __APP_VERSION__: string
 
 const APP_VERSION = __APP_VERSION__
@@ -96,10 +96,87 @@ export interface CreateGsResult {
   version: number
 }
 
-export async function createGsFile<T>(opts: { path: string; type: GsType; data: T }): Promise<CreateGsResult> {
-  const { dir, fileName } = splitPath(opts.path)
+export interface GsConflictInfo {
+  exists: boolean
+  existingType?: GsType
+}
+
+export class GsDifferentTypeConflictError extends Error {
+  existingType: GsType
+  constructor(existingType: GsType) {
+    super(`GS file exists with different type: ${existingType}`)
+    this.name = 'GsDifferentTypeConflictError'
+    this.existingType = existingType
+  }
+}
+
+export class GsSameTypeConflictError extends Error {
+  existingVersion: number
+  constructor(version: number) {
+    super(`GS file of same type already exists (version ${version})`)
+    this.name = 'GsSameTypeConflictError'
+    this.existingVersion = version
+  }
+}
+
+export async function checkGsConflict(path: string): Promise<GsConflictInfo> {
+  const { dir, fileName } = splitPath(path)
+  let dirHandle: FileSystemDirectoryHandle
+  try {
+    dirHandle = await resolveDir(dir)
+  } catch {
+    return { exists: false }
+  }
+
+  const exists = await fileExists(dirHandle, fileName)
+  if (!exists) return { exists: false }
+
+  try {
+    const text = await readTextFile(dirHandle, fileName)
+    const parsed = JSON.parse(text) as { type?: GsType }
+    return { exists: true, existingType: parsed.type }
+  } catch {
+    return { exists: true }
+  }
+}
+
+export interface CreateGsOptions<T> {
+  path: string
+  type: GsType
+  data: T
+  allowOverwriteSameType?: boolean
+}
+
+export async function createGsFile<T>(opts: CreateGsOptions<T>): Promise<CreateGsResult> {
+  const { path, type, data, allowOverwriteSameType = false } = opts
+  const { dir, fileName } = splitPath(path)
   const dirHandle = await resolveDir(dir, true)
-  const json = JSON.stringify(buildGsFileObject(opts.type, opts.data, 1), null, 2)
+
+  const exists = await fileExists(dirHandle, fileName)
+  if (exists) {
+    const diskVersion = await readDiskVersion(dirHandle, fileName)
+    let existingType: GsType | undefined
+    try {
+      const text = await readTextFile(dirHandle, fileName)
+      const parsed = JSON.parse(text) as { type?: GsType }
+      existingType = parsed.type
+    } catch { /* treat as untyped */ }
+
+    if (existingType !== undefined && existingType !== type) {
+      throw new GsDifferentTypeConflictError(existingType)
+    }
+
+    if (!allowOverwriteSameType) {
+      throw new GsSameTypeConflictError(diskVersion)
+    }
+
+    const newVersion = diskVersion + 1
+    const json = JSON.stringify(buildGsFileObject(type, data, newVersion), null, 2)
+    await writeFile(dirHandle, fileName, json)
+    return { path, version: newVersion }
+  }
+
+  const json = JSON.stringify(buildGsFileObject(type, data, 1), null, 2)
   await writeFile(dirHandle, fileName, json)
-  return { path: opts.path, version: 1 }
+  return { path, version: 1 }
 }

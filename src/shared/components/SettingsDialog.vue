@@ -43,6 +43,28 @@ interface Category {
 
 const categories: Category[] = [
   {
+    id: 'workspace',
+    labelKey: 'settings.cat.workspace',
+    icon: 'folder',
+    items: [
+      {
+        key: 'workspace.imageConflictStrategy',
+        labelKey: 'settings.workspace.imageConflict',
+        descKey: 'settings.workspace.imageConflict.desc',
+        scope: 'immediate',
+        type: 'segmented',
+        options: [
+          { value: 'skip', labelKey: 'settings.workspace.imageConflict.skip' },
+          { value: 'overwrite', labelKey: 'settings.workspace.imageConflict.overwrite' },
+          { value: 'ask', labelKey: 'settings.workspace.imageConflict.ask' },
+        ],
+        get: () => settings.workspace.imageConflictStrategy,
+        set: (v: string) => { settings.workspace.imageConflictStrategy = v as any },
+        defaultVal: DEFAULTS.workspace.imageConflictStrategy,
+      },
+    ],
+  },
+  {
     id: 'tileset',
     labelKey: 'settings.cat.tileset',
     icon: 'layers',

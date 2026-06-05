@@ -1,14 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useI18n } from '../../../shared/i18n'
 import { useSlicerTabs, type SlicerInstance } from '../store'
-import { splitPath, resolveDir, writeFile as fsWriteFile } from '../../../shared/workspace/fs'
-import { getWorkspaceHandle } from '../../../shared/workspace'
 import { GsType } from '../../../shared/gs-format/types'
-import { createGsFile } from '../../../shared/gs-format/writer'
-import { showToast } from '../../../shared/components/toast'
-import { prompt } from '../../../shared/components/prompt'
-import { EditorShell, definePanelConfig, useTabRouteSync } from '../../../shared/components/editor-shell'
+import { useSaveFlow } from '../../../shared/gs-format/save-flow'
+import { imageToPngBuffer } from '../../../shared/utils/image-buffer'
+import { EditorShell, definePanelConfig, useTabRouteSync, useEditorKeyboard } from '../../../shared/components/editor-shell'
 import type { TabItem } from '../../../shared/components/editor-shell'
 import type { OutputPayload } from './SlicerSidebar.vue'
 import SlicerSidebar from './SlicerSidebar.vue'
@@ -33,105 +30,49 @@ useTabRouteSync({
 const showAnimPreview = ref(false)
 const leftCollapsed = ref(false)
 
-function onKeyDown(e: KeyboardEvent) {
-  const ctrl = e.ctrlKey || e.metaKey
-  if (!ctrl || !activeInstance.value) return
-  if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); activeInstance.value.history.undo() }
-  else if (e.key === 'z' && e.shiftKey) { e.preventDefault(); activeInstance.value.history.redo() }
-  else if (e.key === 'y') { e.preventDefault(); activeInstance.value.history.redo() }
-  else if (e.key === 's') { e.preventDefault(); void handleSaveGs() }
-}
-onMounted(() => window.addEventListener('keydown', onKeyDown))
-onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
+const { handleSave } = useSaveFlow({
+  type: GsType.Sprite,
+  tabsManager,
+  getInstance: () => activeInstance.value,
+  getSaveAsParams: (inst: SlicerInstance) => {
+    if (!inst.state.sourceImage) return null
+    return {
+      defaultName: inst.state.sourceFileName?.replace(/\.[^.]+$/, '') || 'sprites',
+      imageFileName: inst.state.sourceFileName || 'texture.png',
+      imageBuffer: () => imageToPngBuffer(inst.state.sourceImage!),
+      buildData: (texPath: string) => ({
+        texture: texPath,
+        size: [inst.state.imgSize.w, inst.state.imgSize.h] as [number, number],
+        isComposite: false,
+        sliceConfig: inst.getSliceConfig(),
+        sprites: inst.getSpriteSnapshot(),
+      }),
+    }
+  },
+  onSaved: (inst: SlicerInstance, r) => {
+    inst.state.gsPath = r.gsPath
+    inst.state.gsLastKnownVersion = r.version
+    inst.state.gsTexturePath = r.texturePath
+    inst.state.dirty = false
+  },
+})
+
+useEditorKeyboard(() => activeInstance.value ? {
+  save: handleSave,
+  history: activeInstance.value.history,
+} : null)
 
 const leftPanelConfig = definePanelConfig('slicer-sidebar-width', 300)
 
 const tabs = computed<TabItem[]>(() =>
   instances.value.map((inst: SlicerInstance) => ({
     id: inst.id,
-    label: inst.state.gsPath
-      ? splitPath(inst.state.gsPath).fileName.replace('.gs', '')
-      : (inst.state.sourceFileName ? inst.state.sourceFileName.replace(/\.[^.]+$/, '') : t('common.newTab')),
+    label: inst.getLabel() || t('common.newTab'),
     dirty: inst.state.dirty,
   }))
 )
 
 const showEmpty = computed(() => !activeInstance.value?.state.sourceImage)
-
-async function handleSaveGs() {
-  const inst = activeInstance.value
-  if (!inst) return
-
-  if (!inst.state.gsPath) {
-    if (!getWorkspaceHandle()) {
-      showToast(t('slicer.save.needWorkspace'), 'info')
-      return
-    }
-    await handleSaveAsNewGs(inst)
-    return
-  }
-
-  try {
-    const result = await inst.saveToGsFile()
-    if (result.status === 'ok') {
-      tabsManager.saveSession()
-      showToast(t('toast.save.success'), 'success')
-    } else {
-      showToast('文件已被外部修改，请重新加载后再保存', 'error')
-    }
-  } catch {
-    showToast(t('toast.save.error'), 'error')
-  }
-}
-
-async function handleSaveAsNewGs(inst: SlicerInstance) {
-  const defaultName = inst.state.sourceFileName
-    ? inst.state.sourceFileName.replace(/\.[^.]+$/, '')
-    : 'sprites'
-  const name = await prompt({
-    title: '保存为 .gs 文件',
-    placeholder: defaultName,
-    defaultValue: defaultName,
-  })
-  if (!name) return
-
-  const img = inst.state.sourceImage
-  if (!img) {
-    showToast('没有关联的图片', 'error')
-    return
-  }
-
-  try {
-    const dirHandle = await resolveDir('', true)
-    const textureName = inst.state.sourceFileName || `${name}.png`
-    const cv = document.createElement('canvas')
-    cv.width = img.width
-    cv.height = img.height
-    cv.getContext('2d')!.drawImage(img, 0, 0)
-    const blob = await new Promise<Blob | null>(r => cv.toBlob(r, 'image/png'))
-    const buffer = new Uint8Array(await blob!.arrayBuffer())
-    await fsWriteFile(dirHandle, textureName, buffer)
-
-    const gsPath = `${name}.gs`
-    const data = {
-      texture: `./${textureName}`,
-      size: [inst.state.imgSize.w, inst.state.imgSize.h] as [number, number],
-      isComposite: false,
-      sliceConfig: inst.getSliceConfig(),
-      sprites: inst.getSpriteSnapshot(),
-    }
-
-    await createGsFile({ path: gsPath, type: GsType.Sprite, data })
-    inst.state.gsPath = gsPath
-    inst.state.gsLastKnownVersion = 1
-    inst.state.gsTexturePath = `./${textureName}`
-    inst.state.dirty = false
-    tabsManager.saveSession()
-    showToast(`已保存为 ${gsPath}`, 'success')
-  } catch {
-    showToast(t('toast.save.error'), 'error')
-  }
-}
 
 function onFile(file: File) {
   if (!activeInstance.value) return
@@ -161,7 +102,7 @@ function onTabClose(id: string) {
 }
 
 function onSaveOutput(_payload: OutputPayload) {
-  showToast('导出功能重构中', 'info')
+  void handleSave()
 }
 
 </script>

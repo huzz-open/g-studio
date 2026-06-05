@@ -365,6 +365,13 @@ function _createStore(id: string) {
     await loadFromGsFile(state.gsPath)
   }
 
+  function getLabel(): string {
+    if (state.gsSceneName) return state.gsSceneName
+    if (state.gsPath) return splitPath(state.gsPath).fileName.replace('.gs', '')
+    if (state.sourceFile) return state.sourceFile.name.replace(/\.[^.]+$/, '')
+    return ''
+  }
+
   function markDirty() {
     state.dirty = true
   }
@@ -396,6 +403,7 @@ function _createStore(id: string) {
     checkExternalChange,
     reloadFromDisk,
     markDirty,
+    getLabel,
   }
 }
 

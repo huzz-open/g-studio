@@ -28,7 +28,14 @@ export interface TilesetMakerDefaults {
   terrainRows: number
 }
 
+export type ImageConflictStrategy = 'skip' | 'overwrite' | 'ask'
+
+export interface WorkspaceSettings {
+  imageConflictStrategy: ImageConflictStrategy
+}
+
 export interface SettingsData {
+  workspace: WorkspaceSettings
   spriteSlicer: {
     defaults: SlicerDefaults
     lastSaveDir?: string
@@ -40,6 +47,9 @@ export interface SettingsData {
 }
 
 const DEFAULTS: SettingsData = {
+  workspace: {
+    imageConflictStrategy: 'skip',
+  },
   spriteSlicer: {
     defaults: {
       detectionMode: 'auto',

@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
-import type { PromptOptions } from './prompt'
+import { ref, reactive, computed, nextTick } from 'vue'
+import type { PromptOptions, PromptExtendedResult } from './prompt'
+import SegmentedControl from './SegmentedControl.vue'
 
 const visible = ref(false)
 const opts = ref<PromptOptions>({ title: '' })
 const inputValue = ref('')
 const inputEl = ref<HTMLInputElement | null>(null)
 const activeIdx = ref(-1)
+const choiceValues = reactive<Record<string, string>>({})
 let resolve: ((value: string | null) => void) | null = null
+let resolveExtended: ((value: PromptExtendedResult | null) => void) | null = null
 
 const filtered = computed(() => {
   const list = opts.value.suggestions
@@ -19,10 +22,20 @@ const filtered = computed(() => {
 
 const showSuggestions = computed(() => filtered.value.length > 0 && visible.value)
 
+function initChoices(options: PromptOptions) {
+  Object.keys(choiceValues).forEach(k => delete choiceValues[k])
+  if (options.inlineChoices) {
+    for (const c of options.inlineChoices) {
+      choiceValues[c.id] = c.defaultValue
+    }
+  }
+}
+
 function open(options: PromptOptions): Promise<string | null> {
   opts.value = options
   inputValue.value = options.defaultValue ?? ''
   activeIdx.value = -1
+  initChoices(options)
   visible.value = true
   nextTick(() => {
     inputEl.value?.focus()
@@ -30,6 +43,23 @@ function open(options: PromptOptions): Promise<string | null> {
   })
   return new Promise<string | null>((r) => {
     resolve = r
+    resolveExtended = null
+  })
+}
+
+function openExtended(options: PromptOptions): Promise<PromptExtendedResult | null> {
+  opts.value = options
+  inputValue.value = options.defaultValue ?? ''
+  activeIdx.value = -1
+  initChoices(options)
+  visible.value = true
+  nextTick(() => {
+    inputEl.value?.focus()
+    inputEl.value?.select()
+  })
+  return new Promise<PromptExtendedResult | null>((r) => {
+    resolve = null
+    resolveExtended = r
   })
 }
 
@@ -42,14 +72,22 @@ function pick(val: string) {
 function handleConfirm() {
   const v = inputValue.value.trim()
   visible.value = false
-  resolve?.(v || null)
-  resolve = null
+  if (resolve) {
+    resolve(v || null)
+    resolve = null
+  }
+  if (resolveExtended) {
+    resolveExtended(v ? { value: v, choices: { ...choiceValues } } : null)
+    resolveExtended = null
+  }
 }
 
 function handleCancel() {
   visible.value = false
   resolve?.(null)
   resolve = null
+  resolveExtended?.(null)
+  resolveExtended = null
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -89,7 +127,7 @@ function onInput() {
   activeIdx.value = -1
 }
 
-defineExpose({ open })
+defineExpose({ open, openExtended })
 </script>
 
 <template>
@@ -118,6 +156,16 @@ defineExpose({ open })
               {{ item }}
             </li>
           </ul>
+        </div>
+        <div v-if="opts.inlineChoices?.length" class="prompt-choices">
+          <div v-for="choice in opts.inlineChoices" :key="choice.id" class="prompt-choice-group">
+            <label class="prompt-choice-label">{{ choice.label }}</label>
+            <SegmentedControl
+              :model-value="choiceValues[choice.id]"
+              :options="choice.options.map(o => ({ value: o.value, label: o.label }))"
+              @update:model-value="choiceValues[choice.id] = $event"
+            />
+          </div>
         </div>
         <div class="prompt-actions">
           <button class="prompt-btn cancel" @click="handleCancel">
@@ -210,6 +258,21 @@ defineExpose({ open })
 .prompt-suggestion-item.active {
   background: #3a5070;
   color: #eee;
+}
+.prompt-choices {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.prompt-choice-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.prompt-choice-label {
+  font-size: 12px;
+  color: #999;
 }
 .prompt-actions {
   display: flex;

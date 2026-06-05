@@ -35,7 +35,7 @@ export interface TilesetMakerState {
   atlasTileH: number
   isGenerating: boolean
   generateError: string | null
-  isDirty: boolean
+  dirty: boolean
   resourceUid: string | null
   gsPath: string | null
   gsLastKnownVersion: number
@@ -69,7 +69,7 @@ export function createTilesetInstance(id: string) {
     atlasTileH: 0,
     isGenerating: false,
     generateError: null,
-    isDirty: false,
+    dirty: false,
     resourceUid: null,
     gsPath: null,
     gsLastKnownVersion: 0,
@@ -130,7 +130,7 @@ export function createTilesetInstance(id: string) {
         state.atlasTileW = result.tileW
         state.atlasTileH = result.tileH
       }
-      state.isDirty = true
+      state.dirty = true
     } catch (e: any) {
       state.generateError = e?.message || String(e)
     } finally {
@@ -301,7 +301,7 @@ export function createTilesetInstance(id: string) {
       await loadNineGrid(file)
     }
 
-    state.isDirty = false
+    state.dirty = false
   }
 
   async function saveToGsFile(): Promise<WriteGsResult> {
@@ -337,10 +337,17 @@ export function createTilesetInstance(id: string) {
 
     if (result.status === 'ok') {
       state.gsLastKnownVersion = result.newVersion
-      state.isDirty = false
+      state.dirty = false
     }
 
     return result
+  }
+
+  function getLabel(): string {
+    if (state.textureFileName) return state.textureFileName.replace(/\.[^.]+$/, '')
+    if (state.nineGridFileName) return state.nineGridFileName.replace(/\.[^.]+$/, '')
+    if (state.gsPath) return splitPath(state.gsPath).fileName.replace('.gs', '')
+    return ''
   }
 
   return {
@@ -364,6 +371,7 @@ export function createTilesetInstance(id: string) {
     setGridSplitX,
     setGridSplitY,
     resetGridSplits,
+    getLabel,
   }
 }
 

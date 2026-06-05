@@ -45,11 +45,11 @@ export async function readTextFile(
 export async function writeFile(
   dir: FileSystemDirectoryHandle,
   name: string,
-  data: BlobPart,
+  data: BlobPart | Uint8Array,
 ): Promise<void> {
   const fh = await dir.getFileHandle(name, { create: true })
   const w = await fh.createWritable()
-  await w.write(data instanceof Blob ? data : new Blob([data]))
+  await w.write(data instanceof Blob ? data : new Blob([data as BlobPart]))
   await w.close()
 }
 
@@ -123,6 +123,32 @@ export async function fileExists(
   } catch {
     return false
   }
+}
+
+export interface ImageSaveResult {
+  written: boolean
+  finalName: string
+}
+
+export async function saveImageToWorkspace(
+  dir: FileSystemDirectoryHandle,
+  fileName: string,
+  buffer: Uint8Array,
+  strategy: 'skip' | 'overwrite',
+): Promise<ImageSaveResult> {
+  const exists = await fileExists(dir, fileName)
+
+  if (!exists) {
+    await writeFile(dir, fileName, buffer)
+    return { written: true, finalName: fileName }
+  }
+
+  if (strategy === 'skip') {
+    return { written: false, finalName: fileName }
+  }
+
+  await writeFile(dir, fileName, buffer)
+  return { written: true, finalName: fileName }
 }
 
 export async function listDirs(maxDepth = 2): Promise<string[]> {
