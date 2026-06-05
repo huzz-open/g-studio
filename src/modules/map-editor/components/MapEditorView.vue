@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from '../../../shared/i18n'
-import { EditorShell, useEditorTabs, definePanelConfig } from '../../../shared/components/editor-shell'
+import { EditorShell, definePanelConfig, useTabRouteSync } from '../../../shared/components/editor-shell'
 import type { TabItem, DropModifiers } from '../../../shared/components/editor-shell'
-import { getMapEditorInstance, removeMapEditorInstance, type MapEditorInstance } from '../store'
+import { useMapEditorTabs, type MapEditorInstance } from '../store'
 import type { WorldMapData } from '../types'
 import MapToolbar from './MapToolbar.vue'
 import MapLocationList from './MapLocationList.vue'
@@ -12,11 +12,10 @@ import MapPropertyPanel from './MapPropertyPanel.vue'
 
 const { t } = useI18n()
 
-const { instances: tabInstances, activeTabId, activeInstance, createTab: createTabRaw, switchTab: onTabSwitch, closeTab: onTabClose } = useEditorTabs<MapEditorInstance>({
-  prefix: 'map',
-  factory: getMapEditorInstance,
-  destroy: removeMapEditorInstance,
-})
+const tabsManager = useMapEditorTabs()
+const { instances: tabInstances, activeTabId, activeInstance, createTab: createTabRaw, switchTab: onTabSwitch, closeTab: onTabClose } = tabsManager
+useTabRouteSync(tabsManager)
+
 const leftCollapsed = ref(false)
 const rightCollapsed = ref(false)
 
@@ -77,9 +76,6 @@ function onTabLoadFile(file: File) {
 }
 
 const showEmpty = computed(() => !activeInstance.value || !activeInstance.value.state.mapData)
-
-// Create an initial tab
-createTab()
 </script>
 
 <template>

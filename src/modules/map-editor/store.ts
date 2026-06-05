@@ -234,10 +234,32 @@ export function createMapEditorInstance(id: string) {
 export type MapEditorInstance = ReturnType<typeof createMapEditorInstance>
 
 import { createInstanceRegistry } from '../../shared/components/editor-shell/createInstanceRegistry'
+import { useEditorTabs, type UseEditorTabsReturn } from '../../shared/components/editor-shell'
 
 const registry = createInstanceRegistry(createMapEditorInstance)
 export const getMapEditorInstance = registry.get
 export const removeMapEditorInstance = registry.remove
+
+let _tabs: UseEditorTabsReturn<MapEditorInstance> | null = null
+
+export function useMapEditorTabs(): UseEditorTabsReturn<MapEditorInstance> {
+  if (!_tabs) {
+    _tabs = useEditorTabs<MapEditorInstance>({
+      prefix: 'map',
+      factory: getMapEditorInstance,
+      destroy: removeMapEditorInstance,
+      autoEmptyTab: true,
+      persist: {
+        key: 'gs-tabs:map-editor',
+        serialize: () => null,
+        restore: async () => { throw new Error('map-editor does not support session restore yet') },
+        getIdentifier: () => null,
+        descriptorFromGsPath: (path) => ({ path }),
+      },
+    })
+  }
+  return _tabs
+}
 
 export function useMapEditorStore(): MapEditorInstance {
   return getMapEditorInstance('__default__')

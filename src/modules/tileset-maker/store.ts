@@ -303,6 +303,22 @@ export function useTilesetTabs(): UseEditorTabsReturn<TilesetInstance> {
       prefix: 'tileset',
       factory: getTilesetInstance,
       destroy: removeTilesetInstance,
+      autoEmptyTab: true,
+      persist: {
+        key: 'gs-tabs:tileset',
+        serialize: (inst) => inst.state.resourceUid
+          ? { uid: inst.state.resourceUid, fileName: inst.state.textureFileName }
+          : null,
+        restore: async (desc: { uid: string; fileName: string }) => {
+          const id = `tileset-r-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+          const inst = getTilesetInstance(id)
+          inst.state.resourceUid = desc.uid
+          inst.state.textureFileName = desc.fileName
+          return inst
+        },
+        getIdentifier: (inst) => inst.state.resourceUid,
+        descriptorFromGsPath: (path) => ({ uid: '', fileName: path }),
+      },
     })
   }
   return _tabs

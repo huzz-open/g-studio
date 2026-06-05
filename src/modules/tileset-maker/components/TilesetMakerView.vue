@@ -2,7 +2,7 @@
 import { ref, shallowRef, computed, watch, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from '../../../shared/i18n'
-import { EditorShell, SidebarSection, SegmentedControl, definePanelConfig, useRouteResource, EmptyDropHint } from '../../../shared/components/editor-shell'
+import { EditorShell, SidebarSection, SegmentedControl, definePanelConfig, useRouteResource, useTabRouteSync, EmptyDropHint } from '../../../shared/components/editor-shell'
 import type { TabItem, DropModifiers } from '../../../shared/components/editor-shell'
 import { ActionButtons } from '../../../shared/components/editor-shell'
 import { useTilesetTabs, useTilesetTerrain, type TilesetInstance } from '../store'
@@ -16,7 +16,9 @@ import ExportPanel from './ExportPanel.vue'
 const { t } = useI18n()
 const route = useRoute()
 
-const { instances: tabInstances, activeTabId, activeInstance, createTab: createTabRaw, switchTab: onTabSwitch, closeTab: onTabClose } = useTilesetTabs()
+const tabsManager = useTilesetTabs()
+const { instances: tabInstances, activeTabId, activeInstance, createTab: createTabRaw, switchTab: onTabSwitch, closeTab: onTabClose } = tabsManager
+useTabRouteSync(tabsManager)
 
 const terrainState = useTilesetTerrain()
 
@@ -122,13 +124,16 @@ async function loadFromResource(resourceUid: string) {
     if (!response.ok) return
     const blob = await response.blob()
     const file = new File([blob], filePath.split('/').pop() || 'texture.png', { type: blob.type })
-    const inst = createTab(file.name)
+    const inst = (activeInstance.value && !activeInstance.value.hasSource.value)
+      ? activeInstance.value
+      : createTab(file.name)
+    setFileNameForMode(inst, file.name)
     inst.state.resourceUid = resourceUid
     await inst.loadTexture(file)
   } catch { /* best-effort */ }
 }
 
-const { hasRouteResource } = useRouteResource(loadFromResource)
+useRouteResource(loadFromResource)
 
 // --- Split viewport resize ---
 let splitResizing = false
@@ -175,7 +180,6 @@ onUnmounted(() => {
     :left-collapsed="leftCollapsed"
     :show-empty="false"
     :loading="false"
-    :auto-empty-tab="!hasRouteResource"
     :managed-drop="false"
     :viewport="{ accept: 'image/png,image/jpeg,image/webp' }"
     @tab-switch="onTabSwitch"

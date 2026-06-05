@@ -23,7 +23,7 @@ import { useSettings } from '../../../shared/settings'
 import type { OutputPayload } from './SlicerSidebar.vue'
 import { showToast, withProgress } from '../../../shared/components/toast'
 import { confirm } from '../../../shared/components/confirm'
-import { EditorShell, definePanelConfig, useRouteResource } from '../../../shared/components/editor-shell'
+import { EditorShell, definePanelConfig, useRouteResource, useTabRouteSync } from '../../../shared/components/editor-shell'
 import type { TabItem } from '../../../shared/components/editor-shell'
 import SlicerSidebar from './SlicerSidebar.vue'
 import SlicerPreview from './SlicerPreview.vue'
@@ -34,6 +34,7 @@ const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const store = useSlicerStore()
+useTabRouteSync(store)
 const { isOpen: wsOpen } = useWorkspace()
 const { settings: appSettings } = useSettings()
 const showAnimPreview = ref(false)
@@ -555,7 +556,6 @@ watch(() => store.namePrefix.value, () => {
     :left-collapsed="leftCollapsed"
     :show-empty="showEmpty"
     :loading="loadingResource"
-    :auto-empty-tab="!route.query.resource"
     :viewport="{ accept: 'image/png,image/jpeg,image/webp' }"
     @tab-switch="onTabSwitch"
     @tab-close="onTabClose"

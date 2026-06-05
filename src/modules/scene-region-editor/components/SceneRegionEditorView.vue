@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
 import { useI18n } from '../../../shared/i18n'
-import { EditorShell, definePanelConfig } from '../../../shared/components/editor-shell'
+import { EditorShell, definePanelConfig, useTabRouteSync } from '../../../shared/components/editor-shell'
 import type { TabItem } from '../../../shared/components/editor-shell'
 import { useSceneRegionTabs, type SceneRegionStore } from '../store'
 import { showToast } from '../../../shared/components/toast'
@@ -17,9 +16,10 @@ import RegionListPanel from './RegionListPanel.vue'
 import RegionPropertyPanel from './RegionPropertyPanel.vue'
 
 const { t } = useI18n()
-const route = useRoute()
 
-const { instances, activeTabId, activeInstance, createTab, switchTab: onTabSwitch, closeTab: onTabClose } = useSceneRegionTabs()
+const tabsManager = useSceneRegionTabs()
+const { instances, activeTabId, activeInstance, createTab, switchTab: onTabSwitch, closeTab: onTabClose } = tabsManager
+useTabRouteSync(tabsManager)
 
 const leftCollapsed = ref(false)
 const rightCollapsed = ref(false)
@@ -151,21 +151,9 @@ async function onVisibilityChange() {
   } catch { /* ignore read failures on focus */ }
 }
 
-async function loadFromQuery() {
-  const gsPath = route.query.gs as string | undefined
-  if (!gsPath || !getWorkspaceHandle()) return
-  const inst = createTab()
-  try {
-    await inst.loadFromGsFile(gsPath)
-  } catch (e) {
-    showToast(`打开 .gs 文件失败: ${(e as Error).message}`, 'error')
-  }
-}
-
 onMounted(() => {
   window.addEventListener('keydown', onKeyDown)
   document.addEventListener('visibilitychange', onVisibilityChange)
-  loadFromQuery()
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeyDown)
@@ -243,7 +231,6 @@ function onImportJson() {
     :left-collapsed="leftCollapsed"
     :right-collapsed="rightCollapsed"
     :show-empty="showEmpty"
-    :auto-empty-tab="true"
     :viewport="{ accept: 'image/*' }"
     @tab-switch="onTabSwitch"
     @tab-close="onTabClose"

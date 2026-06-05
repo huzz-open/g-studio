@@ -79,11 +79,14 @@ export function useSlicerStore(): SlicerStore {
   return _singleton
 }
 
+const SLICER_SESSION_KEY = 'gs-tabs:sprite-slicer'
+
 function createSlicerStore() {
   const tabs = ref<SlicerTabInfo[]>([])
   const activeTabId = ref<string | null>(null)
   const tabSnapshots = new Map<string, TabSnapshot>()
   let _restoring = false
+  const restoring = ref(false)
 
   const saving = ref(false)
   const bgRemoverId = ref<string>('auto')
@@ -405,6 +408,7 @@ function createSlicerStore() {
     tabs.value = [...tabs.value, info]
     activeTabId.value = id
     nextTick(() => { _restoring = false })
+    saveSession()
 
     return id
   }
@@ -425,6 +429,7 @@ function createSlicerStore() {
     nextTick(() => { _restoring = false })
 
     loadFile(file)
+    saveSession()
     return id
   }
 
@@ -456,6 +461,7 @@ function createSlicerStore() {
     } else {
       tabSnapshots.delete(id)
     }
+    saveSession()
   }
 
   function switchTab(id: string) {
@@ -478,6 +484,7 @@ function createSlicerStore() {
     }
 
     nextTick(() => { _restoring = false })
+    saveSession()
   }
 
   function isRestoring(): boolean {
@@ -802,9 +809,62 @@ function createSlicerStore() {
     return sprites.value.some(s => s.id !== excludeId && s.name === trimmed)
   }
 
+  function getTabSnapshot(id: string): TabSnapshot | null {
+    return tabSnapshots.get(id) ?? null
+  }
+
+  function isTabModified(tabId: string): boolean {
+    if (tabId === activeTabId.value) {
+      return sprites.value.length > 0
+    }
+    const snap = tabSnapshots.get(tabId)
+    return snap ? snap.sprites.length > 0 : false
+  }
+
+  function saveSession() {
+    const descriptors = tabs.value
+      .filter(t => t.workspacePath || t.resourceUid)
+      .map(t => ({ fileName: t.fileName, workspacePath: t.workspacePath, resourceUid: t.resourceUid }))
+    const activeTab = tabs.value.find(t => t.id === activeTabId.value)
+    const activeId = activeTab?.resourceUid ?? activeTab?.workspacePath ?? null
+    sessionStorage.setItem(SLICER_SESSION_KEY, JSON.stringify({ tabs: descriptors, activeId }))
+  }
+
+  async function handleRouteIntent(_gsPath: string): Promise<void> {
+    // sprite-slicer doesn't use .gs files yet; this is a no-op stub for useTabRouteSync
+  }
+
+  function _initFromSession() {
+    if (tabs.value.length > 0) return
+    const raw = sessionStorage.getItem(SLICER_SESSION_KEY)
+    if (!raw) {
+      addEmptyTab()
+      return
+    }
+    try {
+      const data = JSON.parse(raw) as { tabs: Array<{ fileName: string; workspacePath?: string; resourceUid?: string }>; activeId: string | null }
+      if (!data.tabs || data.tabs.length === 0) {
+        addEmptyTab()
+        return
+      }
+      for (const desc of data.tabs) {
+        const id = `tab-${++tabIdCounter}`
+        const info: SlicerTabInfo = { id, fileName: desc.fileName, workspacePath: desc.workspacePath, resourceUid: desc.resourceUid }
+        tabs.value = [...tabs.value, info]
+        if (!activeTabId.value) activeTabId.value = id
+      }
+    } catch {
+      sessionStorage.removeItem(SLICER_SESSION_KEY)
+      addEmptyTab()
+    }
+  }
+
+  _initFromSession()
+
   return {
-    tabs, activeTabId, hasActiveTab,
+    tabs, activeTabId, hasActiveTab, restoring,
     addEmptyTab, addTab, removeTab, switchTab, isRestoring,
+    saveSession, handleRouteIntent,
 
     sourceImage, imgSize, loading, saving,
     bgRemoverId, bgColor, bgTolerance, bgSpillStrength,
@@ -823,17 +883,5 @@ function createSlicerStore() {
     setPendingMetaRestore,
     getTabSnapshot,
     isTabModified,
-  }
-
-  function getTabSnapshot(id: string): TabSnapshot | null {
-    return tabSnapshots.get(id) ?? null
-  }
-
-  function isTabModified(tabId: string): boolean {
-    if (tabId === activeTabId.value) {
-      return sprites.value.length > 0
-    }
-    const snap = tabSnapshots.get(tabId)
-    return snap ? snap.sprites.length > 0 : false
   }
 }

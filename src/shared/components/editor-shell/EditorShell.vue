@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import ShellTabBar from './ShellTabBar.vue'
 import SidePanel from './SidePanel.vue'
 import ViewportArea from './ViewportArea.vue'
@@ -17,7 +17,6 @@ const props = withDefaults(defineProps<{
   viewport?: ViewportConfig
   showEmpty?: boolean
   loading?: boolean
-  autoEmptyTab?: boolean
   managedDrop?: boolean
 }>(), {
   tabAccept: '*/*',
@@ -25,7 +24,6 @@ const props = withDefaults(defineProps<{
   rightCollapsed: false,
   showEmpty: false,
   loading: false,
-  autoEmptyTab: true,
   managedDrop: true,
 })
 
@@ -51,11 +49,6 @@ const mergedTabs = computed<TabItem[]>(() =>
   }))
 )
 
-onMounted(() => {
-  if (props.autoEmptyTab && props.tabs.length === 0) {
-    emit('tab-add-empty')
-  }
-})
 
 function onViewportDrop(files: File[], modifiers: DropModifiers) {
   emit('viewport-drop', files, modifiers)
