@@ -7,7 +7,7 @@ import { useSceneRegionTabs, type SceneRegionStore } from '../store'
 import { showToast } from '../../../shared/components/toast'
 import { prompt } from '../../../shared/components/prompt'
 import { getWorkspaceHandle } from '../../../shared/workspace'
-import { resolveDir, writeFile as fsWriteFile } from '../../../shared/workspace/fs'
+import { resolveDir, writeFile as fsWriteFile, splitPath } from '../../../shared/workspace/fs'
 import { GsType } from '../../../shared/gs-format/types'
 import { createGsFile } from '../../../shared/gs-format/writer'
 import { buildGsSceneRegionData } from '../core/gs-convert'
@@ -19,7 +19,17 @@ const { t } = useI18n()
 
 const tabsManager = useSceneRegionTabs()
 const { instances, activeTabId, activeInstance, createTab, switchTab: onTabSwitch, closeTab: onTabClose } = tabsManager
-useTabRouteSync(tabsManager)
+useTabRouteSync({
+  ...tabsManager,
+  activeGsPath: computed(() => activeInstance.value?.state.gsPath ?? null),
+  async loadPendingTabs() {
+    for (const inst of instances.value) {
+      if (inst.state.gsPath && !inst.state.imageUrl) {
+        try { await inst.loadFromGsFile(inst.state.gsPath) } catch { /* workspace not ready */ }
+      }
+    }
+  },
+})
 
 const leftCollapsed = ref(false)
 const rightCollapsed = ref(false)
@@ -42,6 +52,7 @@ const tabs = computed<TabItem[]>(() =>
 
 function tabLabel(inst: SceneRegionStore): string {
   if (inst.state.gsSceneName) return inst.state.gsSceneName
+  if (inst.state.gsPath) return splitPath(inst.state.gsPath).fileName.replace('.gs', '')
   if (inst.state.sourceFile) return inst.state.sourceFile.name.replace(/\.[^.]+$/, '')
   if (inst.state.imageUrl) return t('sceneEditor.title')
   return t('common.newTab')
@@ -76,6 +87,7 @@ async function handleSaveGs() {
   try {
     const result = await inst.saveToGsFile()
     if (result.status === 'ok') {
+      tabsManager.saveSession()
       showToast('已保存', 'success')
     } else {
       showToast('文件已被外部修改，请重新加载后再保存', 'error')
@@ -128,6 +140,7 @@ async function handleSaveAsNewGs(inst: SceneRegionStore) {
     inst.state.gsTexturePath = `./${textureName}`
     inst.state.sourceFile = null
     inst.state.dirty = false
+    tabsManager.saveSession()
     showToast(`已保存为 ${gsPath}`, 'success')
   } catch (e) {
     showToast(`保存失败: ${(e as Error).message}`, 'error')
@@ -162,8 +175,12 @@ onUnmounted(() => {
 
 function onTabAddFile(file: File) {
   if (!file.type.startsWith('image/')) return
-  const inst = createTab()
-  loadImageToInstance(inst, file)
+  if (showEmpty.value && activeInstance.value) {
+    loadImageToInstance(activeInstance.value, file)
+  } else {
+    const inst = createTab()
+    loadImageToInstance(inst, file)
+  }
 }
 
 function onTabLoadFile(file: File) {

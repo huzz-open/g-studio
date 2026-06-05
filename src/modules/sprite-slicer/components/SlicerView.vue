@@ -1,52 +1,45 @@
 <script setup lang="ts">
-import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from '../../../shared/i18n'
-import { useSlicerStore } from '../store'
-import { useWorkspace } from '../../../shared/workspace'
-import {
-  saveFileToWorkspace,
-  saveFileBatch,
-  readFileFromWorkspace,
-  readMetaFile,
-  isWorkspaceConnected,
-} from '../../resource-manager'
-import type { SaveFileOptions } from '../../resource-manager'
-import type { SlicerModuleData } from '../../resource-manager'
-import { downloadBlob } from '../../../shared/utils/download'
-import { notifyFileChanged } from '../../resource-manager'
-import { resolveDir, splitPath } from '../../../shared/workspace/fs'
-import type { FsErrorKind } from '../../../shared/workspace/fs'
+import { useSlicerTabs, type SlicerInstance } from '../store'
+import { splitPath, resolveDir, writeFile as fsWriteFile } from '../../../shared/workspace/fs'
 import { getWorkspaceHandle } from '../../../shared/workspace'
-import { readUidIndex } from '../../resource-manager'
-import { useSettings } from '../../../shared/settings'
-import type { OutputPayload } from './SlicerSidebar.vue'
-import { showToast, withProgress } from '../../../shared/components/toast'
-import { confirm } from '../../../shared/components/confirm'
-import { EditorShell, definePanelConfig, useRouteResource, useTabRouteSync } from '../../../shared/components/editor-shell'
+import { GsType } from '../../../shared/gs-format/types'
+import { createGsFile } from '../../../shared/gs-format/writer'
+import { showToast } from '../../../shared/components/toast'
+import { prompt } from '../../../shared/components/prompt'
+import { EditorShell, definePanelConfig, useTabRouteSync } from '../../../shared/components/editor-shell'
 import type { TabItem } from '../../../shared/components/editor-shell'
+import type { OutputPayload } from './SlicerSidebar.vue'
 import SlicerSidebar from './SlicerSidebar.vue'
 import SlicerPreview from './SlicerPreview.vue'
 import AnimationPreview from './AnimationPreview.vue'
-import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 
-const route = useRoute()
-const router = useRouter()
 const { t } = useI18n()
-const store = useSlicerStore()
-useTabRouteSync(store)
-const { isOpen: wsOpen } = useWorkspace()
-const { settings: appSettings } = useSettings()
+const tabsManager = useSlicerTabs()
+const { instances, activeTabId, activeInstance, createTab, switchTab, closeTab } = tabsManager
+useTabRouteSync({
+  ...tabsManager,
+  activeGsPath: computed(() => activeInstance.value?.state.gsPath ?? null),
+  async loadPendingTabs() {
+    for (const inst of instances.value) {
+      if (inst.state.gsPath && !inst.state.sourceImage) {
+        try { await inst.loadFromGsFile(inst.state.gsPath) } catch { /* workspace not ready */ }
+      }
+    }
+  },
+})
+
 const showAnimPreview = ref(false)
-const loadingResource = ref(false)
 const leftCollapsed = ref(false)
 
 function onKeyDown(e: KeyboardEvent) {
   const ctrl = e.ctrlKey || e.metaKey
-  if (!ctrl) return
-  if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); store.history.undo() }
-  else if (e.key === 'z' && e.shiftKey) { e.preventDefault(); store.history.redo() }
-  else if (e.key === 'y') { e.preventDefault(); store.history.redo() }
+  if (!ctrl || !activeInstance.value) return
+  if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); activeInstance.value.history.undo() }
+  else if (e.key === 'z' && e.shiftKey) { e.preventDefault(); activeInstance.value.history.redo() }
+  else if (e.key === 'y') { e.preventDefault(); activeInstance.value.history.redo() }
+  else if (e.key === 's') { e.preventDefault(); void handleSaveGs() }
 }
 onMounted(() => window.addEventListener('keydown', onKeyDown))
 onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
@@ -54,512 +47,137 @@ onUnmounted(() => window.removeEventListener('keydown', onKeyDown))
 const leftPanelConfig = definePanelConfig('slicer-sidebar-width', 300)
 
 const tabs = computed<TabItem[]>(() =>
-  store.tabs.value.map(tab => ({
-    id: tab.id,
-    label: tab.fileName || t('common.newTab'),
-    dirty: store.isTabModified(tab.id),
+  instances.value.map((inst: SlicerInstance) => ({
+    id: inst.id,
+    label: inst.state.gsPath
+      ? splitPath(inst.state.gsPath).fileName.replace('.gs', '')
+      : (inst.state.sourceFileName ? inst.state.sourceFileName.replace(/\.[^.]+$/, '') : t('common.newTab')),
+    dirty: inst.state.dirty,
   }))
 )
 
-const showEmpty = computed(() => !store.sourceImage.value && !loadingResource.value)
+const showEmpty = computed(() => !activeInstance.value?.state.sourceImage)
 
-function guessMime(fileName: string): string {
-  const ext = fileName.split('.').pop()?.toLowerCase()
-  switch (ext) {
-    case 'jpg': case 'jpeg': return 'image/jpeg'
-    case 'webp': return 'image/webp'
-    case 'gif': return 'image/gif'
-    default: return 'image/png'
-  }
-}
+async function handleSaveGs() {
+  const inst = activeInstance.value
+  if (!inst) return
 
-function showLoadError(error: FsErrorKind) {
-  switch (error) {
-    case 'not-found': showToast(t('slicer.load.notFound'), 'error'); break
-    case 'parse-error':
-    case 'invalid-schema': showToast(t('slicer.load.corrupt'), 'error'); break
-    case 'permission-denied': showToast(t('slicer.load.permDenied'), 'error'); break
-    default: showToast(t('slicer.load.unknownError'), 'error')
-  }
-}
-
-async function loadFromResource(_resourceId: string): Promise<void> {
-  loadingResource.value = true
-  try {
-    let filePath = route.query.path as string | undefined
-    const resourceUid = route.query.resource as string | undefined
-    if (!filePath || !isWorkspaceConnected()) {
-      showToast(t('slicer.save.needWorkspace'), 'error')
+  if (!inst.state.gsPath) {
+    if (!getWorkspaceHandle()) {
+      showToast(t('slicer.save.needWorkspace'), 'info')
       return
     }
-
-    if (resourceUid) {
-      const existingTab = store.tabs.value.find(tab => tab.resourceUid === resourceUid)
-      if (existingTab) {
-        if (store.isTabModified(existingTab.id)) {
-          const switchToExisting = await confirm({
-            title: t('slicer.load.alreadyOpenTitle'),
-            message: t('slicer.load.alreadyOpenMsg', { name: existingTab.fileName }),
-            confirmText: t('slicer.load.switchToExisting'),
-            cancelText: t('slicer.load.openOriginal'),
-          })
-          if (switchToExisting) {
-            store.switchTab(existingTab.id)
-            router.replace({ path: '/sprite-slicer' })
-            return
-          }
-          store.removeTab(existingTab.id)
-        } else {
-          store.switchTab(existingTab.id)
-          router.replace({ path: '/sprite-slicer' })
-          return
-        }
-      }
-    }
-
-    let result = await readFileFromWorkspace(filePath)
-
-    if (!result.ok && result.error === 'not-found' && resourceUid) {
-      const root = getWorkspaceHandle()
-      if (root) {
-        const uidIndex = await readUidIndex(root)
-        const altPath = uidIndex[resourceUid]
-        if (altPath && altPath !== filePath) {
-          filePath = altPath
-          result = await readFileFromWorkspace(filePath)
-        }
-      }
-    }
-
-    if (!result.ok) {
-      showLoadError(result.error)
-      return
-    }
-
-    const { data: fileData, meta } = result.data
-    const fileUid = meta?.uid ?? resourceUid
-    const { fileName: resourceFileName } = splitPath(filePath)
-    const mime = guessMime(resourceFileName)
-    const blob = new Blob([fileData as BlobPart], { type: mime })
-    const file = new File([blob], resourceFileName || 'spritesheet.png', { type: mime })
-
-    const slicerData = meta?.moduleData?.['sprite-slicer'] as SlicerModuleData | undefined
-    const isComposite = slicerData?.isComposite === true
-
-    if (isComposite && slicerData?.sprites && slicerData.sprites.length > 0) {
-      store.setPendingMetaRestore({ sprites: slicerData.sprites })
-    }
-
-    store.addTab(file, filePath, fileUid)
-
-    if (isComposite && slicerData?.sliceConfig) {
-      store.applySliceConfig(slicerData.sliceConfig)
-    }
-    router.replace({ path: '/sprite-slicer' })
-  } finally {
-    loadingResource.value = false
-  }
-}
-
-useRouteResource((id) => void loadFromResource(id))
-
-watch(wsOpen, async (connected) => {
-  if (!connected) return
-  const unsyncedTabs = store.tabs.value.filter(t => !t.workspacePath)
-  if (unsyncedTabs.length === 0) return
-  const ok = await confirm({
-    title: t('slicer.workspace.syncOffer', { count: unsyncedTabs.length }),
-    message: t('slicer.workspace.syncConfirmMsg', { count: unsyncedTabs.length }),
-    confirmText: t('slicer.workspace.syncAction'),
-  })
-  if (ok) void syncAllTabsToWorkspace()
-})
-
-async function syncAllTabsToWorkspace() {
-  let saved = 0
-  let skipped = 0
-  let failCount = 0
-  for (const tab of store.tabs.value) {
-    if (tab.workspacePath) continue
-    try {
-      const isActive = tab.id === store.activeTabId.value
-      const img = isActive
-        ? store.sourceImage.value
-        : store.getTabSnapshot(tab.id)?.sourceImage ?? null
-      if (!img) { skipped++; continue }
-      const cv = document.createElement('canvas')
-      cv.width = img.width; cv.height = img.height
-      cv.getContext('2d')!.drawImage(img, 0, 0)
-      const blob = await new Promise<Blob | null>(r => cv.toBlob(r, 'image/png'))
-      if (!blob) continue
-      const data = new Uint8Array(await blob.arrayBuffer())
-      const result = await saveFileToWorkspace({
-        fileName: tab.fileName,
-        data,
-        type: 'spritesheet',
-        dir: 'spritesheets',
-        openWith: 'sprite-slicer',
-        origin: { source: 'uploaded', method: 'sprite-slicer/upload', createdBy: 'g-studio', importedAt: Date.now() },
-        pipeline: [{ step: 'upload', at: Date.now(), detail: `synced from slicer: ${tab.fileName}` }],
-      })
-      tab.workspacePath = result.path
-      tab.resourceUid = result.uid
-      saved++
-    } catch (e) { console.error('[slicer] syncTab failed:', tab.fileName, e); failCount++ }
-  }
-  if (saved > 0) {
-    showToast(t('slicer.workspace.syncDone', { count: saved }), 'success')
-  }
-  if (skipped > 0) {
-    showToast(t('slicer.workspace.syncSkipped', { count: skipped }), 'info')
-  }
-  if (failCount > 0) {
-    showToast(`${failCount} 个文件同步失败`, 'error')
-  }
-}
-
-async function offerSaveToWorkspace(file: File) {
-  if (!isWorkspaceConnected()) return
-  if (wsOpen.value) {
-    void saveOriginalToWorkspace(file)
+    await handleSaveAsNewGs(inst)
     return
   }
-  const ok = await confirm({
-    title: t('slicer.upload.saveOffer'),
-    message: t('slicer.upload.saveConfirmMsg', { name: file.name }),
-    confirmText: t('slicer.upload.saveAction'),
-  })
-  if (ok) void saveOriginalToWorkspace(file)
+
+  try {
+    const result = await inst.saveToGsFile()
+    if (result.status === 'ok') {
+      tabsManager.saveSession()
+      showToast(t('toast.save.success'), 'success')
+    } else {
+      showToast('文件已被外部修改，请重新加载后再保存', 'error')
+    }
+  } catch {
+    showToast(t('toast.save.error'), 'error')
+  }
 }
 
-async function saveOriginalToWorkspace(file: File) {
+async function handleSaveAsNewGs(inst: SlicerInstance) {
+  const defaultName = inst.state.sourceFileName
+    ? inst.state.sourceFileName.replace(/\.[^.]+$/, '')
+    : 'sprites'
+  const name = await prompt({
+    title: '保存为 .gs 文件',
+    placeholder: defaultName,
+    defaultValue: defaultName,
+  })
+  if (!name) return
+
+  const img = inst.state.sourceImage
+  if (!img) {
+    showToast('没有关联的图片', 'error')
+    return
+  }
+
   try {
-    const data = new Uint8Array(await file.arrayBuffer())
-    const result = await saveFileToWorkspace({
-      fileName: file.name,
-      data,
-      type: 'spritesheet',
-      dir: 'spritesheets',
-      openWith: 'sprite-slicer',
-      origin: { source: 'uploaded', method: 'sprite-slicer/upload', createdBy: 'g-studio', importedAt: Date.now() },
-      pipeline: [{ step: 'upload', at: Date.now(), detail: `slicer upload: ${file.name}` }],
-    })
-    const tab = store.tabs.value.find(t => t.fileName === file.name && !t.workspacePath)
-    if (tab) {
-      tab.workspacePath = result.path
-      tab.resourceUid = result.uid
+    const dirHandle = await resolveDir('', true)
+    const textureName = inst.state.sourceFileName || `${name}.png`
+    const cv = document.createElement('canvas')
+    cv.width = img.width
+    cv.height = img.height
+    cv.getContext('2d')!.drawImage(img, 0, 0)
+    const blob = await new Promise<Blob | null>(r => cv.toBlob(r, 'image/png'))
+    const buffer = new Uint8Array(await blob!.arrayBuffer())
+    await fsWriteFile(dirHandle, textureName, buffer)
+
+    const gsPath = `${name}.gs`
+    const data = {
+      texture: `./${textureName}`,
+      size: [inst.state.imgSize.w, inst.state.imgSize.h] as [number, number],
+      isComposite: false,
+      sliceConfig: inst.getSliceConfig(),
+      sprites: inst.getSpriteSnapshot(),
     }
-    showToast(t('toast.save.success'), 'success')
+
+    await createGsFile({ path: gsPath, type: GsType.Sprite, data })
+    inst.state.gsPath = gsPath
+    inst.state.gsLastKnownVersion = 1
+    inst.state.gsTexturePath = `./${textureName}`
+    inst.state.dirty = false
+    tabsManager.saveSession()
+    showToast(`已保存为 ${gsPath}`, 'success')
   } catch {
     showToast(t('toast.save.error'), 'error')
   }
 }
 
 function onFile(file: File) {
-  const activeTab = store.tabs.value.find(t => t.id === store.activeTabId.value)
-  if (activeTab && !store.sourceImage.value) {
-    activeTab.fileName = file.name
-    store.loadFile(file)
-  } else {
-    store.addTab(file)
-  }
-  offerSaveToWorkspace(file)
+  if (!activeInstance.value) return
+  activeInstance.value.loadFile(file)
 }
 
 function onTabAddFile(file: File) {
-  store.addTab(file)
-  offerSaveToWorkspace(file)
+  if (showEmpty.value && activeInstance.value) {
+    activeInstance.value.loadFile(file)
+  } else {
+    const inst = createTab()
+    inst.loadFile(file)
+  }
 }
 
 function onTabLoadFile(file: File) {
-  const activeTab = store.tabs.value.find(t => t.id === store.activeTabId.value)
-  if (activeTab) activeTab.fileName = file.name
-  store.loadFile(file)
+  if (!activeInstance.value) return
+  activeInstance.value.loadFile(file)
 }
 
 function onTabSwitch(id: string) {
-  store.switchTab(id)
+  switchTab(id)
 }
 
 function onTabClose(id: string) {
-  store.removeTab(id)
+  closeTab(id)
 }
 
-function getPrefix(): string {
-  return store.namePrefix.value || 'sprites'
+function onSaveOutput(_payload: OutputPayload) {
+  showToast('导出功能重构中', 'info')
 }
 
-function generateMetaJson(): Blob {
-  const sprites = store.selectedSprites.value
-  const mode = store.arrangeMode.value
-  const prefix = getPrefix()
-
-  const base: Record<string, any> = {
-    image: `${prefix}.png`,
-    size: { w: store.imgSize.value.w, h: store.imgSize.value.h },
-  }
-
-  if (mode === 'standardize') {
-    const opts = store.stdOptions.value
-    const tw = opts.targetWidth
-    const th = opts.targetHeight
-    base.layout = 'grid'
-    base.cols = opts.cols
-    base.rows = opts.rows
-    base.cellWidth = tw
-    base.cellHeight = th
-    base.sprites = sprites.map(s => {
-      const origW = s._origRect ? s._origRect.w : s.rect.w
-      const origH = s._origRect ? s._origRect.h : s.rect.h
-      return {
-        name: s.name,
-        x: Math.round((tw - origW) / 2),
-        y: Math.round((th - origH) / 2),
-        w: origW,
-        h: origH,
-      }
-    })
-  } else {
-    base.layout = mode === 'bin-pack' ? 'packed' : 'none'
-    base.sprites = sprites.map(s => ({
-      name: s.name,
-      x: s.rect.x,
-      y: s.rect.y,
-      w: s.rect.w,
-      h: s.rect.h,
-    }))
-  }
-
-  return new Blob([JSON.stringify(base, null, 2)], { type: 'application/json' })
-}
-
-async function exportLocal(payload: OutputPayload) {
-  store.saving.value = true
-  try {
-    const prefix = getPrefix()
-    const files: { name: string; blob: Blob }[] = []
-
-    if (payload.composite) {
-      const url = store.cleanImageUrl.value
-      if (url) {
-        const resp = await fetch(url)
-        files.push({ name: `${prefix}.png`, blob: await resp.blob() })
-      }
-    }
-
-    if (payload.sprites) {
-      for (const sprite of store.selectedSprites.value) {
-        const resp = await fetch(sprite.dataUrl)
-        files.push({ name: `sprites/${sprite.name}.png`, blob: await resp.blob() })
-      }
-    }
-
-    if (payload.meta) {
-      files.push({ name: `${prefix}-meta.json`, blob: generateMetaJson() })
-    }
-
-    if (files.length === 0) return
-
-    if (files.length === 1) {
-      downloadBlob(files[0].blob, files[0].name)
-    } else {
-      const JSZip = (await import('jszip')).default
-      const zip = new JSZip()
-      for (const f of files) zip.file(f.name, f.blob)
-      const zipBlob = await zip.generateAsync({ type: 'blob' })
-      downloadBlob(zipBlob, `${prefix}.zip`)
-    }
-  } catch (e) {
-    showToast(t('toast.save.error'), 'error')
-  } finally {
-    store.saving.value = false
-  }
-}
-
-async function saveToWorkspace(payload: OutputPayload) {
-  if (!isWorkspaceConnected()) return
-  store.saving.value = true
-  try {
-    await withProgress(
-      t('slicer.save.saving'),
-      t('toast.save.success'),
-      t('toast.save.error'),
-      async () => {
-        const tab = store.tabs.value.find(t => t.id === store.activeTabId.value)
-        if (!tab) throw new Error('[slicer] save handler: no active tab')
-        const baseName = tab.fileName.replace(/\.[^.]+$/, '')
-        const dir = payload.dir
-        const now = Date.now()
-
-        let sourceUid: string | undefined
-        if (tab?.workspacePath) {
-          const { dir: sourceDirPath, fileName: sourceFileName } = splitPath(tab.workspacePath)
-          try {
-            const sourceDir = sourceDirPath ? await resolveDir(sourceDirPath) : getWorkspaceHandle()!
-            const sourceMeta = await readMetaFile(sourceDir, sourceFileName)
-            if (sourceMeta) sourceUid = sourceMeta.uid
-          } catch { /* source may not exist */ }
-        }
-
-        const derivedRelations = sourceUid
-          ? [{ rel: 'derived-from' as const, uid: sourceUid }]
-          : []
-        const originBase = {
-          source: 'derived' as const,
-          createdBy: 'g-studio' as const,
-          importedAt: now,
-          sourceFiles: sourceUid ? [sourceUid] : undefined,
-        }
-
-        const batchFiles: SaveFileOptions[] = []
-
-        if (payload.composite) {
-          const cleanUrl = store.cleanImageUrl.value
-          let pngBlob: Blob | null = null
-          if (cleanUrl) {
-            const resp = await fetch(cleanUrl)
-            pngBlob = await resp.blob()
-          }
-          if (pngBlob) {
-            const data = new Uint8Array(await pngBlob.arrayBuffer())
-            const slicerModuleData: SlicerModuleData = {
-              sliceConfig: store.getSliceConfig(),
-              sprites: store.getSpriteSnapshot(),
-              isComposite: true,
-            }
-            let compositeName = `${baseName}.png`
-            if (tab?.workspacePath) {
-              const { dir: srcDirPath, fileName: srcFileName } = splitPath(tab.workspacePath)
-              if (srcFileName === compositeName && srcDirPath === dir) {
-                compositeName = `${baseName}-sheet.png`
-              }
-            }
-            batchFiles.push({
-              fileName: compositeName,
-              data,
-              type: 'spritesheet',
-              dir,
-              tags: payload.tags,
-              openWith: 'sprite-slicer',
-              moduleData: { 'sprite-slicer': slicerModuleData },
-              origin: { ...originBase, method: `sprite-slicer/${store.arrangeMode.value}` },
-              pipeline: [{ step: 'save', at: now, detail: 'saved from slicer' }],
-              relations: derivedRelations,
-              sourceUid,
-            })
-          }
-        }
-
-        if (payload.sprites) {
-          for (const sprite of store.selectedSprites.value) {
-            const resp = await fetch(sprite.dataUrl)
-            const blob = await resp.blob()
-            const data = new Uint8Array(await blob.arrayBuffer())
-            batchFiles.push({
-              fileName: `${sprite.name}.png`,
-              data,
-              type: 'generic',
-              dir,
-              tags: payload.tags,
-              origin: { ...originBase, method: 'sprite-slicer/slice' },
-              pipeline: [{ step: 'slice', at: now, detail: 'sliced from spritesheet' }],
-              relations: derivedRelations,
-              sourceUid,
-            })
-          }
-        }
-
-        if (payload.meta) {
-          const metaBlob = generateMetaJson()
-          const metaData = new Uint8Array(await metaBlob.arrayBuffer())
-          batchFiles.push({
-            fileName: `${baseName}-meta.json`,
-            data: metaData,
-            type: 'generic',
-            dir,
-            tags: payload.tags,
-            origin: { ...originBase, method: 'sprite-slicer/meta-export' },
-            pipeline: [{ step: 'meta-export', at: now, detail: 'sprite metadata json' }],
-            relations: derivedRelations,
-            sourceUid,
-          })
-        }
-
-        if (batchFiles.length > 0) {
-          const sliceConfig = store.getSliceConfig()
-          await saveFileBatch({
-            files: batchFiles,
-            sourceMetaUpdate: (meta) => {
-              meta.moduleData = meta.moduleData ?? {}
-              meta.moduleData['sprite-slicer'] = { sliceConfig }
-            },
-          })
-        }
-
-        appSettings.spriteSlicer.lastSaveDir = dir
-        appSettings.spriteSlicer.lastTags = [...payload.tags]
-
-        notifyFileChanged()
-      },
-    )
-  } finally {
-    store.saving.value = false
-  }
-}
-
-watch(() => store.bgRemoverId.value, () => {
-  if (store.isRestoring()) return
-  store.processBackground()
-})
-watch(() => store.bgColor.value, () => {
-  if (store.isRestoring()) return
-  store.processBackground()
-}, { deep: true })
-
-let bgDebounce = 0
-watch([() => store.bgTolerance.value, () => store.bgSpillStrength.value], () => {
-  if (store.isRestoring()) return
-  clearTimeout(bgDebounce)
-  bgDebounce = window.setTimeout(() => store.processBackground(), 50)
-})
-
-watch([() => store.mergeGap.value, () => store.minArea.value], () => {
-  if (store.isRestoring()) return
-  if (store.detectionMode.value === 'auto') store.runDetection()
-})
-
-watch([() => store.cols.value, () => store.rows.value, () => store.gapH.value, () => store.gapV.value, () => store.marginH.value, () => store.marginV.value], () => {
-  if (store.isRestoring()) return
-  if (store.detectionMode.value === 'grid') store.runDetection()
-})
-
-watch(() => store.arrangeMode.value, () => {
-  if (store.isRestoring()) return
-  store.applyArrange()
-})
-
-watch(() => store.namePrefix.value, () => {
-  if (store.isRestoring()) return
-  const prefix = store.namePrefix.value || 'sprite'
-  store.sprites.value.forEach((s, i) => {
-    s.name = `${prefix}-${String(i + 1).padStart(2, '0')}`
-  })
-})
 </script>
 
 <template>
   <EditorShell
     :tabs="tabs"
-    :active-tab-id="store.activeTabId.value"
+    :active-tab-id="activeTabId"
     tab-accept="image/png,image/jpeg,image/webp"
     :left-panel="leftPanelConfig"
     :left-collapsed="leftCollapsed"
     :show-empty="showEmpty"
-    :loading="loadingResource"
     :viewport="{ accept: 'image/png,image/jpeg,image/webp' }"
     @tab-switch="onTabSwitch"
     @tab-close="onTabClose"
-    @tab-add-empty="store.addEmptyTab()"
+    @tab-add-empty="createTab()"
     @tab-add-file="onTabAddFile"
     @tab-load-file="onTabLoadFile"
     @update:left-collapsed="leftCollapsed = $event"
@@ -567,52 +185,25 @@ watch(() => store.namePrefix.value, () => {
     <!-- Left sidebar -->
     <template #left>
       <SlicerSidebar
-        :store="store"
-        :has-image="!!store.sourceImage.value"
+        v-if="activeInstance"
+        :store="activeInstance"
+        :has-image="!!activeInstance.state.sourceImage"
         @file="onFile"
         @show-anim="showAnimPreview = true"
-        @export-local="exportLocal"
-        @save-workspace="saveToWorkspace"
+        @export-local="onSaveOutput"
+        @save-workspace="onSaveOutput"
       />
     </template>
 
     <!-- Viewport -->
     <template #viewport>
-      <template v-if="loadingResource">
-        <div class="resource-loading">
-          <SvgIcon name="loop" :size="24" />
-          <span>{{ t('slicer.upload.processing') }}</span>
-        </div>
-      </template>
-      <template v-else-if="store.sourceImage.value">
-        <SlicerPreview :store="store" />
-      </template>
+      <SlicerPreview v-if="activeInstance?.state.sourceImage" :store="activeInstance" />
     </template>
   </EditorShell>
 
   <AnimationPreview
-    v-if="showAnimPreview"
-    :frames="store.selectedSprites.value"
+    v-if="showAnimPreview && activeInstance"
+    :frames="activeInstance.selectedSprites.value"
     @close="showAnimPreview = false"
   />
 </template>
-
-<style scoped>
-.resource-loading {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  color: #888;
-  font-size: 14px;
-}
-.resource-loading svg {
-  animation: spin 1s linear infinite;
-}
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-</style>

@@ -11,17 +11,16 @@ Vue 3 + TypeScript + Vite，所有源码在 `src/` 下，模块化组织于 `src
 
 ## 存储架构
 
-- **两层**：IndexedDB (L1 cache) + File System Access API (L2 disk)
+- File System Access API 直接读写用户工作区
 - 工作区本地目录是 **source of truth**，用户可自由组织目录结构
-- IDB 只做缓存加速，任何时候可以从磁盘重建
+- `.gs` 文件（JSON）是所有模块数据的唯一存储格式
+- 图片等二进制资源由 `.gs` 文件通过相对路径引用
 
-## 文件 UID
+## .gs 文件
 
-格式：`gs://<timestamp-base36>-<random-6chars>`，示例：`gs://m1abc12-x7y8z9`
-
-- 首次创建 `.meta` 时生成，之后 **永不修改**
-- 文件重命名、移动、内容修改都不影响 uid
-- 引用其他资源时优先用 uid，`path` 仅作人类可读 fallback
+- 格式版本 `gs: 1`，类型字段 `type` 标识所属模块
+- 每次保存递增 `version`，用于冲突检测
+- 模块通过 `module-registry` 注册 handler，资源管理器据此路由打开
 
 ## 国际化
 

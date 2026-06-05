@@ -1,4 +1,4 @@
-import { ref, computed, nextTick, type Ref } from 'vue'
+import { reactive, computed, watch, effectScope, type EffectScope } from 'vue'
 import type { DetectedSprite } from './interfaces/sprite-detector'
 import type { BgRemovalOptions } from './interfaces/background-remover'
 import type { StandardizeOptions } from './interfaces/slice-mode'
@@ -13,7 +13,12 @@ import { imageDataToDataUrl, createOffscreenCanvas } from './core/utils/canvas-u
 import { useSettings } from '../../shared/settings'
 import { createHistoryStack } from '../../shared/history'
 import type { Rect } from '../../shared/types'
-import type { SlicerSliceConfig, SlicerSpriteEntry } from '../resource-manager'
+import { createInstanceRegistry } from '../../shared/components/editor-shell/createInstanceRegistry'
+import { useEditorTabs, type UseEditorTabsReturn } from '../../shared/components/editor-shell'
+import { GsType, type SpriteData, type SliceConfig, type SpriteEntry } from '../../shared/gs-format/types'
+import { readSpriteGsFile } from '../../shared/gs-format/reader'
+import { writeGsFile, type WriteGsResult } from '../../shared/gs-format/writer'
+import { resolveDir, splitPath } from '../../shared/workspace/fs'
 
 function sortByReadingOrder(arr: DetectedSprite[], threshold = 20) {
   arr.sort((a, b) => {
@@ -35,22 +40,20 @@ const bgRemovers = [new AutoRemover(), new NullRemover()]
 const ccaDetector = new CcaDetector()
 const gridDetector = new GridDetector()
 
-export interface SlicerTabInfo {
-  id: string
-  fileName: string
-  workspacePath?: string
-  resourceUid?: string
-}
-
-interface TabSnapshot {
+export interface SlicerState {
+  gsPath: string | null
+  gsLastKnownVersion: number
+  gsTexturePath: string
+  dirty: boolean
+  loaded: boolean
+  bgRemoverId: string
+  bgColor: [number, number, number]
+  bgTolerance: number
+  bgSpillStrength: number
   sourceImage: HTMLImageElement | null
+  sourceFileName: string
   imgSize: { w: number; h: number }
   loading: boolean
-  sprites: DetectedSprite[]
-  selected: Set<number>
-  namePrefix: string
-  cleanImageData: ImageData | null
-  cleanImageUrl: string | null
   detectionMode: 'auto' | 'grid'
   mergeGap: number
   minArea: number
@@ -60,60 +63,49 @@ interface TabSnapshot {
   gapV: number
   marginH: number
   marginV: number
+  sprites: DetectedSprite[]
+  selected: Set<number>
+  namePrefix: string
+  cleanImageUrl: string | null
   arrangeMode: 'none' | 'standardize' | 'bin-pack'
-  bgRemoverId: string
-  bgColor: [number, number, number]
-  bgTolerance: number
-  bgSpillStrength: number
-  origCleanImageUrl: string | null
-  origImgSize: { w: number; h: number } | null
 }
 
-let tabIdCounter = 0
+function createSlicerInstance(id: string) {
+  const { settings } = useSettings()
+  const d = settings.spriteSlicer.defaults
 
-type SlicerStore = ReturnType<typeof createSlicerStore>
-let _singleton: SlicerStore | null = null
+  const state = reactive<SlicerState>({
+    gsPath: null,
+    gsLastKnownVersion: 0,
+    gsTexturePath: '',
+    dirty: false,
+    loaded: false,
+    bgRemoverId: d.bgRemoval === 'none' ? 'none' : 'auto',
+    bgColor: [255, 0, 255],
+    bgTolerance: 50,
+    bgSpillStrength: 70,
+    sourceImage: null,
+    sourceFileName: '',
+    imgSize: { w: 0, h: 0 },
+    loading: false,
+    detectionMode: d.detectionMode as 'auto' | 'grid',
+    mergeGap: d.mergeGap,
+    minArea: d.minArea,
+    cols: 6,
+    rows: 6,
+    gapH: 0,
+    gapV: 0,
+    marginH: 0,
+    marginV: 0,
+    sprites: [],
+    selected: new Set(),
+    namePrefix: d.namePrefix,
+    cleanImageUrl: null,
+    arrangeMode: d.arrangeMode as 'none' | 'standardize' | 'bin-pack',
+  })
 
-export function useSlicerStore(): SlicerStore {
-  if (!_singleton) _singleton = createSlicerStore()
-  return _singleton
-}
-
-const SLICER_SESSION_KEY = 'gs-tabs:sprite-slicer'
-
-function createSlicerStore() {
-  const tabs = ref<SlicerTabInfo[]>([])
-  const activeTabId = ref<string | null>(null)
-  const tabSnapshots = new Map<string, TabSnapshot>()
-  let _restoring = false
-  const restoring = ref(false)
-
-  const saving = ref(false)
-  const bgRemoverId = ref<string>('auto')
-  const bgColor: Ref<[number, number, number]> = ref([255, 0, 255])
-  const bgTolerance = ref(50)
-  const bgSpillStrength = ref(70)
-
-  const sourceImage = ref<HTMLImageElement | null>(null)
-  const imgSize = ref({ w: 0, h: 0 })
-  const loading = ref(false)
-  const detectionMode = ref<'auto' | 'grid'>('auto')
-  const mergeGap = ref(3)
-  const minArea = ref(50)
-  const cols = ref(6)
-  const rows = ref(6)
-  const gapH = ref(0)
-  const gapV = ref(0)
-  const marginH = ref(0)
-  const marginV = ref(0)
-  const sprites = ref<DetectedSprite[]>([])
-  const selected = ref<Set<number>>(new Set())
-  const namePrefix = ref('sprite')
   let cleanImageData: ImageData | null = null
-  const cleanImageUrl = ref<string | null>(null)
-  const arrangeMode = ref<'none' | 'standardize' | 'bin-pack'>('none')
 
-  // --- Pixel cache: stores imageData+dataUrl by sprite id, survives undo/redo ---
   const _pixelCache = new Map<number, { imageData: ImageData; dataUrl: string }>()
 
   function cacheSprite(sprite: DetectedSprite) {
@@ -121,10 +113,9 @@ function createSlicerStore() {
   }
 
   function cacheAllSprites() {
-    for (const s of sprites.value) cacheSprite(s)
+    for (const s of state.sprites) cacheSprite(s)
   }
 
-  // --- History (undo/redo for structural sprite operations) ---
   interface SpriteSnapshotEntry {
     id: number
     rect: Rect
@@ -141,7 +132,7 @@ function createSlicerStore() {
   const history = createHistoryStack<SlicerHistorySnapshot>({
     capture() {
       return {
-        sprites: sprites.value.map(s => ({
+        sprites: state.sprites.map(s => ({
           id: s.id,
           rect: { ...s.rect },
           name: s.name,
@@ -149,11 +140,11 @@ function createSlicerStore() {
           mergedFromRects: s.mergedFromRects ? s.mergedFromRects.map(r => ({ ...r })) : undefined,
           splitFrom: s.splitFrom,
         })),
-        selected: [...selected.value],
+        selected: [...state.selected],
       }
     },
     restore(snap) {
-      sprites.value = snap.sprites.map(entry => {
+      state.sprites = snap.sprites.map(entry => {
         const cached = _pixelCache.get(entry.id)!
         return {
           id: entry.id,
@@ -166,27 +157,27 @@ function createSlicerStore() {
           splitFrom: entry.splitFrom,
         }
       })
-      selected.value = new Set(snap.selected)
-      if (arrangeMode.value !== 'none') applyArrange()
+      state.selected = new Set(snap.selected)
+      if (state.arrangeMode !== 'none') applyArrange()
     },
   })
 
   const currentBgRemover = computed(() =>
-    bgRemovers.find(r => r.id === bgRemoverId.value)!,
+    bgRemovers.find(r => r.id === state.bgRemoverId)!,
   )
 
   const selectedSprites = computed(() =>
-    sprites.value.filter(s => selected.value.has(s.id)),
+    state.sprites.filter(s => state.selected.has(s.id)),
   )
 
   const bgOptions = computed<BgRemovalOptions>(() => ({
-    bgColor: bgColor.value,
-    tolerance: bgTolerance.value,
-    spillStrength: bgSpillStrength.value,
+    bgColor: state.bgColor,
+    tolerance: state.bgTolerance,
+    spillStrength: state.bgSpillStrength,
   }))
 
   const stdOptions = computed<StandardizeOptions>(() => {
-    const all = sprites.value
+    const all = state.sprites
     let maxW = 0, maxH = 0
     for (const s of all) {
       const w = s._origRect ? s._origRect.w : s.rect.w
@@ -197,7 +188,7 @@ function createSlicerStore() {
     const count = all.length || 1
     const autoCols = Math.ceil(Math.sqrt(count))
     return {
-      enabled: arrangeMode.value === 'standardize',
+      enabled: state.arrangeMode === 'standardize',
       targetWidth: maxW || 32,
       targetHeight: maxH || 32,
       cols: autoCols,
@@ -205,18 +196,21 @@ function createSlicerStore() {
     }
   })
 
+  const hasSource = computed(() => state.sourceImage !== null)
+
   let _origCleanImageUrl: string | null = null
   let _origImgSize: { w: number; h: number } | null = null
 
-  let _pendingMetaRestore: { sprites: SlicerSpriteEntry[] } | null = null
+  let _pendingRestore: SpriteEntry[] | null = null
+  let _loadingFromGs = false
 
-  function setPendingMetaRestore(data: { sprites: SlicerSpriteEntry[] } | null) {
-    _pendingMetaRestore = data
+  function setPendingRestore(sprites: SpriteEntry[] | null) {
+    _pendingRestore = sprites
   }
 
   function restoreArrange() {
     let changed = false
-    for (const sprite of sprites.value) {
+    for (const sprite of state.sprites) {
       if (sprite._origDataUrl) {
         sprite.dataUrl = sprite._origDataUrl
         sprite.rect = sprite._origRect!
@@ -226,38 +220,38 @@ function createSlicerStore() {
       }
     }
     if (_origCleanImageUrl) {
-      cleanImageUrl.value = _origCleanImageUrl
-      imgSize.value = _origImgSize!
+      state.cleanImageUrl = _origCleanImageUrl
+      state.imgSize = _origImgSize!
       _origCleanImageUrl = null
       _origImgSize = null
     }
-    if (changed) sprites.value = [...sprites.value]
+    if (changed) state.sprites = [...state.sprites]
   }
 
   function backupSprites() {
-    for (const sprite of sprites.value) {
+    for (const sprite of state.sprites) {
       if (!sprite._origRect) {
         sprite._origRect = { ...sprite.rect }
         sprite._origDataUrl = sprite.dataUrl
       }
     }
     if (!_origCleanImageUrl) {
-      _origCleanImageUrl = cleanImageUrl.value
-      _origImgSize = { ...imgSize.value }
+      _origCleanImageUrl = state.cleanImageUrl
+      _origImgSize = { ...state.imgSize }
     }
   }
 
   function commitSheet(sheetCtx: CanvasRenderingContext2D, w: number, h: number) {
-    cleanImageUrl.value = sheetCtx.canvas.toDataURL('image/png')
-    imgSize.value = { w, h }
-    sprites.value = [...sprites.value]
+    state.cleanImageUrl = sheetCtx.canvas.toDataURL('image/png')
+    state.imgSize = { w, h }
+    state.sprites = [...state.sprites]
   }
 
   function applyArrange() {
     restoreArrange()
 
-    const mode = arrangeMode.value
-    if (mode === 'none' || sprites.value.length === 0) return
+    const mode = state.arrangeMode
+    if (mode === 'none' || state.sprites.length === 0) return
 
     backupSprites()
 
@@ -267,13 +261,13 @@ function createSlicerStore() {
       const th = opts.targetHeight
       const numCols = opts.cols
       const totalW = numCols * tw
-      const totalH = Math.ceil(sprites.value.length / numCols) * th
+      const totalH = Math.ceil(state.sprites.length / numCols) * th
 
       const { ctx: sheetCtx, canvas: _sheetCv } = createOffscreenCanvas(totalW, totalH)
       const { ctx: cellCtx, canvas: cellCv } = createOffscreenCanvas(tw, th)
 
-      for (let i = 0; i < sprites.value.length; i++) {
-        const sprite = sprites.value[i]
+      for (let i = 0; i < state.sprites.length; i++) {
+        const sprite = state.sprites[i]
         const origW = sprite._origRect!.w
         const origH = sprite._origRect!.h
         const col = i % numCols
@@ -292,215 +286,33 @@ function createSlicerStore() {
 
       commitSheet(sheetCtx, totalW, totalH)
     } else if (mode === 'bin-pack') {
-      const rects = sprites.value.map(s => s.rect)
+      const rects = state.sprites.map(s => s.rect)
       const { arranged, canvasW, canvasH } = autoArrangeRects(rects, 1)
 
       const { ctx: sheetCtx } = createOffscreenCanvas(canvasW, canvasH)
 
-      for (let i = 0; i < sprites.value.length; i++) {
-        const sprite = sprites.value[i]
+      for (let i = 0; i < state.sprites.length; i++) {
+        const sprite = state.sprites[i]
         sprite.rect = arranged[i]
         sheetCtx.putImageData(sprite.imageData, arranged[i].x, arranged[i].y)
       }
 
       commitSheet(sheetCtx, canvasW, canvasH)
     }
-  }
 
-  const hasActiveTab = computed(() => activeTabId.value !== null)
-
-  function snapshotActive(): TabSnapshot | null {
-    if (!activeTabId.value) return null
-    return {
-      sourceImage: sourceImage.value,
-      imgSize: { ...imgSize.value },
-      loading: loading.value,
-      sprites: sprites.value,
-      selected: selected.value,
-      namePrefix: namePrefix.value,
-      cleanImageData,
-      cleanImageUrl: cleanImageUrl.value,
-      detectionMode: detectionMode.value,
-      mergeGap: mergeGap.value,
-      minArea: minArea.value,
-      cols: cols.value,
-      rows: rows.value,
-      gapH: gapH.value,
-      gapV: gapV.value,
-      marginH: marginH.value,
-      marginV: marginV.value,
-      arrangeMode: arrangeMode.value,
-      bgRemoverId: bgRemoverId.value,
-      bgColor: [...bgColor.value] as [number, number, number],
-      bgTolerance: bgTolerance.value,
-      bgSpillStrength: bgSpillStrength.value,
-      origCleanImageUrl: _origCleanImageUrl,
-      origImgSize: _origImgSize ? { ..._origImgSize } : null,
-    }
-  }
-
-  function restoreSnapshot(snap: TabSnapshot) {
-    sourceImage.value = snap.sourceImage
-    imgSize.value = snap.imgSize
-    loading.value = snap.loading
-    sprites.value = snap.sprites
-    selected.value = snap.selected
-    namePrefix.value = snap.namePrefix
-    cleanImageData = snap.cleanImageData
-    cleanImageUrl.value = snap.cleanImageUrl
-    detectionMode.value = snap.detectionMode
-    mergeGap.value = snap.mergeGap
-    minArea.value = snap.minArea
-    cols.value = snap.cols
-    rows.value = snap.rows
-    gapH.value = snap.gapH
-    gapV.value = snap.gapV
-    marginH.value = snap.marginH
-    marginV.value = snap.marginV
-    arrangeMode.value = snap.arrangeMode
-    bgRemoverId.value = snap.bgRemoverId
-    bgColor.value = snap.bgColor
-    bgTolerance.value = snap.bgTolerance
-    bgSpillStrength.value = snap.bgSpillStrength
-    _origCleanImageUrl = snap.origCleanImageUrl
-    _origImgSize = snap.origImgSize
-  }
-
-  function resetWorkingState() {
-    const { settings } = useSettings()
-    const d = settings.spriteSlicer.defaults
-    sourceImage.value = null
-    imgSize.value = { w: 0, h: 0 }
-    loading.value = false
-    sprites.value = []
-    selected.value = new Set()
-    namePrefix.value = d.namePrefix
-    cleanImageData = null
-    cleanImageUrl.value = null
-    detectionMode.value = d.detectionMode
-    mergeGap.value = d.mergeGap
-    minArea.value = d.minArea
-    bgRemoverId.value = d.bgRemoval === 'none' ? 'none' : 'auto'
-    cols.value = 6
-    rows.value = 6
-    gapH.value = 0
-    gapV.value = 0
-    marginH.value = 0
-    marginV.value = 0
-    arrangeMode.value = d.arrangeMode
-    _origCleanImageUrl = null
-    _origImgSize = null
-    _pixelCache.clear()
-    history.clear()
-  }
-
-  function addEmptyTab(): string {
-    const id = `tab-${++tabIdCounter}`
-    const info: SlicerTabInfo = { id, fileName: '' }
-
-    if (activeTabId.value) {
-      const snap = snapshotActive()
-      if (snap) tabSnapshots.set(activeTabId.value, snap)
-    }
-
-    _restoring = true
-    resetWorkingState()
-    tabs.value = [...tabs.value, info]
-    activeTabId.value = id
-    nextTick(() => { _restoring = false })
-    saveSession()
-
-    return id
-  }
-
-  function addTab(file: File, workspacePath?: string, resourceUid?: string): string {
-    const id = `tab-${++tabIdCounter}`
-    const info: SlicerTabInfo = { id, fileName: file.name, workspacePath, resourceUid }
-
-    if (activeTabId.value) {
-      const snap = snapshotActive()
-      if (snap) tabSnapshots.set(activeTabId.value, snap)
-    }
-
-    _restoring = true
-    resetWorkingState()
-    tabs.value = [...tabs.value, info]
-    activeTabId.value = id
-    nextTick(() => { _restoring = false })
-
-    loadFile(file)
-    saveSession()
-    return id
-  }
-
-  function removeTab(id: string) {
-    const idx = tabs.value.findIndex(t => t.id === id)
-    if (idx === -1) return
-
-    const wasActive = activeTabId.value === id
-    tabs.value = tabs.value.filter(t => t.id !== id)
-
-    if (wasActive) {
-      if (tabs.value.length > 0) {
-        const newIdx = Math.min(idx, tabs.value.length - 1)
-        const newId = tabs.value[newIdx].id
-        _restoring = true
-        activeTabId.value = newId
-        const snap = tabSnapshots.get(newId)
-        if (snap) {
-          restoreSnapshot(snap)
-          tabSnapshots.delete(newId)
-        } else {
-          resetWorkingState()
-        }
-        nextTick(() => { _restoring = false })
-      } else {
-        activeTabId.value = null
-        resetWorkingState()
-      }
-    } else {
-      tabSnapshots.delete(id)
-    }
-    saveSession()
-  }
-
-  function switchTab(id: string) {
-    if (id === activeTabId.value) return
-    if (!tabs.value.find(t => t.id === id)) return
-
-    if (activeTabId.value) {
-      const snap = snapshotActive()
-      if (snap) tabSnapshots.set(activeTabId.value, snap)
-    }
-
-    _restoring = true
-    activeTabId.value = id
-    const snap = tabSnapshots.get(id)
-    if (snap) {
-      restoreSnapshot(snap)
-      tabSnapshots.delete(id)
-    } else {
-      resetWorkingState()
-    }
-
-    nextTick(() => { _restoring = false })
-    saveSession()
-  }
-
-  function isRestoring(): boolean {
-    return _restoring
+    state.dirty = true
   }
 
   async function processBackground() {
-    const img = sourceImage.value
+    const img = state.sourceImage
     if (!img) return
 
     const { canvas: cv, ctx } = createOffscreenCanvas(img.width, img.height)
     ctx.drawImage(img, 0, 0)
     const imgData = ctx.getImageData(0, 0, img.width, img.height)
 
-    const pending = _pendingMetaRestore
-    _pendingMetaRestore = null
+    const pending = _pendingRestore
+    _pendingRestore = null
 
     if (!pending) {
       const remover = currentBgRemover.value
@@ -509,28 +321,30 @@ function createSlicerStore() {
     }
 
     cleanImageData = imgData
-    cleanImageUrl.value = cv.toDataURL('image/png')
+    state.cleanImageUrl = cv.toDataURL('image/png')
 
     if (pending) {
-      const all: DetectedSprite[] = pending.sprites.map((s, i) => {
-        const rw = Math.min(s.rect.w, imgData.width - s.rect.x)
-        const rh = Math.min(s.rect.h, imgData.height - s.rect.y)
-        const cellData = ctx.getImageData(s.rect.x, s.rect.y, rw, rh)
+      const all: DetectedSprite[] = pending.map((s, i) => {
+        const [x, y, w, h] = s.rect
+        const rw = Math.min(w, imgData.width - x)
+        const rh = Math.min(h, imgData.height - y)
+        const cellData = ctx.getImageData(x, y, rw, rh)
         const sprite: DetectedSprite = {
           id: i + 1,
-          rect: { ...s.rect },
+          rect: { x, y, w, h },
           imageData: cellData,
           dataUrl: imageDataToDataUrl(cellData, rw, rh),
           name: s.name,
         }
         if (s.originalRect) {
-          sprite._origRect = { ...s.originalRect }
+          const [ox, oy, ow, oh] = s.originalRect
+          sprite._origRect = { x: ox, y: oy, w: ow, h: oh }
           sprite._origDataUrl = sprite.dataUrl
         }
         return sprite
       })
-      sprites.value = all
-      selected.value = new Set(all.map(s => s.id))
+      state.sprites = all
+      state.selected = new Set(all.map(s => s.id))
       cacheAllSprites()
       history.clear()
     } else {
@@ -540,56 +354,60 @@ function createSlicerStore() {
 
   async function runDetection() {
     if (!cleanImageData) return
-    const w = imgSize.value.w
-    const h = imgSize.value.h
+    const w = state.imgSize.w
+    const h = state.imgSize.h
 
     let detected: DetectedSprite[]
 
-    if (detectionMode.value === 'auto') {
+    if (state.detectionMode === 'auto') {
       try {
         detected = await opencvDetect(cleanImageData, w, h, {
           mode: 'auto',
-          mergeGap: mergeGap.value,
-          minArea: minArea.value,
+          mergeGap: state.mergeGap,
+          minArea: state.minArea,
         })
       } catch (e) {
         console.warn('[slicer] OpenCV failed, using JS CCA fallback:', e)
         detected = ccaDetector.detect(cleanImageData, w, h, {
           mode: 'auto',
-          mergeGap: mergeGap.value,
-          minArea: minArea.value,
+          mergeGap: state.mergeGap,
+          minArea: state.minArea,
         })
       }
     } else {
       detected = gridDetector.detect(cleanImageData, w, h, {
         mode: 'grid',
-        cols: cols.value,
-        rows: rows.value,
-        gapH: gapH.value,
-        gapV: gapV.value,
-        marginH: marginH.value,
-        marginV: marginV.value,
+        cols: state.cols,
+        rows: state.rows,
+        gapH: state.gapH,
+        gapV: state.gapV,
+        marginH: state.marginH,
+        marginV: state.marginV,
       })
     }
 
-    const prefix = namePrefix.value || 'sprite'
+    const prefix = state.namePrefix || 'sprite'
     detected.forEach((s, i) => {
       s.name = `${prefix}-${String(i + 1).padStart(2, '0')}`
     })
 
-    sprites.value = detected
-    selected.value = new Set(detected.map(s => s.id))
+    state.sprites = detected
+    state.selected = new Set(detected.map(s => s.id))
     cacheAllSprites()
     history.clear()
 
-    if (detectionMode.value === 'auto' && detected.length > 0) {
+    if (state.detectionMode === 'auto' && detected.length > 0) {
       const autoCols = Math.ceil(Math.sqrt(detected.length))
-      cols.value = autoCols
-      rows.value = Math.ceil(detected.length / autoCols)
+      state.cols = autoCols
+      state.rows = Math.ceil(detected.length / autoCols)
     }
 
-    if (arrangeMode.value !== 'none') {
+    if (state.arrangeMode !== 'none') {
       applyArrange()
+    }
+
+    if (!_loadingFromGs) {
+      state.dirty = true
     }
   }
 
@@ -597,7 +415,7 @@ function createSlicerStore() {
     if (ids.length < 2) return
     if (!cleanImageData) { console.error('[slicer] mergeSprites: cleanImageData missing'); return }
 
-    const toMerge = sprites.value.filter(s => ids.includes(s.id))
+    const toMerge = state.sprites.filter(s => ids.includes(s.id))
     if (toMerge.length < 2) return
 
     history.record()
@@ -611,12 +429,12 @@ function createSlicerStore() {
     }
 
     const newRect = { x: mx, y: my, w: mx2 - mx, h: my2 - my }
-    const cellData = extractRegion(cleanImageData, imgSize.value.w, imgSize.value.h, newRect)
+    const cellData = extractRegion(cleanImageData, state.imgSize.w, state.imgSize.h, newRect)
 
     const allFromSameSplit = toMerge.every(s => s.splitFrom != null)
       && new Set(toMerge.map(s => s.splitFrom)).size === 1
 
-    const maxId = Math.max(...sprites.value.map(s => s.id)) + 1
+    const maxId = Math.max(...state.sprites.map(s => s.id)) + 1
     const mergedSprite: DetectedSprite = {
       id: maxId,
       rect: newRect,
@@ -628,29 +446,30 @@ function createSlicerStore() {
     }
 
     const mergeSet = new Set(ids)
-    const remaining = sprites.value.filter(s => !mergeSet.has(s.id))
+    const remaining = state.sprites.filter(s => !mergeSet.has(s.id))
     remaining.push(mergedSprite)
     cacheSprite(mergedSprite)
 
     sortByReadingOrder(remaining)
 
-    sprites.value = remaining
-    const newSelected = new Set(selected.value)
+    state.sprites = remaining
+    const newSelected = new Set(state.selected)
     for (const id of ids) newSelected.delete(id)
     newSelected.add(maxId)
-    selected.value = newSelected
+    state.selected = newSelected
 
-    if (arrangeMode.value !== 'none') applyArrange()
+    if (state.arrangeMode !== 'none') applyArrange()
+    state.dirty = true
   }
 
   function unmergeSprite(spriteId: number) {
     if (!cleanImageData) { console.error('[slicer] unmergeSprite: cleanImageData missing'); return false }
-    const sprite = sprites.value.find(s => s.id === spriteId)
+    const sprite = state.sprites.find(s => s.id === spriteId)
     if (!sprite?.mergedFromRects || sprite.mergedFromRects.length < 2) return false
 
     history.record()
-    const fullW = imgSize.value.w, fullH = imgSize.value.h
-    let nextId = Math.max(...sprites.value.map(s => s.id)) + 1
+    const fullW = state.imgSize.w, fullH = state.imgSize.h
+    let nextId = Math.max(...state.sprites.map(s => s.id)) + 1
     const restored: DetectedSprite[] = sprite.mergedFromRects.map((rect, i) => {
       const cellData = extractRegion(cleanImageData!, fullW, fullH, rect)
       return {
@@ -662,28 +481,29 @@ function createSlicerStore() {
       }
     })
 
-    const remaining = sprites.value.filter(s => s.id !== spriteId)
+    const remaining = state.sprites.filter(s => s.id !== spriteId)
     remaining.push(...restored)
     for (const s of restored) cacheSprite(s)
     sortByReadingOrder(remaining)
 
-    sprites.value = remaining
-    const newSelected = new Set(selected.value)
+    state.sprites = remaining
+    const newSelected = new Set(state.selected)
     newSelected.delete(spriteId)
     for (const s of restored) newSelected.add(s.id)
-    selected.value = newSelected
+    state.selected = newSelected
 
-    if (arrangeMode.value !== 'none') applyArrange()
+    if (state.arrangeMode !== 'none') applyArrange()
+    state.dirty = true
     return true
   }
 
   function splitSprite(spriteId: number, lines: Point[][]) {
     if (lines.length === 0) return
 
-    const sprite = sprites.value.find(s => s.id === spriteId)
+    const sprite = state.sprites.find(s => s.id === spriteId)
     if (!sprite) { console.error('[slicer] splitSprite: sprite not found:', spriteId); return }
 
-    const maxId = Math.max(...sprites.value.map(s => s.id)) + 1
+    const maxId = Math.max(...state.sprites.map(s => s.id)) + 1
     const newSprites = splitSpriteByLines(sprite, lines, maxId)
     if (newSprites.length < 2) return
 
@@ -693,195 +513,288 @@ function createSlicerStore() {
       cacheSprite(s)
     }
 
-    const remaining = sprites.value.filter(s => s.id !== spriteId)
+    const remaining = state.sprites.filter(s => s.id !== spriteId)
     remaining.push(...newSprites)
     sortByReadingOrder(remaining)
 
-    sprites.value = remaining
-    const newSelected = new Set(selected.value)
+    state.sprites = remaining
+    const newSelected = new Set(state.selected)
     newSelected.delete(spriteId)
     for (const s of newSprites) newSelected.add(s.id)
-    selected.value = newSelected
+    state.selected = newSelected
 
-    if (arrangeMode.value !== 'none') applyArrange()
+    if (state.arrangeMode !== 'none') applyArrange()
+    state.dirty = true
   }
 
-  function loadFile(file: File) {
-    const tabId = activeTabId.value
-    loading.value = true
-    const reader = new FileReader()
-    reader.onload = () => {
-      const img = new Image()
-      img.onload = () => {
-        if (activeTabId.value === tabId) {
-          sourceImage.value = img
-          imgSize.value = { w: img.width, h: img.height }
-          loading.value = false
-          processBackground()
-        } else {
-          const snap = tabSnapshots.get(tabId!)
-          if (snap) {
-            snap.sourceImage = img
-            snap.imgSize = { w: img.width, h: img.height }
-            snap.loading = false
-          }
+  function loadFile(file: File): Promise<void> {
+    return new Promise((resolve) => {
+      state.loading = true
+      state.dirty = true
+      state.sourceFileName = file.name
+      const reader = new FileReader()
+      reader.onload = () => {
+        const img = new Image()
+        img.onload = () => {
+          state.sourceImage = img
+          state.imgSize = { w: img.width, h: img.height }
+          state.loading = false
+          processBackground().then(resolve)
         }
+        img.src = reader.result as string
       }
-      img.src = reader.result as string
+      reader.readAsDataURL(file)
+    })
+  }
+
+  async function loadFromGsFile(path: string): Promise<void> {
+    _loadingFromGs = true
+
+    const result = await readSpriteGsFile(path)
+    const data = result.file.data
+
+    state.gsPath = path
+    state.gsLastKnownVersion = result.file.version
+    state.gsTexturePath = data.texture
+    state.loaded = true
+
+    applySliceConfig(data.sliceConfig)
+
+    if (data.sprites.length > 0) {
+      _pendingRestore = data.sprites
     }
-    reader.readAsDataURL(file)
+
+    const { dir } = splitPath(path)
+    const texRelative = data.texture.replace(/^\.\//, '')
+    const dirHandle = await resolveDir(dir)
+    const fh = await dirHandle.getFileHandle(texRelative)
+    const file = await fh.getFile()
+
+    state.sourceFileName = file.name
+    await new Promise<void>((resolve) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const img = new Image()
+        img.onload = () => {
+          state.sourceImage = img
+          state.imgSize = { w: img.width, h: img.height }
+          processBackground().then(resolve)
+        }
+        img.src = reader.result as string
+      }
+      reader.readAsDataURL(file)
+    })
+
+    state.dirty = false
+    setTimeout(() => { _loadingFromGs = false }, 0)
+  }
+
+  async function saveToGsFile(): Promise<WriteGsResult> {
+    if (!state.gsPath) throw new Error('No .gs file path bound')
+
+    const data: SpriteData = {
+      texture: state.gsTexturePath,
+      size: [state.imgSize.w, state.imgSize.h],
+      isComposite: false,
+      sliceConfig: getSliceConfig(),
+      sprites: getSpriteSnapshot(),
+    }
+
+    const result = await writeGsFile({
+      path: state.gsPath,
+      type: GsType.Sprite,
+      data,
+      lastKnownVersion: state.gsLastKnownVersion,
+    })
+
+    if (result.status === 'ok') {
+      state.gsLastKnownVersion = result.newVersion
+      state.dirty = false
+    }
+
+    return result
   }
 
   function getCleanImageData(): ImageData | null {
     return cleanImageData
   }
 
-  function getSliceConfig(): SlicerSliceConfig {
+  function getSliceConfig(): SliceConfig {
     return {
-      detectionMode: detectionMode.value,
-      bgRemoverId: bgRemoverId.value,
-      bgColor: [...bgColor.value],
-      bgTolerance: bgTolerance.value,
-      bgSpillStrength: bgSpillStrength.value,
-      mergeGap: mergeGap.value,
-      minArea: minArea.value,
-      cols: cols.value,
-      rows: rows.value,
-      gapH: gapH.value,
-      gapV: gapV.value,
-      marginH: marginH.value,
-      marginV: marginV.value,
-      arrangeMode: arrangeMode.value,
-      namePrefix: namePrefix.value,
+      detectionMode: state.detectionMode,
+      bgRemoverId: state.bgRemoverId,
+      bgColor: [...state.bgColor] as [number, number, number],
+      bgTolerance: state.bgTolerance,
+      bgSpillStrength: state.bgSpillStrength,
+      mergeGap: state.mergeGap,
+      minArea: state.minArea,
+      cols: state.cols,
+      rows: state.rows,
+      gapH: state.gapH,
+      gapV: state.gapV,
+      marginH: state.marginH,
+      marginV: state.marginV,
+      arrangeMode: state.arrangeMode,
+      namePrefix: state.namePrefix,
     }
   }
 
-  function applySliceConfig(sc: SlicerSliceConfig) {
-    if (sc.detectionMode) detectionMode.value = sc.detectionMode as 'auto' | 'grid'
-    if (sc.bgRemoverId) {
-      if (bgRemovers.some(r => r.id === sc.bgRemoverId)) {
-        bgRemoverId.value = sc.bgRemoverId
-      } else {
-        console.warn('[slicer] invalid bgRemoverId from config, resetting:', sc.bgRemoverId)
-        bgRemoverId.value = bgRemovers[0].id
-      }
-    }
-    if (sc.bgColor) bgColor.value = sc.bgColor as [number, number, number]
-    if (sc.bgTolerance !== undefined) bgTolerance.value = sc.bgTolerance
-    if (sc.bgSpillStrength !== undefined) bgSpillStrength.value = sc.bgSpillStrength
-    if (sc.mergeGap !== undefined) mergeGap.value = sc.mergeGap
-    if (sc.minArea !== undefined) minArea.value = sc.minArea
-    if (sc.cols !== undefined) cols.value = sc.cols
-    if (sc.rows !== undefined) rows.value = sc.rows
-    if (sc.gapH !== undefined) gapH.value = sc.gapH
-    if (sc.gapV !== undefined) gapV.value = sc.gapV
-    if (sc.marginH !== undefined) marginH.value = sc.marginH
-    if (sc.marginV !== undefined) marginV.value = sc.marginV
-    if (sc.namePrefix !== undefined) namePrefix.value = sc.namePrefix
-    if (sc.arrangeMode !== undefined) {
-      arrangeMode.value = sc.arrangeMode
-    }
+  function applySliceConfig(sc: SliceConfig) {
+    state.detectionMode = sc.detectionMode as 'auto' | 'grid'
+    if (sc.bgRemoverId) state.bgRemoverId = sc.bgRemoverId
+    if (sc.bgColor) state.bgColor = sc.bgColor
+    if (sc.bgTolerance !== undefined) state.bgTolerance = sc.bgTolerance
+    if (sc.bgSpillStrength !== undefined) state.bgSpillStrength = sc.bgSpillStrength
+    if (sc.mergeGap !== undefined) state.mergeGap = sc.mergeGap
+    if (sc.minArea !== undefined) state.minArea = sc.minArea
+    if (sc.cols !== undefined) state.cols = sc.cols
+    if (sc.rows !== undefined) state.rows = sc.rows
+    if (sc.gapH !== undefined) state.gapH = sc.gapH
+    if (sc.gapV !== undefined) state.gapV = sc.gapV
+    if (sc.marginH !== undefined) state.marginH = sc.marginH
+    if (sc.marginV !== undefined) state.marginV = sc.marginV
+    if (sc.namePrefix !== undefined) state.namePrefix = sc.namePrefix
+    if (sc.arrangeMode !== undefined) state.arrangeMode = sc.arrangeMode
   }
 
-  function getSpriteSnapshot(): SlicerSpriteEntry[] {
-    return sprites.value.map(s => ({
+  function getSpriteSnapshot(): SpriteEntry[] {
+    return state.sprites.map(s => ({
       name: s.name,
-      rect: { ...s.rect },
-      originalRect: s._origRect ? { ...s._origRect } : undefined,
+      rect: [s.rect.x, s.rect.y, s.rect.w, s.rect.h] as [number, number, number, number],
+      originalRect: s._origRect
+        ? [s._origRect.x, s._origRect.y, s._origRect.w, s._origRect.h] as [number, number, number, number]
+        : undefined,
     }))
   }
 
   function renameSprite(id: number, newName: string): boolean {
     const trimmed = newName.trim()
     if (!trimmed) return false
-    const duplicate = sprites.value.some(s => s.id !== id && s.name === trimmed)
+    const duplicate = state.sprites.some(s => s.id !== id && s.name === trimmed)
     if (duplicate) return false
-    const sprite = sprites.value.find(s => s.id === id)
+    const sprite = state.sprites.find(s => s.id === id)
     if (!sprite) return false
     history.record()
     sprite.name = trimmed
-    sprites.value = [...sprites.value]
+    state.sprites = [...state.sprites]
+    state.dirty = true
     return true
   }
 
   function isSpriteNameTaken(name: string, excludeId?: number): boolean {
     const trimmed = name.trim()
-    return sprites.value.some(s => s.id !== excludeId && s.name === trimmed)
+    return state.sprites.some(s => s.id !== excludeId && s.name === trimmed)
   }
 
-  function getTabSnapshot(id: string): TabSnapshot | null {
-    return tabSnapshots.get(id) ?? null
-  }
+  // --- Internal reactivity: state changes drive side effects ---
+  let _bgDebounce = 0
+  const _scope: EffectScope = effectScope()
 
-  function isTabModified(tabId: string): boolean {
-    if (tabId === activeTabId.value) {
-      return sprites.value.length > 0
-    }
-    const snap = tabSnapshots.get(tabId)
-    return snap ? snap.sprites.length > 0 : false
-  }
+  _scope.run(() => {
+    watch(() => state.bgRemoverId, () => {
+      if (_loadingFromGs || !state.sourceImage) return
+      processBackground()
+    })
 
-  function saveSession() {
-    const descriptors = tabs.value
-      .filter(t => t.workspacePath || t.resourceUid)
-      .map(t => ({ fileName: t.fileName, workspacePath: t.workspacePath, resourceUid: t.resourceUid }))
-    const activeTab = tabs.value.find(t => t.id === activeTabId.value)
-    const activeId = activeTab?.resourceUid ?? activeTab?.workspacePath ?? null
-    sessionStorage.setItem(SLICER_SESSION_KEY, JSON.stringify({ tabs: descriptors, activeId }))
-  }
+    watch(() => state.bgColor, () => {
+      if (_loadingFromGs || !state.sourceImage) return
+      processBackground()
+    }, { deep: true })
 
-  async function handleRouteIntent(_gsPath: string): Promise<void> {
-    // sprite-slicer doesn't use .gs files yet; this is a no-op stub for useTabRouteSync
-  }
+    watch([() => state.bgTolerance, () => state.bgSpillStrength], () => {
+      if (_loadingFromGs || !state.sourceImage) return
+      clearTimeout(_bgDebounce)
+      _bgDebounce = window.setTimeout(() => processBackground(), 50)
+    })
 
-  function _initFromSession() {
-    if (tabs.value.length > 0) return
-    const raw = sessionStorage.getItem(SLICER_SESSION_KEY)
-    if (!raw) {
-      addEmptyTab()
-      return
-    }
-    try {
-      const data = JSON.parse(raw) as { tabs: Array<{ fileName: string; workspacePath?: string; resourceUid?: string }>; activeId: string | null }
-      if (!data.tabs || data.tabs.length === 0) {
-        addEmptyTab()
-        return
-      }
-      for (const desc of data.tabs) {
-        const id = `tab-${++tabIdCounter}`
-        const info: SlicerTabInfo = { id, fileName: desc.fileName, workspacePath: desc.workspacePath, resourceUid: desc.resourceUid }
-        tabs.value = [...tabs.value, info]
-        if (!activeTabId.value) activeTabId.value = id
-      }
-    } catch {
-      sessionStorage.removeItem(SLICER_SESSION_KEY)
-      addEmptyTab()
-    }
-  }
+    watch([() => state.mergeGap, () => state.minArea], () => {
+      if (_loadingFromGs || !state.sourceImage) return
+      if (state.detectionMode === 'auto') runDetection()
+    })
 
-  _initFromSession()
+    watch([() => state.cols, () => state.rows, () => state.gapH, () => state.gapV, () => state.marginH, () => state.marginV], () => {
+      if (_loadingFromGs || !state.sourceImage) return
+      if (state.detectionMode === 'grid') runDetection()
+    })
+
+    watch(() => state.arrangeMode, () => {
+      if (_loadingFromGs || !state.sourceImage) return
+      applyArrange()
+    })
+
+    watch(() => state.namePrefix, () => {
+      if (_loadingFromGs || !state.sourceImage) return
+      const prefix = state.namePrefix || 'sprite'
+      state.sprites.forEach((s, i) => {
+        s.name = `${prefix}-${String(i + 1).padStart(2, '0')}`
+      })
+    })
+  })
+
+  function dispose() {
+    clearTimeout(_bgDebounce)
+    _scope.stop()
+  }
 
   return {
-    tabs, activeTabId, hasActiveTab, restoring,
-    addEmptyTab, addTab, removeTab, switchTab, isRestoring,
-    saveSession, handleRouteIntent,
-
-    sourceImage, imgSize, loading, saving,
-    bgRemoverId, bgColor, bgTolerance, bgSpillStrength,
-    bgRemovers,
-    detectionMode, mergeGap, minArea,
-    cols, rows, gapH, gapV, marginH, marginV,
-    sprites, selected, namePrefix,
-    cleanImageUrl, arrangeMode, stdOptions,
-    currentBgRemover, selectedSprites, bgOptions,
+    id,
+    state,
+    currentBgRemover,
+    selectedSprites,
+    bgOptions,
+    stdOptions,
+    hasSource,
     history,
-    processBackground, runDetection, loadFile, getCleanImageData,
-    getSliceConfig, applySliceConfig, getSpriteSnapshot,
-    renameSprite, isSpriteNameTaken,
-    mergeSprites, unmergeSprite, splitSprite,
-    applyArrange, restoreArrange,
-    setPendingMetaRestore,
-    getTabSnapshot,
-    isTabModified,
+    loadFromGsFile,
+    saveToGsFile,
+    loadFile,
+    processBackground,
+    runDetection,
+    mergeSprites,
+    unmergeSprite,
+    splitSprite,
+    applyArrange,
+    restoreArrange,
+    renameSprite,
+    isSpriteNameTaken,
+    getSliceConfig,
+    applySliceConfig,
+    getSpriteSnapshot,
+    setPendingRestore,
+    getCleanImageData,
+    dispose,
   }
 }
+
+export type SlicerInstance = ReturnType<typeof createSlicerInstance>
+
+const registry = createInstanceRegistry(createSlicerInstance)
+export const getSlicerInstance = registry.get
+export const removeSlicerInstance = registry.remove
+
+let _tabs: UseEditorTabsReturn<SlicerInstance> | null = null
+
+export function useSlicerTabs(): UseEditorTabsReturn<SlicerInstance> {
+  if (!_tabs) {
+    _tabs = useEditorTabs<SlicerInstance>({
+      prefix: 'slicer',
+      factory: getSlicerInstance,
+      destroy: removeSlicerInstance,
+      autoEmptyTab: true,
+      persist: {
+        key: 'gs-tabs:sprite-slicer',
+        serialize: (inst) => inst.state.gsPath ? { gsPath: inst.state.gsPath } : null,
+        restore: async (desc) => {
+          const id = `slicer-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+          const inst = getSlicerInstance(id)
+          inst.state.gsPath = desc.gsPath
+          return inst
+        },
+        getIdentifier: (inst) => inst.state.gsPath,
+      },
+    })
+  }
+  return _tabs
+}
+
+export { bgRemovers }

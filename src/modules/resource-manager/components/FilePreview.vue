@@ -55,11 +55,6 @@ watch(() => props.file, async (f) => {
   } catch { /* skip */ }
 }, { immediate: true })
 
-function formatDate(ts?: number): string {
-  if (!ts) return '-'
-  return new Date(ts).toLocaleString()
-}
-
 const actionButtons = computed<ActionButton[]>(() => {
   const btns: ActionButton[] = []
   const f = props.file
@@ -70,10 +65,6 @@ const actionButtons = computed<ActionButton[]>(() => {
     if (handler) {
       btns.push({ id: 'open-gs', label: `在${handler.label}中打开`, icon: handler.icon })
     }
-  } else if (f.meta?.openWith === 'sprite-slicer' || f.meta?.type === 'spritesheet') {
-    btns.push({ id: 'open-slicer', label: '在切分器中打开', icon: 'scissors' })
-  } else if (f.meta?.openWith === 'tileset-maker' || f.meta?.type === 'tile') {
-    btns.push({ id: 'open-tileset', label: '在瓦片集制作中打开', icon: 'grid' })
   }
 
   btns.push({ id: 'delete', label: '删除', icon: 'trash', variant: 'danger' })
@@ -89,10 +80,6 @@ function onAction(id: string) {
     if (handler) {
       router.push({ path: handler.route, query: { gs: f.path } })
     }
-  } else if (id === 'open-slicer') {
-    router.push({ path: '/sprite-slicer', query: { resource: f.meta!.uid, path: f.path } })
-  } else if (id === 'open-tileset') {
-    router.push({ path: '/tileset-maker', query: { resource: f.meta!.uid, path: f.path } })
   } else if (id === 'delete') {
     emit('delete', f)
   }
@@ -128,32 +115,8 @@ function onAction(id: string) {
       </template>
       <template v-else>
         <div class="meta-row">
-          <span>类型</span>
-          <span>{{ file.meta?.type ?? 'generic' }}</span>
-        </div>
-        <div class="meta-row">
-          <span>UID</span>
-          <span class="uid-text">{{ file.meta?.uid ?? '-' }}</span>
-        </div>
-        <div v-if="file.meta?.tags?.length" class="meta-row">
-          <span>标签</span>
-          <span>{{ file.meta.tags.join(', ') }}</span>
-        </div>
-        <div class="meta-row">
-          <span>来源</span>
-          <span>{{ file.meta?.origin?.source ?? 'external' }}</span>
-        </div>
-        <div class="meta-row">
-          <span>创建时间</span>
-          <span>{{ formatDate(file.meta?.createdAt) }}</span>
-        </div>
-        <div class="meta-row">
-          <span>更新时间</span>
-          <span>{{ formatDate(file.meta?.updatedAt) }}</span>
-        </div>
-        <div v-if="file.meta?.description" class="meta-row">
-          <span>描述</span>
-          <span>{{ file.meta.description }}</span>
+          <span>路径</span>
+          <span>{{ file.path }}</span>
         </div>
       </template>
     </div>
@@ -164,15 +127,6 @@ function onAction(id: string) {
         direction="column"
         @click="onAction"
       />
-    </div>
-
-    <div v-if="file.meta?.pipeline?.length" class="preview-pipeline">
-      <h5>操作历史</h5>
-      <div v-for="(step, idx) in file.meta.pipeline" :key="idx" class="pipeline-step">
-        <span class="step-name">{{ step.step }}</span>
-        <span class="step-detail">{{ step.detail ?? '' }}</span>
-        <span class="step-time">{{ formatDate(step.at) }}</span>
-      </div>
     </div>
   </aside>
 </template>
@@ -225,28 +179,8 @@ function onAction(id: string) {
 }
 .meta-row span:first-child { color: #888; }
 .meta-row span:last-child { color: #ccc; text-align: right; max-width: 140px; word-break: break-all; }
-.uid-text { font-family: monospace; font-size: 10px; }
 .gs-type-badge { color: #8cb8a0; font-weight: 500; }
 .preview-actions {
   margin-bottom: 12px;
 }
-.preview-pipeline {
-  border-top: 1px solid #3a3a3a;
-  padding-top: 10px;
-}
-.preview-pipeline h5 {
-  margin: 0 0 8px;
-  font-size: 11px;
-  color: #999;
-}
-.pipeline-step {
-  display: flex;
-  flex-direction: column;
-  padding: 4px 0;
-  border-bottom: 1px solid #2e2e2e;
-  font-size: 10px;
-}
-.step-name { color: #aab; font-weight: 500; }
-.step-detail { color: #777; }
-.step-time { color: #555; }
 </style>

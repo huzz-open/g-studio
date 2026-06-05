@@ -11,6 +11,10 @@ export function createInstanceRegistry<T>(factory: (id: string) => T) {
   }
 
   function remove(id: string): boolean {
+    const inst = instances.get(id)
+    if (inst && typeof (inst as any).dispose === 'function') {
+      (inst as any).dispose()
+    }
     return instances.delete(id)
   }
 

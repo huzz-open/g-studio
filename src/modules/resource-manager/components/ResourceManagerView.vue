@@ -16,7 +16,6 @@ import DirectoryTree from './DirectoryTree.vue'
 import FileGrid from './FileGrid.vue'
 import FilePreview from './FilePreview.vue'
 import type { FsEntry } from '../interfaces/meta'
-import { createMetaForFile } from '../services/meta-service'
 import { deleteFileFromWorkspace } from '../services/workspace-file-ops'
 import { getWorkspaceCache, smartScan, fullScan, invalidateCache } from '../services/workspace-cache'
 import { getHandlerByGsType, getAllHandlers } from '../../../shared/module-registry'
@@ -65,9 +64,9 @@ const treeEntries = computed<FsEntry[]>(() => {
 })
 
 const stats = computed(() => {
-  if (!scanResult.value) return { total: 0, linked: 0, dirs: 0 }
+  if (!scanResult.value) return { total: 0, dirs: 0 }
   const total = countFiles(scanResult.value.tree)
-  return { total, linked: scanResult.value.linked.length, dirs: countDirs(scanResult.value.tree) }
+  return { total, dirs: countDirs(scanResult.value.tree) }
 })
 
 function collectFilesInDir(entries: FsEntry[], dirPath: string): FsEntry[] {
@@ -111,11 +110,7 @@ async function loadWorkspace(force = false) {
   rootHandle.value = handle
 
   try {
-    const report = force ? await fullScan() : await smartScan()
-
-    if (report && (report.repaired > 0 || report.newMetas > 0)) {
-      showToast(`扫描完成：修复 ${report.repaired} 个绑定，新建 ${report.newMetas} 个元数据`, 'info')
-    }
+    await (force ? fullScan() : smartScan())
 
     if (scanResult.value) {
       for (const entry of scanResult.value.tree) {
@@ -165,15 +160,6 @@ function handleFileSelect(entry: FsEntry) {
 async function handleFileOpen(entry: FsEntry) {
   if (isGsFile(entry.name)) {
     await openGsFile(entry)
-    return
-  }
-  // Legacy: .meta based routing
-  if (entry.meta) {
-    if (entry.meta.openWith === 'sprite-slicer' || entry.meta.type === 'spritesheet') {
-      router.push({ path: '/sprite-slicer', query: { resource: entry.meta.uid, path: entry.path } })
-    } else if (entry.meta.openWith === 'tileset-maker' || entry.meta.type === 'tile') {
-      router.push({ path: '/tileset-maker', query: { resource: entry.meta.uid, path: entry.path } })
-    }
   }
 }
 
@@ -291,20 +277,35 @@ async function createGsFromImage(entry: FsEntry, gsType: GsType) {
   try {
     const parentPath = entry.path.includes('/') ? entry.path.substring(0, entry.path.lastIndexOf('/')) : ''
     const gsPath = parentPath ? `${parentPath}/${name}.gs` : `${name}.gs`
+    const texRef = `./${entry.name}`
+
+    const fh = entry.handle as FileSystemFileHandle
+    const blob = await fh.getFile()
+    const bmp = await createImageBitmap(blob)
+    const size: [number, number] = [bmp.width, bmp.height]
+    bmp.close()
 
     if (gsType === GsType.SceneRegion) {
-      const fh = entry.handle as FileSystemFileHandle
-      const blob = await fh.getFile()
-      const bmp = await createImageBitmap(blob)
-      const data: SceneRegionData = {
-        name,
-        texture: `./${entry.name}`,
-        size: [bmp.width, bmp.height],
-        y_sort: true,
-        regions: [],
-      }
-      bmp.close()
+      const data: SceneRegionData = { name, texture: texRef, size, y_sort: true, regions: [] }
       await createGsFile({ path: gsPath, type: GsType.SceneRegion, data })
+    } else if (gsType === GsType.Sprite) {
+      const data: import('../../../shared/gs-format/types').SpriteData = {
+        texture: texRef,
+        size,
+        isComposite: false,
+        sliceConfig: { detectionMode: 'auto' },
+        sprites: [],
+      }
+      await createGsFile({ path: gsPath, type: GsType.Sprite, data })
+    } else if (gsType === GsType.Tileset) {
+      const data: import('../../../shared/gs-format/types').TilesetData = {
+        texture: texRef,
+        size,
+        mode: 'sdf',
+        layout: 'godot-4x3',
+        terrainName: name,
+      }
+      await createGsFile({ path: gsPath, type: GsType.Tileset, data })
     }
 
     showToast(`已创建 ${name}.gs`, 'success')
@@ -331,12 +332,8 @@ async function confirmDelete() {
   if (!target || !rootHandle.value) return
 
   try {
-    const { referencedBy } = await deleteFileFromWorkspace(target.path)
-    if (referencedBy && referencedBy.length > 0) {
-      showToast(`已删除 ${target.name}（${referencedBy.length} 个文件仍引用此资源）`, 'info')
-    } else {
-      showToast(`已删除 ${target.name}`, 'success')
-    }
+    await deleteFileFromWorkspace(target.path)
+    showToast(`已删除 ${target.name}`, 'success')
     selectedFile.value = null
     await loadWorkspace()
   } catch (err) {
@@ -354,9 +351,6 @@ async function onViewportDrop(files: File[], _modifiers: DropModifiers) {
     for (const file of files) {
       const buffer = await file.arrayBuffer()
       await fsWriteFile(targetDir, file.name, new Uint8Array(buffer))
-      if (!isGsFile(file.name)) {
-        await createMetaForFile(targetDir, file.name, buffer)
-      }
     }
     showToast(`已上传 ${files.length} 个文件`, 'success')
     await loadWorkspace()
@@ -378,9 +372,6 @@ async function onUploadFile(e: Event) {
     const targetDir = await resolveDir(selectedDirPath.value, true)
     const buffer = await file.arrayBuffer()
     await fsWriteFile(targetDir, file.name, new Uint8Array(buffer))
-    if (!isGsFile(file.name)) {
-      await createMetaForFile(targetDir, file.name, buffer)
-    }
     showToast(`已上传 ${file.name}`, 'success')
     await loadWorkspace()
   } finally {
@@ -539,7 +530,7 @@ const showRightPanel = computed(() => !!selectedFile.value)
     <ConfirmDialog
       :visible="showDeleteConfirm"
       :title="t('resource.deleteTitle')"
-      :message="`确定要删除 ${deleteTarget?.name ?? ''} 吗？\n此操作将同时删除关联的 .meta 文件，且无法恢复。`"
+      :message="`确定要删除 ${deleteTarget?.name ?? ''} 吗？\n此操作无法恢复。`"
       :confirm-text="t('common.delete')"
       :cancel-text="t('common.cancel')"
       :danger="true"

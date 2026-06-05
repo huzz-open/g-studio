@@ -1,4 +1,4 @@
-import { GsType, RegionType, type GsFile, type SceneRegionData, type SceneRegion } from './types'
+import { GsType, RegionType, type GsFile, type SceneRegionData, type SceneRegion, type SpriteData, type TilesetData } from './types'
 
 export class GsValidationError extends Error {
   constructor(message: string) {
@@ -123,5 +123,78 @@ function validateSceneRegion(data: unknown, index: number): asserts data is Scen
     if (rect.length !== 4 || !rect.every(v => typeof v === 'number')) {
       throw new GsValidationError(`${prefix}.rect 必须为 [x, y, w, h]`)
     }
+  }
+}
+
+export function validateSpriteData(data: unknown): asserts data is SpriteData {
+  if (typeof data !== 'object' || data === null) {
+    throw new GsValidationError('SpriteData 不是有效对象')
+  }
+
+  const obj = data as Record<string, unknown>
+
+  if (typeof obj.texture !== 'string' || obj.texture.length === 0) {
+    throw new GsValidationError('data.texture 缺失或为空')
+  }
+
+  if (!Array.isArray(obj.size) || obj.size.length !== 2
+    || typeof obj.size[0] !== 'number' || typeof obj.size[1] !== 'number') {
+    throw new GsValidationError('data.size 必须为 [number, number]')
+  }
+
+  if (typeof obj.isComposite !== 'boolean') {
+    throw new GsValidationError('data.isComposite 必须为 boolean')
+  }
+
+  if (typeof obj.sliceConfig !== 'object' || obj.sliceConfig === null) {
+    throw new GsValidationError('data.sliceConfig 缺失')
+  }
+
+  const sc = obj.sliceConfig as Record<string, unknown>
+  if (typeof sc.detectionMode !== 'string') {
+    throw new GsValidationError('data.sliceConfig.detectionMode 必须为 string')
+  }
+
+  if (!Array.isArray(obj.sprites)) {
+    throw new GsValidationError('data.sprites 必须为数组')
+  }
+
+  for (let i = 0; i < obj.sprites.length; i++) {
+    const s = obj.sprites[i] as Record<string, unknown>
+    if (typeof s.name !== 'string') {
+      throw new GsValidationError(`data.sprites[${i}].name 必须为 string`)
+    }
+    if (!Array.isArray(s.rect) || s.rect.length !== 4 || !s.rect.every((v: unknown) => typeof v === 'number')) {
+      throw new GsValidationError(`data.sprites[${i}].rect 必须为 [x, y, w, h]`)
+    }
+  }
+}
+
+export function validateTilesetData(data: unknown): asserts data is TilesetData {
+  if (typeof data !== 'object' || data === null) {
+    throw new GsValidationError('TilesetData 不是有效对象')
+  }
+
+  const obj = data as Record<string, unknown>
+
+  if (typeof obj.texture !== 'string' || obj.texture.length === 0) {
+    throw new GsValidationError('data.texture 缺失或为空')
+  }
+
+  if (!Array.isArray(obj.size) || obj.size.length !== 2
+    || typeof obj.size[0] !== 'number' || typeof obj.size[1] !== 'number') {
+    throw new GsValidationError('data.size 必须为 [number, number]')
+  }
+
+  if (obj.mode !== 'sdf' && obj.mode !== 'subtile') {
+    throw new GsValidationError('data.mode 必须为 "sdf" 或 "subtile"')
+  }
+
+  if (typeof obj.layout !== 'string' || obj.layout.length === 0) {
+    throw new GsValidationError('data.layout 缺失或为空')
+  }
+
+  if (typeof obj.terrainName !== 'string') {
+    throw new GsValidationError('data.terrainName 必须为 string')
   }
 }

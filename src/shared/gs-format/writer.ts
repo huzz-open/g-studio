@@ -91,14 +91,15 @@ export async function forceWriteGsFile<T>(opts: Omit<WriteGsOptions<T>, 'lastKno
   return newVersion
 }
 
-/**
- * 快速创建一个新的 .gs 文件（不存在冲突问题）。
- */
-export async function createGsFile<T>(opts: { path: string; type: GsType; data: T }): Promise<void> {
-  const { path, type, data } = opts
-  const { dir, fileName } = splitPath(path)
-  const dirHandle = await resolveDir(dir, true)
+export interface CreateGsResult {
+  path: string
+  version: number
+}
 
-  const json = JSON.stringify(buildGsFileObject(type, data, 1), null, 2)
+export async function createGsFile<T>(opts: { path: string; type: GsType; data: T }): Promise<CreateGsResult> {
+  const { dir, fileName } = splitPath(opts.path)
+  const dirHandle = await resolveDir(dir, true)
+  const json = JSON.stringify(buildGsFileObject(opts.type, opts.data, 1), null, 2)
   await writeFile(dirHandle, fileName, json)
+  return { path: opts.path, version: 1 }
 }

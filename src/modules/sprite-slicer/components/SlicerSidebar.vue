@@ -12,6 +12,7 @@ import SegmentedControl from '../../../shared/components/SegmentedControl.vue'
 import InlineSwitch from '../../../shared/components/InlineSwitch.vue'
 import { CheckboxRow, ActionButtons } from '../../../shared/components/editor-shell/sidebar-atoms'
 import type { ActionButton } from '../../../shared/components/editor-shell/sidebar-atoms'
+import { bgRemovers, type SlicerInstance } from '../store'
 
 export interface OutputPayload {
   composite: boolean
@@ -22,7 +23,7 @@ export interface OutputPayload {
 }
 
 const props = defineProps<{
-  store: ReturnType<typeof import('../store').useSlicerStore>
+  store: SlicerInstance
   hasImage: boolean
 }>()
 
@@ -130,7 +131,7 @@ function hexToRgb(hex: string): [number, number, number] {
 
 function onBgColorChange(e: Event) {
   const hex = (e.target as HTMLInputElement).value
-  props.store.bgColor.value = hexToRgb(hex)
+  props.store.state.bgColor = hexToRgb(hex)
 }
 
 const arrangeModeOptions = [
@@ -140,7 +141,7 @@ const arrangeModeOptions = [
 ]
 
 const bgRemoverOptions = computed(() =>
-  props.store.bgRemovers.map(r => ({ value: r.id, labelKey: r.labelKey })),
+  bgRemovers.map(r => ({ value: r.id, labelKey: r.labelKey })),
 )
 
 const outputButtons = computed<ActionButton[]>(() => [
@@ -148,14 +149,14 @@ const outputButtons = computed<ActionButton[]>(() => [
     id: 'export-local',
     label: t('slicer.output.exportLocal'),
     icon: 'download',
-    disabled: outputDisabled.value || props.store.saving.value,
+    disabled: outputDisabled.value,
   },
   {
     id: 'save-workspace',
-    label: props.store.saving.value ? t('slicer.save.saving') : t('slicer.output.saveWorkspace'),
+    label: t('slicer.output.saveWorkspace'),
     icon: 'save',
     variant: 'primary',
-    disabled: outputDisabled.value || props.store.saving.value || !wsOpen.value,
+    disabled: outputDisabled.value || !wsOpen.value,
   },
 ])
 
@@ -174,8 +175,8 @@ function onOutputAction(id: string) {
         compact
         accept="image/png,image/jpeg,image/webp"
         :hint="hasImage ? t('slicer.reselect') : t('slicer.upload.hint')"
-        :file-name="hasImage ? `${store.imgSize.value.w} × ${store.imgSize.value.h} px` : ''"
-        :loading="store.loading.value"
+        :file-name="hasImage ? `${store.state.imgSize.w} × ${store.state.imgSize.h} px` : ''"
+        :loading="store.state.loading"
         loading-text="..."
         icon="image"
         @file="(f: File) => emit('file', f)"
@@ -186,18 +187,18 @@ function onOutputAction(id: string) {
     <div class="sidebar-section">
       <h4>{{ t('slicer.bgRemoval') }}</h4>
       <SegmentedControl
-        :model-value="store.bgRemoverId.value"
+        :model-value="store.state.bgRemoverId"
         :options="bgRemoverOptions"
         :disabled="!hasImage"
-        @update:model-value="store.bgRemoverId.value = $event"
+        @update:model-value="store.state.bgRemoverId = $event"
       />
 
-      <template v-if="store.bgRemoverId.value === 'auto'">
+      <template v-if="store.state.bgRemoverId === 'auto'">
         <div class="param-row slider-row" style="margin-top:8px">
           <label class="slider-label">{{ t('slicer.bgRemoval.bgColor') }}</label>
           <input
             type="color"
-            :value="rgbToHex(store.bgColor.value)"
+            :value="rgbToHex(store.state.bgColor)"
             :disabled="!hasImage"
             @input="onBgColorChange"
             class="color-input"
@@ -205,13 +206,13 @@ function onOutputAction(id: string) {
         </div>
         <div class="param-row slider-row">
           <label class="slider-label">{{ t('slicer.bgRemoval.tolerance') }}</label>
-          <input type="range" v-model.number="store.bgTolerance.value" min="0" max="100" class="slider" :disabled="!hasImage" />
-          <span class="range-val">{{ store.bgTolerance.value }}</span>
+          <input type="range" v-model.number="store.state.bgTolerance" min="0" max="100" class="slider" :disabled="!hasImage" />
+          <span class="range-val">{{ store.state.bgTolerance }}</span>
         </div>
         <div class="param-row slider-row">
           <label class="slider-label">{{ t('slicer.bgRemoval.spillCorrection') }}</label>
-          <input type="range" v-model.number="store.bgSpillStrength.value" min="0" max="100" class="slider" :disabled="!hasImage" />
-          <span class="range-val">{{ store.bgSpillStrength.value }}</span>
+          <input type="range" v-model.number="store.state.bgSpillStrength" min="0" max="100" class="slider" :disabled="!hasImage" />
+          <span class="range-val">{{ store.state.bgSpillStrength }}</span>
         </div>
       </template>
     </div>
@@ -220,28 +221,28 @@ function onOutputAction(id: string) {
     <div class="sidebar-section">
       <h4>{{ t('slicer.detection') }}</h4>
       <SegmentedControl
-        :model-value="store.detectionMode.value"
+        :model-value="store.state.detectionMode"
         :options="[
           { value: 'auto', labelKey: 'slicer.detection.auto' },
           { value: 'grid', labelKey: 'slicer.detection.grid' },
         ]"
         :disabled="!hasImage"
-        @update:model-value="store.detectionMode.value = $event as any; store.runDetection()"
+        @update:model-value="store.state.detectionMode = $event as any; store.runDetection()"
       />
     </div>
 
     <!-- Auto Detection Params -->
-    <div v-if="store.detectionMode.value === 'auto'" class="sidebar-section">
+    <div v-if="store.state.detectionMode === 'auto'" class="sidebar-section">
       <h4>{{ t('slicer.detection.params') }}</h4>
       <div class="param-row slider-row">
         <label class="slider-label">{{ t('slicer.detection.mergeGap') }}</label>
-        <input type="range" v-model.number="store.mergeGap.value" min="0" max="30" class="slider" :disabled="!hasImage" />
-        <span class="range-val">{{ store.mergeGap.value }}px</span>
+        <input type="range" v-model.number="store.state.mergeGap" min="0" max="30" class="slider" :disabled="!hasImage" />
+        <span class="range-val">{{ store.state.mergeGap }}px</span>
       </div>
       <div class="param-row slider-row">
         <label class="slider-label" :title="t('slicer.detection.minArea.tip')">{{ t('slicer.detection.minArea') }}</label>
-        <input type="range" v-model.number="store.minArea.value" min="10" max="500" class="slider" :disabled="!hasImage" />
-        <span class="range-val">{{ store.minArea.value }}px</span>
+        <input type="range" v-model.number="store.state.minArea" min="10" max="500" class="slider" :disabled="!hasImage" />
+        <span class="range-val">{{ store.state.minArea }}px</span>
       </div>
     </div>
 
@@ -249,16 +250,16 @@ function onOutputAction(id: string) {
     <div v-else class="sidebar-section">
       <h4>{{ t('slicer.grid') }}</h4>
       <div class="param-row">
-        <label>{{ t('slicer.grid.cols') }} <input type="number" v-model.number="store.cols.value" min="1" max="20" :disabled="!hasImage" /></label>
-        <label>{{ t('slicer.grid.rows') }} <input type="number" v-model.number="store.rows.value" min="1" max="20" :disabled="!hasImage" /></label>
+        <label>{{ t('slicer.grid.cols') }} <input type="number" v-model.number="store.state.cols" min="1" max="20" :disabled="!hasImage" /></label>
+        <label>{{ t('slicer.grid.rows') }} <input type="number" v-model.number="store.state.rows" min="1" max="20" :disabled="!hasImage" /></label>
       </div>
       <div class="param-row" style="margin-top:4px">
-        <label>{{ t('slicer.grid.gapH') }} <input type="number" v-model.number="store.gapH.value" min="0" max="200" :disabled="!hasImage" /></label>
-        <label>{{ t('slicer.grid.gapV') }} <input type="number" v-model.number="store.gapV.value" min="0" max="200" :disabled="!hasImage" /></label>
+        <label>{{ t('slicer.grid.gapH') }} <input type="number" v-model.number="store.state.gapH" min="0" max="200" :disabled="!hasImage" /></label>
+        <label>{{ t('slicer.grid.gapV') }} <input type="number" v-model.number="store.state.gapV" min="0" max="200" :disabled="!hasImage" /></label>
       </div>
       <div class="param-row" style="margin-top:4px">
-        <label>{{ t('slicer.grid.margin') }} H <input type="number" v-model.number="store.marginH.value" min="0" max="200" :disabled="!hasImage" /></label>
-        <label>{{ t('slicer.grid.margin') }} V <input type="number" v-model.number="store.marginV.value" min="0" max="200" :disabled="!hasImage" /></label>
+        <label>{{ t('slicer.grid.margin') }} H <input type="number" v-model.number="store.state.marginH" min="0" max="200" :disabled="!hasImage" /></label>
+        <label>{{ t('slicer.grid.margin') }} V <input type="number" v-model.number="store.state.marginV" min="0" max="200" :disabled="!hasImage" /></label>
       </div>
     </div>
 
@@ -266,18 +267,18 @@ function onOutputAction(id: string) {
     <div class="sidebar-section">
       <h4>{{ t('slicer.arrangeMode') }}</h4>
       <SegmentedControl
-        :model-value="store.arrangeMode.value"
+        :model-value="store.state.arrangeMode"
         :options="arrangeModeOptions"
         :disabled="!hasImage"
         :indicator="false"
-        @update:model-value="store.arrangeMode.value = $event as any"
+        @update:model-value="store.state.arrangeMode = $event as any"
       />
     </div>
 
     <!-- Naming -->
     <div class="sidebar-section">
       <h4>{{ t('slicer.naming.prefix') }}</h4>
-      <input type="text" v-model="store.namePrefix.value" class="text-input" :disabled="!hasImage" />
+      <input type="text" v-model="store.state.namePrefix" class="text-input" :disabled="!hasImage" />
     </div>
 
     <!-- Animation Preview -->

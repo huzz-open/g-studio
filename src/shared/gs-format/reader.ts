@@ -1,5 +1,5 @@
-import { GsType, type GsFile, type SceneRegionData } from './types'
-import { validateGsFile, validateSceneRegionData, GsValidationError } from './schema'
+import { GsType, type GsFile, type SceneRegionData, type SpriteData, type TilesetData } from './types'
+import { validateGsFile, validateSceneRegionData, validateSpriteData, validateTilesetData, GsValidationError } from './schema'
 import { resolveDir, readTextFile, splitPath } from '../workspace/fs'
 
 export interface ReadGsResult<T = unknown> {
@@ -8,10 +8,6 @@ export interface ReadGsResult<T = unknown> {
   fileName: string
 }
 
-/**
- * 从工作区路径读取并校验 .gs 文件。
- * 校验失败会抛出 GsValidationError。
- */
 export async function readGsFile(path: string): Promise<ReadGsResult> {
   const { dir, fileName } = splitPath(path)
   const dirHandle = await resolveDir(dir)
@@ -30,14 +26,15 @@ export async function readGsFile(path: string): Promise<ReadGsResult> {
 
   if (gsFile.type === GsType.SceneRegion) {
     validateSceneRegionData(gsFile.data)
+  } else if (gsFile.type === GsType.Sprite) {
+    validateSpriteData(gsFile.data)
+  } else if (gsFile.type === GsType.Tileset) {
+    validateTilesetData(gsFile.data)
   }
 
   return { file: gsFile, dirHandle, fileName }
 }
 
-/**
- * 读取 .gs 文件为 SceneRegion 类型（带类型断言）。
- */
 export async function readSceneRegionGsFile(path: string): Promise<ReadGsResult<SceneRegionData>> {
   const result = await readGsFile(path)
   if (result.file.type !== GsType.SceneRegion) {
@@ -46,9 +43,22 @@ export async function readSceneRegionGsFile(path: string): Promise<ReadGsResult<
   return result as ReadGsResult<SceneRegionData>
 }
 
-/**
- * 仅读取 .gs 文件的 version 字段（快速轮询用，不做完整校验）。
- */
+export async function readSpriteGsFile(path: string): Promise<ReadGsResult<SpriteData>> {
+  const result = await readGsFile(path)
+  if (result.file.type !== GsType.Sprite) {
+    throw new GsValidationError(`期望 type=${GsType.Sprite}，实际 type=${result.file.type}`)
+  }
+  return result as ReadGsResult<SpriteData>
+}
+
+export async function readTilesetGsFile(path: string): Promise<ReadGsResult<TilesetData>> {
+  const result = await readGsFile(path)
+  if (result.file.type !== GsType.Tileset) {
+    throw new GsValidationError(`期望 type=${GsType.Tileset}，实际 type=${result.file.type}`)
+  }
+  return result as ReadGsResult<TilesetData>
+}
+
 export async function readGsVersion(path: string): Promise<number> {
   const { dir, fileName } = splitPath(path)
   const dirHandle = await resolveDir(dir)

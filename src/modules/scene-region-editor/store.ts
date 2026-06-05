@@ -66,14 +66,13 @@ export function useSceneRegionTabs(): UseEditorTabsReturn<SceneRegionStore> {
       persist: {
         key: 'gs-tabs:scene-region',
         serialize: (inst) => inst.state.gsPath ? { gsPath: inst.state.gsPath } : null,
-        restore: async (desc: { gsPath: string }) => {
+        restore: async (desc) => {
           const id = `sr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
           const inst = getSceneRegionInstance(id)
-          await inst.loadFromGsFile(desc.gsPath)
+          inst.state.gsPath = desc.gsPath
           return inst
         },
         getIdentifier: (inst) => inst.state.gsPath,
-        descriptorFromGsPath: (path) => ({ gsPath: path }),
       },
     })
   }

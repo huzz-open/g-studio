@@ -19,11 +19,6 @@ const router = createRouter({
       component: () => import('../modules/sprite-slicer/components/SlicerView.vue'),
     },
     {
-      path: '/map-editor',
-      name: 'map-editor',
-      component: () => import('../modules/map-editor/components/MapEditorView.vue'),
-    },
-    {
       path: '/tileset-maker',
       name: 'tileset-maker',
       component: () => import('../modules/tileset-maker/components/TilesetMakerView.vue'),

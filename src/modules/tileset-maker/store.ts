@@ -5,6 +5,10 @@ import { getLayout } from './core/layouts'
 import { generateTileset } from './core/generator'
 import { translate } from '../../shared/i18n'
 import { useSettings } from '../../shared/settings'
+import { GsType, type TilesetData } from '../../shared/gs-format/types'
+import { readTilesetGsFile } from '../../shared/gs-format/reader'
+import { writeGsFile, type WriteGsResult } from '../../shared/gs-format/writer'
+import { resolveDir, splitPath } from '../../shared/workspace/fs'
 
 export interface TilesetMakerState {
   mode: GenerationMode
@@ -33,6 +37,8 @@ export interface TilesetMakerState {
   generateError: string | null
   isDirty: boolean
   resourceUid: string | null
+  gsPath: string | null
+  gsLastKnownVersion: number
   showPainter: boolean
 }
 
@@ -65,6 +71,8 @@ export function createTilesetInstance(id: string) {
     generateError: null,
     isDirty: false,
     resourceUid: null,
+    gsPath: null,
+    gsLastKnownVersion: 0,
     showPainter: false,
   })
 
@@ -263,6 +271,78 @@ export function createTilesetInstance(id: string) {
     regenerate()
   }
 
+  async function loadFromGsFile(path: string): Promise<void> {
+    const result = await readTilesetGsFile(path)
+    const data = result.file.data
+
+    state.gsPath = path
+    state.gsLastKnownVersion = result.file.version
+    state.mode = data.mode
+    state.layout = data.layout as LayoutName
+
+    if (data.sdfConfig) {
+      state.tileSize = data.sdfConfig.tileSize as TileSize
+      state.profile = data.sdfConfig.profile as EdgeProfile
+    }
+    if (data.subtileConfig) {
+      state.useMagenta = data.subtileConfig.useMagenta
+      state.magentaTolerance = data.subtileConfig.magentaTolerance
+    }
+
+    const { dir } = splitPath(path)
+    const texRelative = data.texture.replace(/^\.\//, '')
+    const dirHandle = await resolveDir(dir)
+    const fh = await dirHandle.getFileHandle(texRelative)
+    const file = await fh.getFile()
+
+    if (data.mode === 'sdf') {
+      await loadTexture(file)
+    } else {
+      await loadNineGrid(file)
+    }
+
+    state.isDirty = false
+  }
+
+  async function saveToGsFile(): Promise<WriteGsResult> {
+    if (!state.gsPath) throw new Error('No .gs file path bound')
+
+    const textureName = state.mode === 'sdf' ? state.textureFileName : state.nineGridFileName
+    const textureSize: [number, number] = state.mode === 'sdf'
+      ? [state.tileSize, state.tileSize]
+      : [state.nineGridWidth, state.nineGridHeight]
+
+    const data: TilesetData = {
+      texture: `./${textureName}`,
+      size: textureSize,
+      mode: state.mode as 'sdf' | 'subtile',
+      layout: state.layout,
+      terrainName: state.textureFileName.replace(/\.[^.]+$/, ''),
+      sdfConfig: state.mode === 'sdf' ? {
+        tileSize: state.tileSize,
+        profile: { ...state.profile },
+      } : undefined,
+      subtileConfig: state.mode === 'subtile' ? {
+        useMagenta: state.useMagenta,
+        magentaTolerance: state.magentaTolerance,
+      } : undefined,
+    }
+
+    const result = await writeGsFile({
+      path: state.gsPath,
+      type: GsType.Tileset,
+      data,
+      lastKnownVersion: state.gsLastKnownVersion,
+    })
+
+    if (result.status === 'ok') {
+      state.gsLastKnownVersion = result.newVersion
+      state.isDirty = false
+    }
+
+    return result
+  }
+
   return {
     id,
     state,
@@ -272,6 +352,8 @@ export function createTilesetInstance(id: string) {
     loadTexture,
     setTextureFromPixels,
     loadNineGrid,
+    loadFromGsFile,
+    saveToGsFile,
     setMode,
     setLayout,
     setProfile,
@@ -306,18 +388,14 @@ export function useTilesetTabs(): UseEditorTabsReturn<TilesetInstance> {
       autoEmptyTab: true,
       persist: {
         key: 'gs-tabs:tileset',
-        serialize: (inst) => inst.state.resourceUid
-          ? { uid: inst.state.resourceUid, fileName: inst.state.textureFileName }
-          : null,
-        restore: async (desc: { uid: string; fileName: string }) => {
+        serialize: (inst) => inst.state.gsPath ? { gsPath: inst.state.gsPath } : null,
+        restore: async (desc) => {
           const id = `tileset-r-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
           const inst = getTilesetInstance(id)
-          inst.state.resourceUid = desc.uid
-          inst.state.textureFileName = desc.fileName
+          inst.state.gsPath = desc.gsPath
           return inst
         },
-        getIdentifier: (inst) => inst.state.resourceUid,
-        descriptorFromGsPath: (path) => ({ uid: '', fileName: path }),
+        getIdentifier: (inst) => inst.state.gsPath,
       },
     })
   }

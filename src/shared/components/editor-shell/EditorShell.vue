@@ -96,6 +96,7 @@ function onViewportDrop(files: File[], modifiers: DropModifiers) {
       />
 
       <ViewportArea
+        :key="activeTabId ?? ''"
         :accept="viewport?.accept ?? tabAccept"
         :drop-overlay-text="viewport?.dropOverlayText"
         :alt-drop-overlay-text="viewport?.altDropOverlayText"

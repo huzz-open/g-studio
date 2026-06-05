@@ -22,13 +22,6 @@ const modules = [
     color: '#5577aa',
   },
   {
-    route: '/map-editor',
-    icon: 'map',
-    titleKey: 'dashboard.mapEditor.title',
-    descKey: 'dashboard.mapEditor.desc',
-    color: '#aa7744',
-  },
-  {
     route: '/tileset-maker',
     icon: 'grid',
     titleKey: 'dashboard.tilesetMaker.title',

@@ -1,50 +1,42 @@
 ---
-description: AI behavioral rules when operating on workspace resources and .meta files
+description: AI behavioral rules when operating on workspace resources and .gs files
 alwaysApply: true
 ---
 
 # AI 资源操作行为规范
 
-## 创建文件
+## .gs 文件操作
 
-必须同步创建 `.meta` sidecar，生成新 uid，填写 `origin`、`pipeline`、`boundFileName`、`contentHash`、`fileSize`。
+### 创建
 
-## 派生文件
+使用 `createGsFile({ path, type, data })` 创建。type 必须是 `GsType` 枚举值之一。
 
-- 新文件 `origin.source` 设为 `derived`，`origin.sourceFiles` 用源文件 uid
-- 新文件 `relations` 添加 `{ rel: "derived-from", uid: "<source-uid>" }`
-- 源文件 `.meta` 的 `relations` 添加 `{ rel: "produces", uid: "<new-uid>" }`
+### 保存
 
-## 删除文件
+使用 `writeGsFile({ path, type, data, lastKnownVersion })` 写入。
+- 保存前读取磁盘 version 做冲突检测
+- 保存成功后更新本地 `gsLastKnownVersion`
 
-- 同步删除对应 `.meta`
-- 检查其他 `.meta` 的 `relations` 是否引用了该 uid，如有则提示用户
+### 从资源管理器打开
 
-## 重命名 / 移动文件
+资源管理器读取 `.gs` 的 `type` 字段 → 通过 `getHandlerByGsType` 找到对应 handler → `router.push({ path: handler.route, query: { gs: filePath } })`
 
-- 同步重命名/移动 `.meta` 文件
-- uid 不变，更新 `boundFileName`
-- 引用该文件 `path` 的其他 `.meta` 需要更新（uid 引用不受影响）
+### 模块侧接收
 
-## 保存切分配置
+`useTabRouteSync` 在 `onMounted` 中读取 `?gs=` query → 调用 `handleRouteIntent(gsPath)` → 清除 query
 
-将完整 `sliceConfig` 写入 `moduleData["sprite-slicer"]`，`pipeline` 追加 step。
+## 图片资源
 
-## 从资源打开到模块
+图片文件不需要任何 sidecar 文件。`.gs` 文件通过相对路径 `./filename.png` 引用同目录的图片。
 
-读取 `moduleData` 恢复参数，读取 `openWith` 决定跳转目标。
+## 右键创建
 
-## 修改文件内容
+在资源管理器对图片右键 → 选择模块 → 创建对应 type 的 `.gs` 文件，texture 字段引用该图片。
 
-更新 `.meta` 的 `contentHash`、`fileSize`、`updatedAt`。
+## 模块注册
 
-## 绝对禁止
-
-**永远不修改已有的 uid 字段。** uid 一旦生成，终身不变。
-
-## Reconciliation
-
-- 孤儿 `.meta` 通过 `contentHash` + `fileSize` 在未匹配文件中搜索，匹配则自动修复绑定
-- `.meta` 被删时从 `.g-studio/uid-index.json` 恢复 UID
-- 重复 UID 检测后为较新文件分配新 UID 并添加 `variant-of` 关系
-- `.meta` JSON 损坏时保留为 `.corrupt` 后缀，重建新 `.meta`
+每个模块在 `src/shared/module-registry/register-all.ts` 中注册 handler：
+- `gsType`：对应的 GsType 枚举值
+- `route`：模块路由路径
+- `createLabel`：右键创建菜单中的显示文字
+- `fileSummary`：资源管理器中的 .gs 文件摘要

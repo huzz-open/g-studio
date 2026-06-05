@@ -1,29 +1,29 @@
-import { ref, computed, type Ref, type ComputedRef } from 'vue'
+import { ref, shallowRef, computed, type Ref, type ShallowRef, type ComputedRef } from 'vue'
 
-export interface TabPersistConfig<T extends { id: string }, D> {
+export interface TabPersistConfig<T extends { id: string }> {
   key: string
-  serialize: (instance: T) => D | null
-  restore: (descriptor: D) => Promise<T>
+  serialize: (instance: T) => { gsPath: string } | null
+  restore: (descriptor: { gsPath: string }) => Promise<T>
   getIdentifier: (instance: T) => string | null
-  descriptorFromGsPath: (path: string) => D
 }
 
 export interface UseEditorTabsOptions<T extends { id: string }> {
   prefix: string
   factory: (id: string) => T
   destroy?: (id: string) => void
-  persist?: TabPersistConfig<T, any>
+  persist?: TabPersistConfig<T>
   autoEmptyTab?: boolean
 }
 
 export interface UseEditorTabsReturn<T extends { id: string }> {
-  instances: Ref<T[]>
+  instances: ShallowRef<T[]>
   activeTabId: Ref<string | null>
   activeInstance: ComputedRef<T | null>
   createTab: () => T
   switchTab: (id: string) => void
   closeTab: (id: string) => void
   restoring: Ref<boolean>
+  ready: Promise<void>
   saveSession: () => void
   handleRouteIntent: (gsPath: string) => Promise<void>
 }
@@ -31,7 +31,7 @@ export interface UseEditorTabsReturn<T extends { id: string }> {
 export function useEditorTabs<T extends { id: string }>(
   options: UseEditorTabsOptions<T>,
 ): UseEditorTabsReturn<T> {
-  const instances = ref<T[]>([]) as Ref<T[]>
+  const instances = shallowRef<T[]>([])
   const activeTabId = ref<string | null>(null)
   const restoring = ref(false)
   let counter = 0
@@ -44,7 +44,7 @@ export function useEditorTabs<T extends { id: string }>(
   function createTab(): T {
     const id = `${options.prefix}-${++counter}-${Date.now()}`
     const inst = options.factory(id)
-    instances.value.push(inst)
+    instances.value = [...instances.value, inst]
     activeTabId.value = id
     saveSession()
     return inst
@@ -58,7 +58,9 @@ export function useEditorTabs<T extends { id: string }>(
   function closeTab(id: string) {
     const idx = instances.value.findIndex(i => i.id === id)
     if (idx === -1) return
-    instances.value.splice(idx, 1)
+    const arr = [...instances.value]
+    arr.splice(idx, 1)
+    instances.value = arr
     options.destroy?.(id)
     if (activeTabId.value === id) {
       activeTabId.value =
@@ -88,7 +90,7 @@ export function useEditorTabs<T extends { id: string }>(
     try {
       const raw = sessionStorage.getItem(options.persist.key)
       if (raw) {
-        let data: { tabs: unknown[]; activeId: string | null }
+        let data: { tabs: Array<{ gsPath: string }>; activeId: string | null }
         try {
           data = JSON.parse(raw)
         } catch {
@@ -96,16 +98,21 @@ export function useEditorTabs<T extends { id: string }>(
           return
         }
 
+        const restored: T[] = []
         for (const desc of data.tabs) {
+          if (!desc || !desc.gsPath) continue
           try {
-            const inst = await options.persist.restore(desc as any)
-            instances.value.push(inst)
-          } catch { /* restore failed, skip */ }
+            const inst = await options.persist.restore(desc)
+            restored.push(inst)
+          } catch { /* restore failed for this tab, skip */ }
+        }
+        if (restored.length > 0) {
+          instances.value = restored
         }
 
         if (data.activeId && instances.value.length > 0) {
           const target = instances.value.find(
-            inst => options.persist!.getIdentifier(inst) === data.activeId
+            inst => options.persist!.getIdentifier(inst) === data.activeId,
           )
           activeTabId.value = target ? target.id : instances.value[0].id
         } else if (instances.value.length > 0) {
@@ -122,22 +129,24 @@ export function useEditorTabs<T extends { id: string }>(
   }
 
   async function handleRouteIntent(gsPath: string): Promise<void> {
-    if (!options.persist) return
+    if (!options.persist) {
+      throw new Error(`[useEditorTabs:${options.prefix}] persist config required for handleRouteIntent`)
+    }
+    await ready
     const existing = instances.value.find(
-      inst => options.persist!.getIdentifier(inst) === gsPath
+      inst => options.persist!.getIdentifier(inst) === gsPath,
     )
     if (existing) {
       activeTabId.value = existing.id
     } else {
-      const desc = options.persist!.descriptorFromGsPath(gsPath)
-      const inst = await options.persist!.restore(desc)
-      instances.value.push(inst)
+      const inst = await options.persist!.restore({ gsPath })
+      instances.value = [...instances.value, inst]
       activeTabId.value = inst.id
     }
     saveSession()
   }
 
-  _init()
+  const ready = _init()
 
-  return { instances, activeTabId, activeInstance, createTab, switchTab, closeTab, restoring, saveSession, handleRouteIntent }
+  return { instances, activeTabId, activeInstance, createTab, switchTab, closeTab, restoring, ready, saveSession, handleRouteIntent }
 }

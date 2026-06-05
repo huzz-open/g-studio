@@ -10,7 +10,6 @@ export type { UseEditorTabsReturn, UseEditorTabsOptions, TabPersistConfig } from
 export { useTabRouteSync } from './useTabRouteSync'
 export { createInstanceRegistry } from './createInstanceRegistry'
 export { definePanelConfig } from './definePanelConfig'
-export { useRouteResource } from './useRouteResource'
 export * from './sidebar-atoms'
 export type {
   TabItem,

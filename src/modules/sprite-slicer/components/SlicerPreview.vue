@@ -5,12 +5,11 @@ import ImageCanvas from '../../../shared/components/ImageCanvas.vue'
 import ActionMenu, { type ActionItem } from '../../../shared/components/ActionMenu.vue'
 import SplitEditor from './SplitEditor.vue'
 import type { Point } from '../core/split/line-splitter'
+import type { SlicerInstance } from '../store'
 
 const { t } = useI18n()
 
-const props = defineProps<{
-  store: ReturnType<typeof import('../store').useSlicerStore>
-}>()
+const props = defineProps<{ store: SlicerInstance }>()
 
 // --- Unified actions: showOnHover controls what appears in hover bar ---
 const cellActions = computed<ActionItem[]>(() => [
@@ -22,7 +21,7 @@ const cellActions = computed<ActionItem[]>(() => [
 ])
 
 const gridRects = computed(() =>
-  props.store.sprites.value.map(s => ({
+  props.store.state.sprites.map(s => ({
     idx: s.id,
     x: s.rect.x, y: s.rect.y,
     w: s.rect.w, h: s.rect.h,
@@ -48,14 +47,14 @@ const checkIcons = computed(() =>
 )
 
 const gridLines = computed(() => {
-  if (props.store.detectionMode.value !== 'grid') return []
-  const { w, h } = props.store.imgSize.value
-  const c = props.store.cols.value
-  const r = props.store.rows.value
-  const gh = props.store.gapH.value
-  const gv = props.store.gapV.value
-  const mh = props.store.marginH.value
-  const mv = props.store.marginV.value
+  if (props.store.state.detectionMode !== 'grid') return []
+  const { w, h } = props.store.state.imgSize
+  const c = props.store.state.cols
+  const r = props.store.state.rows
+  const gh = props.store.state.gapH
+  const gv = props.store.state.gapV
+  const mh = props.store.state.marginH
+  const mv = props.store.state.marginV
   const innerW = w - mh * 2
   const innerH = h - mv * 2
   const cellW = (innerW - (c - 1) * gh) / c
@@ -245,13 +244,13 @@ function onRectContextMenu(_idx: number, e: MouseEvent) {
 function onCheckClick(idx: number, e: MouseEvent) {
   e.preventDefault()
   e.stopPropagation()
-  const s = new Set(props.store.selected.value)
+  const s = new Set(props.store.state.selected)
   if (s.has(idx)) {
     s.delete(idx)
   } else {
     s.add(idx)
   }
-  props.store.selected.value = s
+  props.store.state.selected = s
 }
 
 // --- Context menu ---
@@ -266,7 +265,7 @@ function closeCtxMenu() {
 
 const ctxIsExported = computed(() => {
   for (const id of pendingCells.value) {
-    if (!props.store.selected.value.has(id)) return false
+    if (!props.store.state.selected.has(id)) return false
   }
   return true
 })
@@ -291,23 +290,23 @@ function onAction(key: string) {
   } else if (key === 'split') {
     const ids = [...pendingCells.value]
     if (ids.length !== 1) return
-    const sprite = props.store.sprites.value.find(s => s.id === ids[0])
+    const sprite = props.store.state.sprites.find(s => s.id === ids[0])
     if (!sprite) return
     if (sprite.mergedFromRects && sprite.mergedFromRects.length >= 2) {
       props.store.unmergeSprite(sprite.id)
       clearPending()
     } else {
-      splitTarget.value = { sprite, dataUrl: props.store.cleanImageUrl.value || '' }
+      splitTarget.value = { sprite, dataUrl: props.store.state.cleanImageUrl || '' }
       clearPending()
     }
   } else if (key === 'toggle-export') {
-    const s = new Set(props.store.selected.value)
+    const s = new Set(props.store.state.selected)
     if (ctxIsExported.value) {
       for (const id of pendingCells.value) s.delete(id)
     } else {
       for (const id of pendingCells.value) s.add(id)
     }
-    props.store.selected.value = s
+    props.store.state.selected = s
     clearPending()
   }
 }
@@ -353,7 +352,7 @@ function onPanelLeave() {
 }
 
 function showZoomed(idx: number) {
-  const sprite = props.store.sprites.value.find(s => s.id === idx)
+  const sprite = props.store.state.sprites.find(s => s.id === idx)
   if (!sprite) return
   zoomedSprite.value = {
     dataUrl: sprite.dataUrl,
@@ -365,7 +364,7 @@ function showZoomed(idx: number) {
 }
 
 function startRename(idx: number) {
-  const sprite = props.store.sprites.value.find(s => s.id === idx)
+  const sprite = props.store.state.sprites.find(s => s.id === idx)
   if (!sprite) return
   renameTarget.value = { id: sprite.id, name: sprite.name }
   renameValue.value = sprite.name
@@ -406,7 +405,7 @@ function clearHover() {
 
 <template>
   <ImageCanvas
-    :src="store.cleanImageUrl.value || ''"
+    :src="store.state.cleanImageUrl || ''"
     :min-scale="0.25"
     :max-scale="8"
     show-info-bar
@@ -415,12 +414,12 @@ function clearHover() {
   >
     <template #toolbar-left>
       <span class="stats">{{ t(
-        store.detectionMode.value === 'auto' ? 'slicer.hint.autoStats' : 'slicer.hint.gridStats',
+        store.state.detectionMode === 'auto' ? 'slicer.hint.autoStats' : 'slicer.hint.gridStats',
         {
           selected: store.selectedSprites.value.length,
-          total: store.sprites.value.length,
-          rows: store.rows.value,
-          cols: store.cols.value,
+          total: store.state.sprites.length,
+          rows: store.state.rows,
+          cols: store.state.cols,
         }
       ) }}</span>
     </template>
@@ -433,12 +432,12 @@ function clearHover() {
         ref="svgEl"
         class="grid-overlay"
         :class="overlayState"
-        :viewBox="`0 0 ${store.imgSize.value.w} ${store.imgSize.value.h}`"
+        :viewBox="`0 0 ${store.state.imgSize.w} ${store.state.imgSize.h}`"
         preserveAspectRatio="xMidYMid meet"
         overflow="visible"
       >
         <rect
-          :width="store.imgSize.value.w" :height="store.imgSize.value.h"
+          :width="store.state.imgSize.w" :height="store.state.imgSize.h"
           fill="transparent"
           class="bg-hit"
           @mousedown="onBgMouseDown"
@@ -448,7 +447,7 @@ function clearHover() {
         <rect
           v-for="r in gridRects" :key="'fill-'+r.idx"
           :x="r.x" :y="r.y" :width="r.w" :height="r.h"
-          :fill="store.selected.value.has(r.idx) ? 'transparent' : 'rgba(0,0,0,0.45)'"
+          :fill="store.state.selected.has(r.idx) ? 'transparent' : 'rgba(0,0,0,0.45)'"
           :class="['grid-rect', { highlighted: highlightedCells.has(r.idx), merged: r.merged }]"
           @mousedown="onRectMouseDown(r.idx, $event)"
           @mouseenter="onRectMouseEnter(r.idx, $event)"
@@ -468,13 +467,13 @@ function clearHover() {
           <circle
             :cx="ci.cx" :cy="ci.cy"
             :r="ci.size * 0.45"
-            :fill="store.selected.value.has(ci.idx) ? 'rgba(34,197,94,0.85)' : 'rgba(100,100,100,0.6)'"
+            :fill="store.state.selected.has(ci.idx) ? 'rgba(34,197,94,0.85)' : 'rgba(100,100,100,0.6)'"
             style="pointer-events: none"
           />
           <path
             :d="`M${ci.cx - ci.size*0.22} ${ci.cy} l${ci.size*0.15} ${ci.size*0.15} l${ci.size*0.25} ${-ci.size*0.3}`"
             fill="none"
-            :stroke="store.selected.value.has(ci.idx) ? '#fff' : '#999'"
+            :stroke="store.state.selected.has(ci.idx) ? '#fff' : '#999'"
             :stroke-width="Math.max(1, ci.size * 0.12)"
             stroke-linecap="round"
             stroke-linejoin="round"

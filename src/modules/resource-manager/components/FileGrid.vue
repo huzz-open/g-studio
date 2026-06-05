@@ -83,11 +83,10 @@ function typeIcon(entry: FsEntry): string {
     }
     return 'file-text'
   }
-  if (entry.meta?.type === 'spritesheet') return 'grid'
-  if (entry.meta?.type === 'map-data') return 'map'
   const name = entry.name.toLowerCase()
   if (name.endsWith('.json')) return 'file-text'
-  return 'image'
+  if (isImageFile(entry.name)) return 'image'
+  return 'file-text'
 }
 
 function typeLabel(entry: FsEntry): string {
@@ -99,7 +98,8 @@ function typeLabel(entry: FsEntry): string {
     }
     return 'gs'
   }
-  return entry.meta?.type ?? 'generic'
+  const ext = entry.name.includes('.') ? entry.name.split('.').pop()! : 'file'
+  return ext
 }
 
 function gsCardSummary(entry: FsEntry): string {
@@ -140,9 +140,6 @@ function onContextMenu(entry: FsEntry, event: MouseEvent) {
       </div>
       <div v-if="isGsFile(file.name)" class="card-badge gs-badge" title=".gs">
         <SvgIcon name="file-text" :size="8" />
-      </div>
-      <div v-else-if="file.meta?.uid" class="card-badge" :title="file.meta.uid">
-        <SvgIcon name="link" :size="8" />
       </div>
     </div>
   </div>

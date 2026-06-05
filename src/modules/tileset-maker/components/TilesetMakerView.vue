@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { ref, shallowRef, computed, watch, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from '../../../shared/i18n'
-import { EditorShell, SidebarSection, SegmentedControl, definePanelConfig, useRouteResource, useTabRouteSync, EmptyDropHint } from '../../../shared/components/editor-shell'
+import { EditorShell, SidebarSection, SegmentedControl, definePanelConfig, useTabRouteSync, EmptyDropHint } from '../../../shared/components/editor-shell'
 import type { TabItem, DropModifiers } from '../../../shared/components/editor-shell'
 import { ActionButtons } from '../../../shared/components/editor-shell'
 import { useTilesetTabs, useTilesetTerrain, type TilesetInstance } from '../store'
+import { showToast } from '../../../shared/components/toast'
+import { prompt } from '../../../shared/components/prompt'
+import { getWorkspaceHandle, splitPath } from '../../../shared/workspace'
+import { resolveDir, writeFile as fsWriteFile } from '../../../shared/workspace/fs'
 import TextureSourcePanel from './TextureSourcePanel.vue'
 import NineGridSourcePanel from './NineGridSourcePanel.vue'
 import TexturePainter from './TexturePainter.vue'
@@ -14,11 +17,20 @@ import TerrainCanvas from './TerrainCanvas.vue'
 import ExportPanel from './ExportPanel.vue'
 
 const { t } = useI18n()
-const route = useRoute()
 
 const tabsManager = useTilesetTabs()
 const { instances: tabInstances, activeTabId, activeInstance, createTab: createTabRaw, switchTab: onTabSwitch, closeTab: onTabClose } = tabsManager
-useTabRouteSync(tabsManager)
+useTabRouteSync({
+  ...tabsManager,
+  activeGsPath: computed(() => activeInstance.value?.state.gsPath ?? null),
+  async loadPendingTabs() {
+    for (const inst of tabInstances.value) {
+      if (inst.state.gsPath && !inst.hasSource.value) {
+        try { await inst.loadFromGsFile(inst.state.gsPath) } catch { /* workspace not ready */ }
+      }
+    }
+  },
+})
 
 const terrainState = useTilesetTerrain()
 
@@ -33,7 +45,7 @@ const splitPercent = ref(50)
 const tabs = computed<TabItem[]>(() =>
   tabInstances.value.map((inst: TilesetInstance) => ({
     id: inst.id,
-    label: inst.state.textureFileName || inst.state.nineGridFileName || t('common.newTab'),
+    label: inst.state.textureFileName || inst.state.nineGridFileName || (inst.state.gsPath ? splitPath(inst.state.gsPath).fileName.replace('.gs', '') : t('common.newTab')),
     dirty: inst.state.isDirty,
   }))
 )
@@ -41,7 +53,7 @@ const tabs = computed<TabItem[]>(() =>
 const leftPanelConfig = definePanelConfig('tileset-panel-left', 300)
 
 const isTopEmpty = computed(() =>
-  !activeInstance.value || !activeInstance.value.hasSource,
+  !activeInstance.value || !activeInstance.value.hasSource.value,
 )
 
 const isTopLoading = computed(() =>
@@ -71,8 +83,13 @@ function createTab(fileName?: string): TilesetInstance {
 }
 
 function onTabAddFile(file: File) {
-  const inst = createTab(file.name)
-  loadFileToInstance(inst, file)
+  if (isTopEmpty.value && activeInstance.value) {
+    setFileNameForMode(activeInstance.value, file.name)
+    loadFileToInstance(activeInstance.value, file)
+  } else {
+    const inst = createTab(file.name)
+    loadFileToInstance(inst, file)
+  }
 }
 
 function onViewportDrop(files: File[], modifiers: DropModifiers) {
@@ -116,24 +133,6 @@ function loadFileToInstance(inst: TilesetInstance, file: File) {
   }
 }
 
-async function loadFromResource(resourceUid: string) {
-  const filePath = route.query.path as string | undefined
-  if (!filePath) return
-  try {
-    const response = await fetch(filePath)
-    if (!response.ok) return
-    const blob = await response.blob()
-    const file = new File([blob], filePath.split('/').pop() || 'texture.png', { type: blob.type })
-    const inst = (activeInstance.value && !activeInstance.value.hasSource.value)
-      ? activeInstance.value
-      : createTab(file.name)
-    setFileNameForMode(inst, file.name)
-    inst.state.resourceUid = resourceUid
-    await inst.loadTexture(file)
-  } catch { /* best-effort */ }
-}
-
-useRouteResource(loadFromResource)
 
 // --- Split viewport resize ---
 let splitResizing = false
@@ -166,7 +165,111 @@ function onSplitUp() {
   document.body.style.userSelect = ''
 }
 
+async function onKeyDown(e: KeyboardEvent) {
+  const ctrl = e.ctrlKey || e.metaKey
+  if (!ctrl || !activeInstance.value) return
+  if (e.key === 's') {
+    e.preventDefault()
+    await handleSave()
+  }
+}
+
+async function handleSave() {
+  const inst = activeInstance.value
+  if (!inst) return
+
+  if (!inst.state.gsPath) {
+    if (!getWorkspaceHandle()) {
+      showToast(t('workspace.openFirst'), 'info')
+      return
+    }
+    await handleSaveAsNewGs(inst)
+    return
+  }
+
+  try {
+    const result = await inst.saveToGsFile()
+    if (result.status === 'ok') {
+      tabsManager.saveSession()
+      showToast(t('common.saved'), 'success')
+    } else {
+      showToast(t('common.saveFailed'), 'error')
+    }
+  } catch (e: any) {
+    showToast(e.message, 'error')
+  }
+}
+
+async function handleSaveAsNewGs(inst: TilesetInstance) {
+  const texName = inst.state.mode === 'sdf' ? inst.state.textureFileName : inst.state.nineGridFileName
+  if (!texName) {
+    showToast('没有关联的图片', 'error')
+    return
+  }
+  const defaultName = texName.replace(/\.[^.]+$/, '')
+  const name = await prompt({ title: t('tileset.saveAs'), defaultValue: defaultName })
+  if (!name) return
+
+  try {
+    const dirHandle = await resolveDir('', true)
+
+    const bitmap = inst.state.mode === 'sdf' ? inst.state.texture : inst.state.nineGridImage
+    if (!bitmap) {
+      showToast('没有关联的图片', 'error')
+      return
+    }
+    const cv = new OffscreenCanvas(bitmap.width, bitmap.height)
+    cv.getContext('2d')!.drawImage(bitmap, 0, 0)
+    const blob = await cv.convertToBlob({ type: 'image/png' })
+    const buffer = new Uint8Array(await blob.arrayBuffer())
+    await fsWriteFile(dirHandle, texName, buffer)
+
+    const gsPath = name.endsWith('.gs') ? name : `${name}.gs`
+
+    const { createGsFile } = await import('../../../shared/gs-format/writer')
+    const { GsType } = await import('../../../shared/gs-format/types')
+
+    const textureSize: [number, number] = inst.state.mode === 'sdf'
+      ? [inst.state.tileSize, inst.state.tileSize]
+      : [inst.state.nineGridWidth, inst.state.nineGridHeight]
+
+    const data: import('../../../shared/gs-format/types').TilesetData = {
+      texture: `./${texName}`,
+      size: textureSize,
+      mode: inst.state.mode as 'sdf' | 'subtile',
+      layout: inst.state.layout,
+      terrainName: defaultName,
+      sdfConfig: inst.state.mode === 'sdf' ? {
+        tileSize: inst.state.tileSize,
+        profile: { ...inst.state.profile },
+      } : undefined,
+      subtileConfig: inst.state.mode === 'subtile' ? {
+        useMagenta: inst.state.useMagenta,
+        magentaTolerance: inst.state.magentaTolerance,
+      } : undefined,
+    }
+
+    const result = await createGsFile({
+      path: gsPath,
+      type: GsType.Tileset,
+      data,
+    })
+
+    inst.state.gsPath = result.path
+    inst.state.gsLastKnownVersion = result.version
+    inst.state.isDirty = false
+    tabsManager.saveSession()
+    showToast(t('common.saved'), 'success')
+  } catch (e: any) {
+    showToast(`保存失败: ${e.message}`, 'error')
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeyDown)
+})
 onUnmounted(() => {
+  window.removeEventListener('keydown', onKeyDown)
   if (splitResizing) onSplitUp()
 })
 </script>
