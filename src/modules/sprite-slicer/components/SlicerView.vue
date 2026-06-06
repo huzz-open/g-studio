@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, shallowRef, watch } from 'vue'
 import { useI18n } from '../../../shared/i18n'
 import { useSlicerTabs, type SlicerInstance } from '../store'
 import { GsType } from '../../../shared/gs-format/types'
@@ -15,6 +15,12 @@ import AnimationPreview from './AnimationPreview.vue'
 const { t } = useI18n()
 const tabsManager = useSlicerTabs()
 const { instances, activeTabId, activeInstance, createTab, switchTab, closeTab } = tabsManager
+
+const sidebarInstance = shallowRef<SlicerInstance | null>(null)
+watch(activeInstance, (inst) => {
+  if (inst) sidebarInstance.value = inst
+}, { immediate: true })
+
 useTabRouteSync({
   ...tabsManager,
   activeGsPath: computed(() => activeInstance.value?.state.gsPath ?? null),
@@ -126,9 +132,9 @@ function onSaveOutput(_payload: OutputPayload) {
     <!-- Left sidebar -->
     <template #left>
       <SlicerSidebar
-        v-if="activeInstance"
-        :store="activeInstance"
-        :has-image="!!activeInstance.state.sourceImage"
+        v-if="sidebarInstance"
+        :store="sidebarInstance"
+        :has-image="!!sidebarInstance.state.sourceImage"
         @file="onFile"
         @show-anim="showAnimPreview = true"
         @export-local="onSaveOutput"
