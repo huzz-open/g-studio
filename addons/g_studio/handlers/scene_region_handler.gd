@@ -2,6 +2,12 @@
 extends RefCounted
 ## Handler for GsType.SceneRegion (type=1).
 ## Implements recognize, apply, and create_scene.
+##
+## .gs stores pixel coordinates with origin at image top-left (0,0).
+## Godot Sprite2D sits at image center with centered=true, so the image
+## renders from (0,0) to (w,h) in scene coords — matching .gs directly.
+## Obstacles/Collision containers are placed at (0,0) so child coordinates
+## equal .gs coordinates with no conversion needed.
 
 const GROUP_MAP = {
 	"occlude_top_layer": 1,
@@ -67,7 +73,7 @@ func create_scene(gs_data: Dictionary, gs_path: String) -> void:
 	root.name = data.get("name", "Scene")
 	root.y_sort_enabled = data.get("y_sort", true)
 
-	# Background sprite
+	# Background sprite — centered=true at (cx,cy) renders image from (0,0) to (w,h)
 	var sprite = Sprite2D.new()
 	sprite.name = "Sprite2D"
 	if not texture_res_path.is_empty() and ResourceLoader.exists(texture_res_path):
@@ -78,7 +84,6 @@ func create_scene(gs_data: Dictionary, gs_path: String) -> void:
 	root.add_child(sprite)
 	sprite.owner = root
 
-	# Apply regions
 	var regions = data.get("regions", [])
 	var occlude_regions = regions.filter(func(r): return r.get("type", 0) == 1)
 	var collision_regions = regions.filter(func(r): return r.get("type", 0) == 2)
@@ -86,8 +91,6 @@ func create_scene(gs_data: Dictionary, gs_path: String) -> void:
 	if occlude_regions.size() > 0:
 		var obstacles = Node2D.new()
 		obstacles.name = "Obstacles"
-		if sprite.texture:
-			obstacles.position = sprite.position
 		root.add_child(obstacles)
 		obstacles.owner = root
 
@@ -97,15 +100,12 @@ func create_scene(gs_data: Dictionary, gs_path: String) -> void:
 	if collision_regions.size() > 0:
 		var collision = StaticBody2D.new()
 		collision.name = "Collision"
-		if sprite.texture:
-			collision.position = sprite.position
 		root.add_child(collision)
 		collision.owner = root
 
 		for region in collision_regions:
 			_create_collision_node(collision, region, root)
 
-	# Save as .tscn
 	var packed = PackedScene.new()
 	packed.pack(root)
 	ResourceSaver.save(packed, tscn_path)
@@ -258,13 +258,12 @@ func _create_occlude_node(parent: Node, region: Dictionary, owner: Node) -> void
 	parent.add_child(area)
 	area.owner = owner
 
-	# Set groups
 	var groups = region.get("groups", [])
 	for g in groups:
-		if REVERSE_GROUP_MAP.has(g):
-			area.add_to_group(REVERSE_GROUP_MAP[g])
+		var gi = int(g)
+		if REVERSE_GROUP_MAP.has(gi):
+			area.add_to_group(REVERSE_GROUP_MAP[gi], true)
 
-	# Create shape
 	if region.has("verts"):
 		var poly = CollisionPolygon2D.new()
 		poly.name = "CollisionPolygon2D"
@@ -307,20 +306,19 @@ func _create_collision_node(parent: Node, region: Dictionary, owner: Node) -> vo
 # --- Node update ---
 
 func _update_occlude_node(area: Area2D, region: Dictionary) -> void:
-	# Update groups
 	var desired_groups: Array = []
 	for g in region.get("groups", []):
-		if REVERSE_GROUP_MAP.has(g):
-			desired_groups.append(REVERSE_GROUP_MAP[g])
+		var gi = int(g)
+		if REVERSE_GROUP_MAP.has(gi):
+			desired_groups.append(REVERSE_GROUP_MAP[gi])
 
 	for group in area.get_groups():
 		if GROUP_MAP.has(group) and group not in desired_groups:
 			area.remove_from_group(group)
 	for group in desired_groups:
 		if not area.is_in_group(group):
-			area.add_to_group(group)
+			area.add_to_group(group, true)
 
-	# Update shape
 	for child in area.get_children():
 		if child is CollisionPolygon2D and region.has("verts"):
 			child.polygon = _verts_to_polygon(region.verts)

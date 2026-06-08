@@ -54,7 +54,6 @@ export function generateSceneRegionTscn(data: SceneRegionData, texturePath: stri
       name: 'Obstacles',
       type: 'Node2D',
       parent: '.',
-      props: { position: formatVector2(cx, cy) },
     })
 
     for (const region of occludeRegions) {
@@ -103,7 +102,6 @@ export function generateSceneRegionTscn(data: SceneRegionData, texturePath: stri
       name: 'Collision',
       type: 'StaticBody2D',
       parent: '.',
-      props: { position: formatVector2(cx, cy) },
     })
 
     for (const region of collisionRegions) {
