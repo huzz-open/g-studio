@@ -1,7 +1,6 @@
 export {
   GsType,
   RegionType,
-  RegionGroup,
   GS_FORMAT_VERSION,
   type GsFile,
   type SceneRegionData,

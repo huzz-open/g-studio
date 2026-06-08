@@ -1,117 +1,125 @@
 @tool
 extends Node
-## Coordinates .gs file sync: dispatches to type-specific handlers.
 
 const SceneRegionHandler = preload("handlers/scene_region_handler.gd")
 
-var _handlers: Dictionary = {}  # GsType (int) → handler instance
-var _self_written_files: Dictionary = {}  # path → write_timestamp
-var _last_known_versions: Dictionary = {}  # path → version
-var _pending_syncs: Dictionary = {}  # tscn_path → gs_path
+var _handlers = {}
+var _self_written = {}
+var _last_known_versions = {}
 
 
 func _ready():
 	_handlers[1] = SceneRegionHandler.new()
 
 
-func on_gs_changed(gs_path: String):
+func initial_sync(gs_paths):
+	var count = 0
+	for gs_path in gs_paths:
+		var tscn_path = gs_path.replace(".gs", ".tscn")
+		var need_gen = false
+		if not FileAccess.file_exists(tscn_path):
+			need_gen = true
+		elif FileAccess.get_modified_time(gs_path) > FileAccess.get_modified_time(tscn_path):
+			need_gen = true
+		if need_gen:
+			if _generate(gs_path):
+				count += 1
+	if count > 0:
+		EditorInterface.get_resource_filesystem().scan()
+		print("[G-Studio] Initial sync: generated %d scene(s)" % count)
+
+
+func on_gs_changed(gs_path):
 	if _is_self_written(gs_path):
 		return
 
-	var gs_data = _read_gs_file(gs_path)
-	if gs_data.is_empty():
+	if not _generate(gs_path):
 		return
-
-	var gs_type = gs_data.get("type", 0) as int
-	var handler = _handlers.get(gs_type)
-	if not handler:
-		return
-
-	_last_known_versions[gs_path] = gs_data.get("version", 0)
 
 	var tscn_path = gs_path.replace(".gs", ".tscn")
+	EditorInterface.get_resource_filesystem().scan()
 
-	if not FileAccess.file_exists(tscn_path):
-		# First-time generation
-		handler.create_scene(gs_data, gs_path)
-		EditorInterface.get_resource_filesystem().scan()
-		print("[G-Studio] Generated scene: ", tscn_path)
-		return
-
-	# Check if scene is currently open
 	var open_scenes = EditorInterface.get_open_scenes()
-	if tscn_path in open_scenes:
-		_sync_to_open_scene(gs_path, gs_data, handler)
-	else:
-		_pending_syncs[tscn_path] = gs_path
+	for i in range(open_scenes.size()):
+		if open_scenes[i] == tscn_path:
+			_deferred_reload(tscn_path)
+			break
 
 
 func on_scene_saving():
-	var edited_scene = EditorInterface.get_edited_scene_root()
-	if not edited_scene:
+	var edited = EditorInterface.get_edited_scene_root()
+	if edited == null:
 		return
 
-	var scene_path = edited_scene.scene_file_path
-	if not scene_path:
+	var scene_path = edited.scene_file_path
+	if scene_path.is_empty():
 		return
 
 	var gs_path = scene_path.replace(".tscn", ".gs")
 	if not FileAccess.file_exists(gs_path):
 		return
 
-	var gs_data = _read_gs_file(gs_path)
+	var gs_data = _read_gs(gs_path)
 	if gs_data.is_empty():
 		return
 
-	var gs_type = gs_data.get("type", 0) as int
+	var gs_type = int(gs_data.get("type", 0))
 	var handler = _handlers.get(gs_type)
-	if not handler:
+	if handler == null:
 		return
 
-	# Recognize current scene tree state
-	var recognized = handler.recognize(edited_scene)
+	var recognized = handler.recognize(edited)
 	if recognized.is_empty():
 		return
 
-	# Assign IDs by matching names with existing regions
 	var existing_regions = gs_data.get("data", {}).get("regions", [])
 	var new_regions = _assign_ids(recognized.get("regions", []), existing_regions)
 
-	# Update data
 	gs_data["data"]["regions"] = new_regions
-
-	# Write back with conflict check
 	_write_gs(gs_path, gs_data)
 
 
-func _sync_to_open_scene(gs_path: String, gs_data: Dictionary, handler) -> void:
+func _deferred_reload(tscn_path):
+	get_tree().create_timer(0.3).timeout.connect(_do_reload.bind(tscn_path))
+
+
+func _do_reload(tscn_path):
+	EditorInterface.reload_scene_from_path(tscn_path)
+
+
+func _generate(gs_path):
+	var gs_data = _read_gs(gs_path)
+	if gs_data.is_empty():
+		return false
+
+	var gs_type = int(gs_data.get("type", 0))
+	var handler = _handlers.get(gs_type)
+	if handler == null:
+		return false
+
+	_last_known_versions[gs_path] = gs_data.get("version", 0)
+	handler.create_scene(gs_data, gs_path)
+
 	var tscn_path = gs_path.replace(".gs", ".tscn")
-	var edited = EditorInterface.get_edited_scene_root()
-	if not edited or edited.scene_file_path != tscn_path:
-		return
-
-	var data = gs_data.get("data", {})
-	var regions = data.get("regions", [])
-	var texture_path = _resolve_texture_path(gs_path, data.get("texture", ""))
-	handler.apply(regions, edited, texture_path)
+	print("[G-Studio] Generated: ", tscn_path)
+	return true
 
 
-func _assign_ids(recognized: Array, existing: Array) -> Array:
-	var existing_by_name = {}
+func _assign_ids(recognized, existing):
+	var by_name = {}
 	for r in existing:
-		existing_by_name[r.get("name", "")] = r
+		by_name[r.get("name", "")] = r
 
 	var max_id = 0
 	for r in existing:
-		var id_str = r.get("id", "r0").replace("r", "")
-		var num = id_str.to_int()
+		var num = r.get("id", "r0").replace("r", "").to_int()
 		if num > max_id:
 			max_id = num
 
 	for region in recognized:
-		var name = region.get("name", "")
-		if existing_by_name.has(name):
-			region["id"] = existing_by_name[name].get("id", "r0")
+		var rname = region.get("name", "")
+		if by_name.has(rname):
+			region["id"] = by_name[rname].get("id", "r0")
 		else:
 			max_id += 1
 			region["id"] = "r%d" % max_id
@@ -119,33 +127,32 @@ func _assign_ids(recognized: Array, existing: Array) -> Array:
 	return recognized
 
 
-# --- File I/O utilities ---
-
-func _read_gs_file(path: String) -> Dictionary:
+func _read_gs(path):
 	if not FileAccess.file_exists(path):
 		return {}
 	var f = FileAccess.open(path, FileAccess.READ)
-	if not f:
+	if f == null:
 		return {}
 	var text = f.get_as_text()
 	f.close()
 	var json = JSON.new()
-	var err = json.parse(text)
-	if err != OK:
-		push_error("[G-Studio] Failed to parse .gs file: %s" % path)
+	if json.parse(text) != OK:
+		push_error("[G-Studio] Failed to parse: %s" % path)
 		return {}
-	return json.data if json.data is Dictionary else {}
+	if json.data is Dictionary:
+		return json.data
+	return {}
 
 
-func _write_gs(path: String, data: Dictionary) -> bool:
+func _write_gs(path, data):
 	var disk_version = 0
-	var current = _read_gs_file(path)
+	var current = _read_gs(path)
 	if not current.is_empty():
-		disk_version = current.get("version", 0)
+		disk_version = int(current.get("version", 0))
 
 	var expected = _last_known_versions.get(path, 0)
-	if disk_version > expected:
-		push_warning("[G-Studio] Write conflict on %s: disk=%d, expected=%d" % [path, disk_version, expected])
+	if int(disk_version) > int(expected):
+		push_warning("[G-Studio] Write conflict on %s: disk=%d expected=%d" % [path, disk_version, expected])
 		return false
 
 	data["version"] = disk_version + 1
@@ -153,8 +160,8 @@ func _write_gs(path: String, data: Dictionary) -> bool:
 
 	var json_text = JSON.stringify(data, "  ")
 	var f = FileAccess.open(path, FileAccess.WRITE)
-	if not f:
-		push_error("[G-Studio] Cannot write to: %s" % path)
+	if f == null:
+		push_error("[G-Studio] Cannot write: %s" % path)
 		return false
 	f.store_string(json_text)
 	f.close()
@@ -164,25 +171,13 @@ func _write_gs(path: String, data: Dictionary) -> bool:
 	return true
 
 
-func _mark_self_written(path: String) -> void:
-	_self_written_files[path] = Time.get_unix_time_from_system()
+func _mark_self_written(path):
+	_self_written[path] = Time.get_unix_time_from_system()
 
 
-func _is_self_written(path: String) -> bool:
-	if not _self_written_files.has(path):
+func _is_self_written(path):
+	if not _self_written.has(path):
 		return false
-	var written_at = _self_written_files[path]
-	var now = Time.get_unix_time_from_system()
-	if now - written_at < 2.0:
-		_self_written_files.erase(path)
-		return true
-	_self_written_files.erase(path)
-	return false
-
-
-func _resolve_texture_path(gs_path: String, relative: String) -> String:
-	if relative.is_empty():
-		return ""
-	var gs_dir = gs_path.get_base_dir()
-	var resolved = gs_dir.path_join(relative)
-	return resolved.simplify_path()
+	var age = Time.get_unix_time_from_system() - _self_written[path]
+	_self_written.erase(path)
+	return age < 2.0

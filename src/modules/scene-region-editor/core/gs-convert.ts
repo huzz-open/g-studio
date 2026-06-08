@@ -2,7 +2,6 @@ import type { SceneRegion as EditorRegion, RegionType as EditorRegionType } from
 import { isRectRegion } from './types'
 import {
   RegionType as GsRegionType,
-  RegionGroup,
   type SceneRegion as GsRegion,
   type SceneRegionData as GsSceneRegionData,
 } from '../../../shared/gs-format/types'
@@ -15,20 +14,6 @@ const REGION_TYPE_TO_GS: Record<EditorRegionType, GsRegionType> = {
 const GS_REGION_TYPE_TO_EDITOR: Record<GsRegionType, EditorRegionType> = {
   [GsRegionType.Occlude]: 'occlude',
   [GsRegionType.Collision]: 'collision',
-}
-
-const GROUP_TO_GS: Record<string, RegionGroup> = {
-  occlude_top_layer: RegionGroup.TopLayer,
-  occlude_y_sort: RegionGroup.YSort,
-  occlude_screen_mask: RegionGroup.ScreenMask,
-  occlude_opacity_50: RegionGroup.Opacity50,
-}
-
-const GS_GROUP_TO_EDITOR: Record<RegionGroup, string> = {
-  [RegionGroup.TopLayer]: 'occlude_top_layer',
-  [RegionGroup.YSort]: 'occlude_y_sort',
-  [RegionGroup.ScreenMask]: 'occlude_screen_mask',
-  [RegionGroup.Opacity50]: 'occlude_opacity_50',
 }
 
 function nextGsId(usedIds: string[]): string {
@@ -63,9 +48,7 @@ export function editorRegionsToGs(
     }
 
     if (er.type === 'occlude' && er.groups.length > 0) {
-      gsRegion.groups = er.groups
-        .map(g => GROUP_TO_GS[g])
-        .filter((v): v is RegionGroup => v !== undefined)
+      gsRegion.groups = [...er.groups]
     }
 
     if (isRectRegion(er.vertices)) {
@@ -87,9 +70,7 @@ export function editorRegionsToGs(
 export function gsRegionsToEditor(gsRegions: GsRegion[]): EditorRegion[] {
   return gsRegions.map((gr): EditorRegion => {
     const type = GS_REGION_TYPE_TO_EDITOR[gr.type]
-    const groups = (gr.groups ?? [])
-      .map(g => GS_GROUP_TO_EDITOR[g])
-      .filter((v): v is string => v !== undefined)
+    const groups = (gr.groups ?? []) as string[]
 
     let vertices: [number, number][]
     if (gr.verts) {

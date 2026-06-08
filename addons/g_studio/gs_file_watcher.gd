@@ -1,83 +1,60 @@
 @tool
 extends Node
-## Watches for .gs file changes via mtime polling.
-## New file detection uses EditorFileSystem signals instead of per-tick full walk.
 
 signal gs_file_changed(path: String)
 
-var _tracked_files: Dictionary = {}  # path → mtime
-var _poll_timer: float = 0.0
-var _scan_interval: float = 1.0
+var _tracked = {}
+var _timer = 0.0
+var _interval = 2.0
 
 
 func _ready():
-	_scan_project_for_gs_files()
-	EditorInterface.get_resource_filesystem().filesystem_changed.connect(_on_filesystem_changed)
+	_walk_all(_tracked)
 
 
-func _process(delta: float):
-	_poll_timer += delta
-	if _poll_timer < _scan_interval:
+func _process(delta):
+	_timer += delta
+	if _timer < _interval:
 		return
-	_poll_timer = 0.0
-	_check_mtimes()
+	_timer = 0.0
+	_poll()
 
 
-func _scan_project_for_gs_files():
-	_tracked_files.clear()
-	_scan_dir("res://")
+func _poll():
+	var current = {}
+	_walk_all(current)
 
-
-func _scan_dir(path: String):
-	var dir = DirAccess.open(path)
-	if not dir:
-		return
-	dir.list_dir_begin()
-	var file_name = dir.get_next()
-	while file_name != "":
-		if dir.current_is_dir():
-			if not file_name.begins_with(".") and file_name != "addons":
-				_scan_dir(path.path_join(file_name))
-		elif file_name.ends_with(".gs"):
-			var full_path = path.path_join(file_name)
-			_tracked_files[full_path] = FileAccess.get_modified_time(full_path)
-		file_name = dir.get_next()
-	dir.list_dir_end()
-
-
-func _check_mtimes():
-	for path in _tracked_files.keys():
-		if not FileAccess.file_exists(path):
-			_tracked_files.erase(path)
-			continue
-		var mtime = FileAccess.get_modified_time(path)
-		if mtime != _tracked_files[path]:
-			_tracked_files[path] = mtime
+	for path in current:
+		var mtime = current[path]
+		if not _tracked.has(path) or _tracked[path] != mtime:
+			_tracked[path] = mtime
 			gs_file_changed.emit(path)
 
+	for path in _tracked.keys():
+		if not current.has(path):
+			_tracked.erase(path)
 
-func _on_filesystem_changed():
-	_find_new_gs_files("res://")
+
+func _walk_all(out):
+	_walk_dir("res://", out)
 
 
-func _find_new_gs_files(path: String):
-	var dir = DirAccess.open(path)
+func _walk_dir(dir_path, out):
+	var dir = DirAccess.open(dir_path)
 	if not dir:
 		return
 	dir.list_dir_begin()
-	var file_name = dir.get_next()
-	while file_name != "":
+	var fname = dir.get_next()
+	while fname != "":
 		if dir.current_is_dir():
-			if not file_name.begins_with(".") and file_name != "addons":
-				_find_new_gs_files(path.path_join(file_name))
-		elif file_name.ends_with(".gs"):
-			var full_path = path.path_join(file_name)
-			if not _tracked_files.has(full_path):
-				_tracked_files[full_path] = FileAccess.get_modified_time(full_path)
-				gs_file_changed.emit(full_path)
-		file_name = dir.get_next()
+			if not fname.begins_with(".") and fname != "addons":
+				_walk_dir(dir_path.path_join(fname), out)
+		elif fname.ends_with(".gs"):
+			var full = dir_path.path_join(fname)
+			out[full] = FileAccess.get_modified_time(full)
+		fname = dir.get_next()
 	dir.list_dir_end()
 
 
-func rescan():
-	_scan_project_for_gs_files()
+func get_tracked_paths():
+	return _tracked.keys()

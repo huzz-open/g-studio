@@ -12,19 +12,11 @@ export const RegionType = {
 } as const
 export type RegionType = (typeof RegionType)[keyof typeof RegionType]
 
-export const RegionGroup = {
-  TopLayer: 1,
-  YSort: 2,
-  ScreenMask: 3,
-  Opacity50: 4,
-} as const
-export type RegionGroup = (typeof RegionGroup)[keyof typeof RegionGroup]
-
 export interface SceneRegion {
   id: string
   name: string
   type: RegionType
-  groups?: RegionGroup[]
+  groups?: string[]
   verts?: [number, number][]
   rect?: [number, number, number, number]
 }

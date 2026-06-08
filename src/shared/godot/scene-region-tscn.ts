@@ -9,14 +9,7 @@ import {
   formatSubResourceRef,
   escapeNodeName,
 } from './tscn-builder'
-import { RegionType, RegionGroup, type SceneRegionData, type SceneRegion } from '../gs-format/types'
-
-const GROUP_NAMES: Record<RegionGroup, string> = {
-  [RegionGroup.TopLayer]: 'occlude_top_layer',
-  [RegionGroup.YSort]: 'occlude_y_sort',
-  [RegionGroup.ScreenMask]: 'occlude_screen_mask',
-  [RegionGroup.Opacity50]: 'occlude_opacity_50',
-}
+import { RegionType, type SceneRegionData, type SceneRegion } from '../gs-format/types'
 
 function isRect(region: SceneRegion): boolean {
   return region.rect !== undefined
@@ -41,6 +34,7 @@ export function generateSceneRegionTscn(data: SceneRegionData, texturePath: stri
     type: 'Sprite2D',
     parent: '.',
     props: {
+      z_index: '-1',
       texture: formatExtResourceRef(textureId),
       position: formatVector2(cx, cy),
     },
@@ -54,13 +48,12 @@ export function generateSceneRegionTscn(data: SceneRegionData, texturePath: stri
       name: 'Obstacles',
       type: 'Node2D',
       parent: '.',
+      props: { position: formatVector2(cx, cy) },
     })
 
     for (const region of occludeRegions) {
       const safeName = escapeNodeName(region.name)
-      const groups = (region.groups ?? [])
-        .map(g => GROUP_NAMES[g])
-        .filter((v): v is string => v !== undefined)
+      const groups = (region.groups ?? []).filter(g => g.length > 0)
 
       builder.addNode({
         name: safeName,
@@ -81,16 +74,17 @@ export function generateSceneRegionTscn(data: SceneRegionData, texturePath: stri
           parent: `Obstacles/${safeName}`,
           props: {
             shape: formatSubResourceRef(subId),
-            position: formatVector2(center[0], center[1]),
+            position: formatVector2(center[0] - cx, center[1] - cy),
           },
         })
       } else if (region.verts) {
+        const offsetVerts: [number, number][] = region.verts.map(v => [v[0] - cx, v[1] - cy])
         builder.addNode({
           name: 'CollisionPolygon2D',
           type: 'CollisionPolygon2D',
           parent: `Obstacles/${safeName}`,
           props: {
-            polygon: formatPackedVector2Array(region.verts),
+            polygon: formatPackedVector2Array(offsetVerts),
           },
         })
       }
@@ -102,6 +96,7 @@ export function generateSceneRegionTscn(data: SceneRegionData, texturePath: stri
       name: 'Collision',
       type: 'StaticBody2D',
       parent: '.',
+      props: { position: formatVector2(cx, cy) },
     })
 
     for (const region of collisionRegions) {
@@ -119,16 +114,17 @@ export function generateSceneRegionTscn(data: SceneRegionData, texturePath: stri
           parent: 'Collision',
           props: {
             shape: formatSubResourceRef(subId),
-            position: formatVector2(center[0], center[1]),
+            position: formatVector2(center[0] - cx, center[1] - cy),
           },
         })
       } else if (region.verts) {
+        const offsetVerts: [number, number][] = region.verts.map(v => [v[0] - cx, v[1] - cy])
         builder.addNode({
           name: safeName,
           type: 'CollisionPolygon2D',
           parent: 'Collision',
           props: {
-            polygon: formatPackedVector2Array(region.verts),
+            polygon: formatPackedVector2Array(offsetVerts),
           },
         })
       }

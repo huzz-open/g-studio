@@ -1,8 +1,15 @@
 @tool
 extends EditorPlugin
 
-var _watcher: Node
-var _manager: Node
+var _watcher
+var _manager
+
+var _global_groups = {
+	"occlude_top_layer": "G-Studio: Top layer",
+	"occlude_y_sort": "G-Studio: Y-sort",
+	"occlude_screen_mask": "G-Studio: Screen mask",
+	"occlude_opacity_50": "G-Studio: Opacity 50%",
+}
 
 
 func _enter_tree():
@@ -11,6 +18,8 @@ func _enter_tree():
 	add_child(_watcher)
 	add_child(_manager)
 	_watcher.gs_file_changed.connect(_manager.on_gs_changed)
+	_ensure_global_groups()
+	call_deferred("_initial_sync")
 	print("[G-Studio] Plugin enabled")
 
 
@@ -27,15 +36,18 @@ func _save_external_data():
 		_manager.on_scene_saving()
 
 
-func _enable_plugin():
-	_check_export_filter()
+func _initial_sync():
+	if _watcher and _manager:
+		_manager.initial_sync(_watcher.get_tracked_paths())
 
 
-func _check_export_filter():
-	var presets_path = "res://export_presets.cfg"
-	if FileAccess.file_exists(presets_path):
-		var content = FileAccess.get_file_as_string(presets_path)
-		if "*.gs" not in content:
-			push_warning("[G-Studio] 建议在导出预设的 exclude_filter 中添加: *.gs")
-	else:
-		push_warning("[G-Studio] 建议在导出预设中配置排除 filter: *.gs")
+func _ensure_global_groups():
+	var changed = false
+	for group_name in _global_groups:
+		var key = "global_group/" + group_name
+		if not ProjectSettings.has_setting(key):
+			ProjectSettings.set_setting(key, _global_groups[group_name])
+			changed = true
+	if changed:
+		ProjectSettings.save()
+		print("[G-Studio] Registered global groups")
