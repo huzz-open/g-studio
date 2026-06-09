@@ -70,7 +70,7 @@ export function editorRegionsToGs(
 export function gsRegionsToEditor(gsRegions: GsRegion[]): EditorRegion[] {
   return gsRegions.map((gr): EditorRegion => {
     const type = GS_REGION_TYPE_TO_EDITOR[gr.type]
-    const groups = (gr.groups ?? []) as string[]
+    const groups = (gr.groups ?? []).map(g => String(g))
 
     let vertices: [number, number][]
     if (gr.verts) {
