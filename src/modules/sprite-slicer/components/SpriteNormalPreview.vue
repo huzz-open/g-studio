@@ -9,6 +9,7 @@ import { computeNormals } from '../core/normal/client'
 import { spritePixels } from '../core/normal/source'
 import { createLighting, previewLight, DEFAULT_PREVIEW_LIGHT } from '../core/normal/lighting'
 import ParameterReset from '../../../shared/components/ParameterReset.vue'
+import { createLatestTask } from '../../../shared/utils/latest-task'
 
 const props = defineProps<{ sprite: DetectedSprite }>()
 const emit = defineEmits<{ close: []; settings: [settings?: NormalSettings] }>()
@@ -37,9 +38,7 @@ function resetLight<K extends keyof typeof previewLight>(key: K) {
   previewLight[key] = DEFAULT_PREVIEW_LIGHT[key]
 }
 let renderer: ReturnType<typeof createLighting> | undefined
-let controller: AbortController | undefined
-let timer = 0, frame = 0, disposed = false
-let pending = false, urgent = false, lastStarted = -Infinity
+let frame = 0
 let lightX = props.sprite.imageData.width * 0.25, lightY = props.sprite.imageData.height * 0.25
 let generatedSettings = { ...settings.value }
 const bulbCursor = `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="28" viewBox="0 0 24 28"><path d="M8 19v-3a7 7 0 1 1 8 0v3z" fill="#ffe494" stroke="#222" stroke-width="2"/><path d="M8 22h8m-6 3h4" stroke="#fff" stroke-width="2"/></svg>')}") 12 10, crosshair`
@@ -51,49 +50,29 @@ function draw() {
     if (ready.value && visible.value) renderer?.draw(lightX, lightY, normalView.value && !enabled.value, generatedSettings.normalFormat === 'directx')
   })
 }
-function scheduleGeneration(immediate = false) {
-  urgent ||= immediate
-  if (disposed || !pending || controller) return
-  clearTimeout(timer)
-  const delay = urgent ? 0 : Math.max(0, 100 - (performance.now() - lastStarted))
-  if (delay === 0) void runGeneration()
-  else timer = window.setTimeout(runGeneration, delay)
+const generation = createLatestTask<
+  { source: string; sprite: DetectedSprite; settings: NormalSettings },
+  { pixels: ImageData; normal: ImageData }
+>({
+  interval: 100, adaptive: { min: 60, max: 300 }, acceptIntermediate: true,
+  onBusy: value => { busy.value = value },
+  onError: e => { error.value = e instanceof Error ? e.message : String(e) },
+  async run(input, signal) {
+    const pixels = await spritePixels(input.sprite)
+    return { pixels, normal: await computeNormals(pixels, input.settings, signal) }
+  },
+  apply(result, input) {
+    if (props.sprite.dataUrl !== input.source) return
+    if (!renderer) renderer = createLighting(canvas.value!, result.pixels)
+    renderer.update(result.normal); generatedSettings = input.settings; ready.value = true; draw()
+  },
+})
+function queueGeneration(immediate = false) {
+  error.value = ''
+  generation.request({ source: props.sprite.dataUrl, sprite: props.sprite, settings: { ...settings.value } }, immediate)
 }
-function generate() {
-  pending = true
-  busy.value = true
-  scheduleGeneration(true)
-}
-async function flushGeneration() {
-  // Wait for the parent's settings prop to reflect the final input/change event.
-  await nextTick()
-  if (pending) scheduleGeneration(true)
-}
-async function runGeneration() {
-  if (disposed || controller || !pending) return
-  clearTimeout(timer)
-  pending = false; urgent = false; lastStarted = performance.now()
-  const request = new AbortController(); controller = request
-  const snapshot = { ...settings.value }
-  const source = props.sprite.dataUrl
-  busy.value = true; error.value = ''
-  try {
-    const pixels = await spritePixels(props.sprite)
-    if (disposed || request.signal.aborted || controller !== request || props.sprite.dataUrl !== source) return
-    const result = await computeNormals(pixels, snapshot, request.signal)
-    if (disposed || request.signal.aborted || controller !== request || props.sprite.dataUrl !== source) return
-    if (!renderer) renderer = createLighting(canvas.value!, pixels)
-    renderer.update(result); generatedSettings = snapshot; ready.value = true; draw()
-  } catch (e) {
-    if (!request.signal.aborted) error.value = e instanceof Error ? e.message : String(e)
-  } finally {
-    if (controller === request) {
-      controller = undefined
-      if (pending) scheduleGeneration()
-      else busy.value = false
-    }
-  }
-}
+function generate() { queueGeneration(true) }
+async function flushGeneration() { await nextTick(); generation.flush() }
 function ensureNormal() { if (!ready.value && !busy.value) void generate() }
 function toggleLight() {
   pinned.value = !pinned.value; temporary.value = false; normalView.value = false
@@ -139,17 +118,12 @@ function updateFormat(value: string) {
   emit('settings', { ...settings.value, normalFormat: value })
   void flushGeneration()
 }
-watch(() => props.sprite.normalSettings, () => {
-  pending = true
-  busy.value = true; error.value = ''
-  scheduleGeneration()
-}, { deep: true, flush: 'sync' })
+watch(() => props.sprite.normalSettings, () => queueGeneration(), { deep: true, flush: 'sync' })
 watch(previewLight, draw, { deep: true })
 watch([enabled, normalView], draw)
 watch(enabled, active => { if (active) panel.value = true })
 watch(() => props.sprite.dataUrl, () => {
-  controller?.abort(); controller = undefined; clearTimeout(timer)
-  pending = false; urgent = false; lastStarted = -Infinity
+  generation.cancel()
   renderer?.dispose(false); renderer = undefined; ready.value = false; busy.value = false
   lightX = props.sprite.rect.w * 0.25; lightY = props.sprite.rect.h * 0.25
   if (enabled.value || normalView.value) void generate()
@@ -159,7 +133,7 @@ onMounted(() => {
   window.addEventListener('blur', blur)
 })
 onUnmounted(() => {
-  disposed = true; controller?.abort(); clearTimeout(timer); cancelAnimationFrame(frame); renderer?.dispose()
+  generation.dispose(); cancelAnimationFrame(frame); renderer?.dispose()
   document.removeEventListener('mouseup', release); window.removeEventListener('blur', blur)
 })
 </script>

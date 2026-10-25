@@ -16,7 +16,7 @@ function opencvRawServe(): Plugin {
     name: 'opencv-raw-serve',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        if (req.url !== '/opencv.js') return next()
+        if (req.url?.split('?')[0] !== '/opencv.js') return next()
         if (!existsSync(src)) { res.statusCode = 404; res.end('opencv.js not found'); return }
         const { size } = statSync(src)
         res.setHeader('Content-Type', 'application/javascript')

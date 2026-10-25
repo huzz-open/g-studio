@@ -13,13 +13,13 @@ const { t } = useI18n()
 const props = defineProps<{ store: SlicerInstance }>()
 
 // --- Unified actions: showOnHover controls what appears in hover bar ---
-const cellActions = computed<ActionItem[]>(() => [
+const cellActions = computed<ActionItem[]>(() => ([
   { key: 'zoom', icon: 'zoom-in', label: t('slicer.ctx.zoom'), showOnHover: true, disabled: pendingCells.value.size > 1 },
   { key: 'rename', icon: 'edit', label: t('slicer.ctx.rename'), showOnHover: true, disabled: pendingCells.value.size > 1 },
   { key: 'merge', icon: 'layers', label: t('slicer.ctx.merge'), disabled: pendingCells.value.size < 2 },
   { key: 'split', icon: 'scissors', label: t('slicer.ctx.split'), disabled: pendingCells.value.size !== 1 },
   { key: 'toggle-export', icon: 'check', label: ctxIsExported.value ? t('slicer.ctx.excludeExport') : t('slicer.ctx.includeExport'), separator: true },
-])
+] as ActionItem[]).map(action => ({ ...action, disabled: props.store.state.processing || action.disabled })))
 
 const gridRects = computed(() =>
   props.store.state.sprites.map(s => ({
@@ -240,6 +240,7 @@ function onRectMouseDown(idx: number, e: MouseEvent) {
 }
 
 function onRectDoubleClick(idx: number, e: MouseEvent) {
+  if (props.store.state.processing) return
   if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return
   closeCtxMenu()
   showZoomed(idx)

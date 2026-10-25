@@ -135,6 +135,7 @@ function onMouseMove(e: MouseEvent) {
 
 function onMouseUp() {
   if (dragging) {
+    props.store.flushGeneration()
     dragging = null
     if (gridCanvasRef.value) gridCanvasRef.value.style.cursor = 'default'
   }
@@ -192,7 +193,7 @@ onMounted(() => {
         :model-value="props.store.state.useMagenta"
         @update:model-value="props.store.setMagenta($event)"
       />
-      <SliderRow v-if="props.store.state.useMagenta" :label="t('tileset.ninegrid.tolerance')" :min="0" :max="100" :step="1" :default-value="DEFAULT_MAGENTA_TOLERANCE"
+      <SliderRow @commit="props.store.flushGeneration" v-if="props.store.state.useMagenta" :label="t('tileset.ninegrid.tolerance')" :min="0" :max="100" :step="1" :default-value="DEFAULT_MAGENTA_TOLERANCE"
         :model-value="props.store.state.magentaTolerance" @update:model-value="props.store.setMagentaTolerance($event)" />
     </div>
   </div>

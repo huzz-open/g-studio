@@ -50,7 +50,7 @@ const exportOpts = ref({ ...settings.spriteSlicer.defaults.exportOptions, normal
 
 const hasAnyImage = computed(() => exportOpts.value.composite || exportOpts.value.sprites)
 const outputDisabled = computed(() =>
-  props.outputBusy || !props.hasImage || !hasAnyImage.value || props.store.selectedSprites.value.length === 0,
+  props.outputBusy || props.store.state.processing || !!props.store.state.processingError || !props.hasImage || !hasAnyImage.value || props.store.selectedSprites.value.length === 0,
 )
 
 async function refreshDirs() {
@@ -167,24 +167,25 @@ const gridRows = [
     <SidebarSection :title="t('slicer.bgRemoval')" :collapsible="false">
       <SegmentedControl :model-value="store.state.bgRemoverId" :default-value="settings.spriteSlicer.defaults.bgRemoval" :options="bgRemoverOptions" :disabled="!hasImage" :aria-label="t('slicer.bgRemoval')" role="group" @update:model-value="store.state.bgRemoverId = $event" />
       <template v-if="store.state.bgRemoverId === 'auto'">
-        <ColorRow :label="t('slicer.bgRemoval.bgColor')" :model-value="rgbToHex(store.state.bgColor)" :default-value="rgbToHex(SLICER_PARAMETER_DEFAULTS.bgColor)" :disabled="!hasImage" @update:model-value="onBgColorChange" />
-        <SliderRow v-model="store.state.bgTolerance" :default-value="SLICER_PARAMETER_DEFAULTS.bgTolerance" :label="t('slicer.bgRemoval.tolerance')" :min="0" :max="100" :disabled="!hasImage" />
-        <SliderRow v-model="store.state.bgSpillStrength" :default-value="SLICER_PARAMETER_DEFAULTS.bgSpillStrength" :label="t('slicer.bgRemoval.spillCorrection')" :min="0" :max="100" :disabled="!hasImage" />
+        <ColorRow @commit="store.flushProcessing" :label="t('slicer.bgRemoval.bgColor')" :model-value="rgbToHex(store.state.bgColor)" :default-value="rgbToHex(SLICER_PARAMETER_DEFAULTS.bgColor)" :disabled="!hasImage" @update:model-value="onBgColorChange" />
+        <SliderRow @commit="store.flushProcessing" v-model="store.state.bgTolerance" :default-value="SLICER_PARAMETER_DEFAULTS.bgTolerance" :label="t('slicer.bgRemoval.tolerance')" :min="0" :max="100" :disabled="!hasImage" />
+        <SliderRow @commit="store.flushProcessing" v-model="store.state.bgSpillStrength" :default-value="SLICER_PARAMETER_DEFAULTS.bgSpillStrength" :label="t('slicer.bgRemoval.spillCorrection')" :min="0" :max="100" :disabled="!hasImage" />
       </template>
     </SidebarSection>
     <SidebarSection :title="t('slicer.detection')" :collapsible="false">
+      <template #header-extra><span v-if="store.state.processing || store.state.processingError" class="processing-status" role="status" :title="store.state.processingError">{{ store.state.processingError || t('slicer.processing') }}</span></template>
       <SegmentedControl :model-value="store.state.detectionMode" :default-value="settings.spriteSlicer.defaults.detectionMode" :aria-label="t('slicer.detection')" role="group"
         :options="[{ value: 'auto', labelKey: 'slicer.detection.auto' }, { value: 'grid', labelKey: 'slicer.detection.grid' }]"
         :disabled="!hasImage" @update:model-value="store.state.detectionMode = $event as 'auto' | 'grid'; store.runDetection()" />
     </SidebarSection>
     <SidebarSection v-if="store.state.detectionMode === 'auto'" :title="t('slicer.detection.params')" :collapsible="false">
-      <SliderRow v-model="store.state.mergeGap" :default-value="settings.spriteSlicer.defaults.mergeGap" :label="t('slicer.detection.mergeGap')" :min="0" :max="30" suffix="px" :disabled="!hasImage" />
-      <SliderRow v-model="store.state.minArea" :default-value="settings.spriteSlicer.defaults.minArea" :label="t('slicer.detection.minArea')" :title="t('slicer.detection.minArea.tip')" :min="10" :max="500" suffix="px²" :disabled="!hasImage" />
+      <SliderRow @commit="store.flushProcessing" v-model="store.state.mergeGap" :default-value="settings.spriteSlicer.defaults.mergeGap" :label="t('slicer.detection.mergeGap')" :min="0" :max="30" suffix="px" :disabled="!hasImage" />
+      <SliderRow @commit="store.flushProcessing" v-model="store.state.minArea" :default-value="settings.spriteSlicer.defaults.minArea" :label="t('slicer.detection.minArea')" :title="t('slicer.detection.minArea.tip')" :min="10" :max="500" suffix="px²" :disabled="!hasImage" />
     </SidebarSection>
     <SidebarSection v-else :title="t('slicer.grid')" :collapsible="false">
       <div v-for="(row, index) in gridRows" :key="index" class="grid-fields">
-        <NumberRow v-for="field in row" :key="field.key" v-model="store.state[field.key]" :default-value="SLICER_PARAMETER_DEFAULTS[field.key]" stacked live
-          :label="('axis' in field ? t(field.label) + ' · ' + t(field.axis === 'H' ? 'slicer.grid.gapH' : 'slicer.grid.gapV') : (index === 1 ? t('slicer.grid.gap') + ' · ' : '') + t(field.label))" :min="field.min" :max="field.max" :disabled="!hasImage" />
+        <NumberRow @commit="store.flushProcessing" v-for="field in row" :key="field.key" v-model="store.state[field.key]" :default-value="SLICER_PARAMETER_DEFAULTS[field.key]" compact live
+          :label="'axis' in field ? t(field.label) + ' ' + field.axis : index === 1 ? t('slicer.grid.gap') + ' ' + (field.key === 'gapH' ? 'H' : 'V') : t(field.label)" :min="field.min" :max="field.max" :disabled="!hasImage" />
       </div>
     </SidebarSection>
     <SidebarSection :title="t('slicer.arrangeMode')" :collapsible="false">
@@ -216,7 +217,8 @@ const gridRows = [
 
 <style scoped>
 .sidebar-content { height: 100%; overflow-y: auto; }
-.grid-fields { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; }
+.processing-status { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #8ab4f8; font-size: 10px; }
+.grid-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr)); gap: 10px; }
 .standalone-field { padding: 10px; border-bottom: 1px solid #333; }
 .output-choices { display: flex; gap: 6px; }
 .output-choice { display: flex; flex: 1; align-items: center; gap: 7px; padding: 9px 8px; border: 1px solid #4b4b4b; border-radius: 5px; background: #303030; color: #bbb; font-size: 12px; cursor: pointer; }

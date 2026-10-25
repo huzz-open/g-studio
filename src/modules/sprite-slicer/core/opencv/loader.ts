@@ -54,6 +54,17 @@ function loadScript(src: string, label?: string): Promise<any> {
  * 下载超时则中断请求，改从 CDN 加载。
  */
 async function loadCV(): Promise<any> {
+  if (typeof document === 'undefined') {
+    // The raw UMD file publishes cv on globalThis in workers as well as windows.
+    await import(/* @vite-ignore */ LOCAL_URL)
+    return new Promise((resolve, reject) => {
+      const cv = (globalThis as any).cv
+      if (!cv) { reject(new Error('OpenCV worker initialization failed')); return }
+      const finish = () => { delete cv.then; resolve(cv) }
+      if (cv.Mat) finish()
+      else cv.onRuntimeInitialized = finish
+    })
+  }
   if (OPENCV_MODE === 'local') return loadScript(LOCAL_URL, 'local')
 
   const controller = new AbortController()

@@ -122,6 +122,7 @@ onUnmounted(() => {
         v-for="act in hoverItems"
         :key="act.key"
         class="am-hover-btn"
+        :disabled="act.disabled"
         :title="act.label"
         @click.stop="onHoverAction(act.key)"
       >

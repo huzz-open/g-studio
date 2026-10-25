@@ -44,6 +44,12 @@ G-Studio 是一个运行在浏览器中的游戏开发辅助工具集，专为 2
 
 生成器回归测试：`pnpm test:normals`。浏览器回归测试位于 `tests/normal-preview.e2e.cjs`，先启动开发服务器，再设置 `NORMAL_TEST_URL`（默认 `http://127.0.0.1:5178/`），使用已有 Playwright 环境运行。可通过 `PLAYWRIGHT_MODULE` 指定模块路径、`NORMAL_TEST_BROWSER` 指定浏览器可执行文件；测试使用隔离浏览器和临时工作区，不操作用户工作区。
 
+### 参数更新与计算
+
+参数计算使用共享的 `createLatestTask` 调度器：每个任务可以配置即时、节流、防抖或提交后计算，以及耗时自适应的间隔范围。共享输入控件通过 `update:modelValue` 即时更新数值，通过 `commit` 通知业务在松手或确认输入时提交最终值。参数驱动的切图、去背、PNG 生成和瓦片生成在后台 Worker 中执行；法线预览复用同一调度机制。轻量灯光及区域属性继续即时更新。
+
+调度回归测试：`pnpm test:compute`。`tests/processing-workers.e2e.cjs` 使用与侧栏浏览器测试相同的 Playwright 环境，检查后台结果与原算法一致、连续拖动最终值和计算期间的主线程响应。
+
 ### 环境要求
 
 - [Node.js](https://nodejs.org/) >= 18

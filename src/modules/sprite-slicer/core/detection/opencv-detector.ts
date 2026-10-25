@@ -6,6 +6,11 @@ export async function opencvDetect(
   imageData: ImageData, width: number, height: number, options: AutoDetectOptions,
 ): Promise<DetectedSprite[]> {
   const cv = await getCV()
+  return spritesFromLabels(imageData, width, height, await opencvSeeds(imageData, cv), options)
+}
+
+export async function opencvSeeds(imageData: ImageData, readyCv?: any): Promise<Int32Array> {
+  const cv = readyCv ?? await getCV()
   const mats: { delete(): void }[] = []
   const track = <T extends { delete(): void }>(mat: T): T => { mats.push(mat); return mat }
   try {
@@ -22,7 +27,7 @@ export async function opencvDetect(
     const stats = track(new cv.Mat())
     const centroids = track(new cv.Mat())
     cv.connectedComponentsWithStats(eroded, labels, stats, centroids)
-    return spritesFromLabels(imageData, width, height, labels.data32S, options)
+    return new Int32Array(labels.data32S)
   } finally {
     for (const mat of mats.reverse()) mat.delete()
   }

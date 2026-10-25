@@ -63,7 +63,7 @@ export function createSharedTerrainState(instancesRef: Ref<TilesetInstance[]>) {
         atlasHeight: s.atlasHeight,
         atlasTileW: s.atlasTileW,
         atlasTileH: s.atlasTileH,
-        layout: s.layout,
+        layout: s.atlasLayout,
       })
     }
     return result

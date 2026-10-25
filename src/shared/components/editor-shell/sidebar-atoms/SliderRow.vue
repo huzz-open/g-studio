@@ -23,6 +23,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [val: number]
+  commit: [val: number]
 }>()
 
 const displayVal = computed(() =>
@@ -33,7 +34,7 @@ const displayVal = computed(() =>
 <template>
   <div class="slider-row" :class="{ disabled, resettable: defaultValue !== undefined }">
     <label :for="inputId" class="slider-label">{{ label }}</label>
-    <ParameterReset v-if="defaultValue !== undefined" :model-value="modelValue" :default-value="defaultValue" :label="label" :disabled="disabled" @reset="emit('update:modelValue', defaultValue!)" />
+    <ParameterReset v-if="defaultValue !== undefined" :model-value="modelValue" :default-value="defaultValue" :label="label" :disabled="disabled" @reset="emit('update:modelValue', defaultValue!); emit('commit', defaultValue!)" />
     <input :id="inputId"
       type="range"
       class="slider-input"
@@ -44,6 +45,7 @@ const displayVal = computed(() =>
       :step="step"
       :disabled="disabled"
       @input="emit('update:modelValue', +($event.target as HTMLInputElement).value)"
+      @change="emit('commit', +($event.target as HTMLInputElement).value)"
     />
     <span class="slider-value">{{ displayVal }}</span>
   </div>

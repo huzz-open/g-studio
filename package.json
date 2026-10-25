@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit -p tsconfig.app.json && vite build",
     "test:normals": "node --test tests/normal-generator.test.cjs",
+    "test:compute": "node --test tests/latest-task.test.cjs",
     "preview": "vite preview"
   },
   "dependencies": {

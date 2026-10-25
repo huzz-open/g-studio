@@ -31,7 +31,7 @@ function exportPngTres() {
   downloadBlob(new Blob([tres], { type: 'text/plain' }), `${name}.tres`)
 }
 
-const hasAtlas = computed(() => !!props.store.state.atlasPixels)
+const hasAtlas = computed(() => !!props.store.state.atlasPixels && !props.store.state.isGenerating && !props.store.state.generateError)
 
 const exportActions = computed<ActionButton[]>(() => [
   { id: 'png', label: t('tileset.export.png'), disabled: !hasAtlas.value },

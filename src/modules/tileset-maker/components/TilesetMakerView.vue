@@ -101,7 +101,7 @@ const isTopEmpty = computed(() =>
 )
 
 const isTopLoading = computed(() =>
-  activeInstance.value?.state.isGenerating ?? false,
+  !!activeInstance.value?.state.isGenerating && !activeInstance.value?.state.atlasPixels,
 )
 
 const isTopError = computed(() =>
@@ -280,6 +280,9 @@ onUnmounted(() => {
           </div>
           <!-- Atlas preview -->
           <AtlasPreview v-else :store="activeInstance!" />
+          <div v-if="activeInstance?.state.atlasPixels && (activeInstance.state.isGenerating || activeInstance.state.generateError)" class="generation-status" role="status">
+            {{ activeInstance.state.generateError || t('common.updating') }}
+          </div>
         </div>
         <div class="split-handle" @mousedown="startSplitResize">
           <div class="split-handle-line" />
@@ -300,6 +303,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.generation-status { position: absolute; top: 10px; left: 10px; z-index: 10; padding: 5px 8px; border-radius: 4px; background: #222e; color: #b9cce3; font-size: 11px; pointer-events: none; }
 /* Sidebar empty state */
 .sidebar-empty {
   display: flex;

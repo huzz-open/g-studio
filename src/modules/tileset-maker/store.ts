@@ -2,7 +2,9 @@ import { reactive, computed } from 'vue'
 import type { CustomSplits, EdgeProfile, GenerationMode, LayoutName, TileSize, TilesetLayout } from './core/types'
 import { getProfile } from './core/sdf/profiles'
 import { getLayout } from './core/layouts'
-import { generateTileset } from './core/generator'
+import type { GenerateInput, GenerateResult } from './core/generator'
+import { createLatestTask } from '../../shared/utils/latest-task'
+import { createWorkerClient } from '../../shared/utils/worker-client'
 import { translate } from '../../shared/i18n'
 import { useSettings } from '../../shared/settings'
 import { GsType, type TilesetData } from '../../shared/gs-format/types'
@@ -29,6 +31,7 @@ export interface TilesetMakerState {
   nineGridSplitsY: number[]
   layout: LayoutName
   atlasPixels: Uint8ClampedArray | null
+  atlasLayout: LayoutName
   atlasWidth: number
   atlasHeight: number
   atlasTileW: number
@@ -65,6 +68,7 @@ export function createTilesetInstance(id: string) {
     nineGridSplitsY: [],
     layout: settings.tilesetMaker.defaults.layout as LayoutName,
     atlasPixels: null,
+    atlasLayout: settings.tilesetMaker.defaults.layout as LayoutName,
     atlasWidth: 0,
     atlasHeight: 0,
     atlasTileW: 0,
@@ -78,7 +82,6 @@ export function createTilesetInstance(id: string) {
     showPainter: false,
   })
 
-  let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
   const currentLayout = computed<TilesetLayout>(() => getLayout(state.layout))
   const hasSource = computed(() => {
@@ -86,59 +89,39 @@ export function createTilesetInstance(id: string) {
     return state.nineGridPixels !== null
   })
 
+  const worker = createWorkerClient<GenerateInput, GenerateResult>(() => new Worker(new URL('./core/generate.worker.ts', import.meta.url), { type: 'module' }))
+  const generation = createLatestTask<GenerateInput, GenerateResult>({
+    interval: 80, adaptive: { min: 60, max: 300 }, acceptIntermediate: true,
+    run: (input, signal) => worker.run(input, signal),
+    onBusy: busy => { state.isGenerating = busy },
+    onError: error => { state.generateError = error instanceof Error ? error.message : String(error) },
+    apply(result, input) {
+      if (input.mode !== state.mode || (input.mode === 'sdf' ? input.texturePixels !== state.texturePixels : input.sourcePixels !== state.nineGridPixels)) return
+      state.atlasPixels = result.pixels
+      state.atlasLayout = input.layout.name as LayoutName
+      state.atlasWidth = result.width; state.atlasHeight = result.height
+      state.atlasTileW = result.tileW; state.atlasTileH = result.tileH
+    },
+  })
   function regenerate(immediate = false) {
-    if (debounceTimer) clearTimeout(debounceTimer)
-    if (immediate) {
-      doGenerate()
-    } else {
-      debounceTimer = setTimeout(doGenerate, 150)
+    if (!hasSource.value) {
+      generation.cancel(); state.atlasPixels = null; state.generateError = null
+      return
+    }
+    state.generateError = null; state.dirty = true
+    if (state.mode === 'sdf' && state.texturePixels) {
+      generation.request({ mode: 'sdf', texturePixels: state.texturePixels, tileSize: state.tileSize,
+        profile: { ...state.profile }, layout: currentLayout.value }, immediate)
+    } else if (state.nineGridPixels) {
+      const splits = getCustomSplits()
+      generation.request({ mode: 'subtile', sourcePixels: state.nineGridPixels,
+        sourceWidth: state.nineGridWidth, sourceHeight: state.nineGridHeight,
+        useMagenta: state.useMagenta, magentaTolerance: state.magentaTolerance, layout: currentLayout.value,
+        customSplits: splits ? { x: [...splits.x], y: [...splits.y] } : null }, immediate)
     }
   }
-
-  function doGenerate() {
-    if (!hasSource.value) return
-    state.isGenerating = true
-    state.generateError = null
-
-    try {
-      if (state.mode === 'sdf' && state.texturePixels) {
-        const result = generateTileset({
-          mode: 'sdf',
-          texturePixels: state.texturePixels,
-          tileSize: state.tileSize,
-          profile: { ...state.profile },
-          layout: currentLayout.value,
-        })
-        state.atlasPixels = result.pixels
-        state.atlasWidth = result.width
-        state.atlasHeight = result.height
-        state.atlasTileW = result.tileW
-        state.atlasTileH = result.tileH
-      } else if (state.mode === 'subtile' && state.nineGridPixels) {
-        const customSplits = getCustomSplits()
-        const result = generateTileset({
-          mode: 'subtile',
-          sourcePixels: state.nineGridPixels,
-          sourceWidth: state.nineGridWidth,
-          sourceHeight: state.nineGridHeight,
-          layout: currentLayout.value,
-          useMagenta: state.useMagenta,
-          magentaTolerance: state.magentaTolerance,
-          customSplits,
-        })
-        state.atlasPixels = result.pixels
-        state.atlasWidth = result.width
-        state.atlasHeight = result.height
-        state.atlasTileW = result.tileW
-        state.atlasTileH = result.tileH
-      }
-      state.dirty = true
-    } catch (e: any) {
-      state.generateError = e?.message || String(e)
-    } finally {
-      state.isGenerating = false
-    }
-  }
+  function flushGeneration() { generation.flush() }
+  function dispose() { generation.dispose(); worker.dispose(); state.texture?.close(); state.nineGridImage?.close() }
 
   async function loadTexture(file: File) {
     const bitmap = await createImageBitmap(file)
@@ -151,6 +134,7 @@ export function createTilesetInstance(id: string) {
     state.texturePixels = ctx.getImageData(0, 0, state.tileSize, state.tileSize).data
     state.isGenerating = true
     regenerate(true)
+    await generation.whenIdle()
   }
 
   function setTextureFromPixels(pixels: Uint8ClampedArray, size: number, name: string, uid?: string) {
@@ -183,11 +167,12 @@ export function createTilesetInstance(id: string) {
     initGridSplits()
     state.isGenerating = true
     regenerate(true)
+    await generation.whenIdle()
   }
 
   function setMode(mode: GenerationMode) {
     state.mode = mode
-    if (hasSource.value) regenerate()
+    regenerate(true)
   }
 
   function setLayout(layout: LayoutName) {
@@ -307,6 +292,7 @@ export function createTilesetInstance(id: string) {
   }
 
   async function saveToGsFile(): Promise<WriteGsResult> {
+    generation.flush(); await generation.whenIdle()
     if (!state.gsPath) throw new Error('No .gs file path bound')
 
     const textureName = state.mode === 'sdf' ? state.textureFileName : state.nineGridFileName
@@ -358,6 +344,8 @@ export function createTilesetInstance(id: string) {
     currentLayout,
     hasSource,
     regenerate,
+    flushGeneration,
+    dispose,
     loadTexture,
     setTextureFromPixels,
     loadNineGrid,

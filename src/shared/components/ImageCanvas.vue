@@ -143,10 +143,11 @@ const imageError = ref(false)
 
 function onImageLoad(e: Event) {
   const img = e.target as HTMLImageElement
+  const sizeChanged = imgNaturalW.value !== img.naturalWidth || imgNaturalH.value !== img.naturalHeight
   imgNaturalW.value = img.naturalWidth
   imgNaturalH.value = img.naturalHeight
   imageError.value = false
-  if (props.keepViewOnSrcChange && imageReady.value) return
+  if (props.keepViewOnSrcChange && imageReady.value && !sizeChanged) return
   nextTick(() => {
     fitToView()
     imageReady.value = true

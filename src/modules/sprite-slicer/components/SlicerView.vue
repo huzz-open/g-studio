@@ -73,7 +73,7 @@ const { handleSave, saveWithResult } = useSaveFlow({
 })
 
 useEditorKeyboard(() => activeInstance.value ? {
-  save: async () => { await handleSave() },
+  save: async () => { await activeInstance.value?.waitForProcessing(); await handleSave() },
   history: activeInstance.value.history,
 } : null)
 

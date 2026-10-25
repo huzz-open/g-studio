@@ -1,4 +1,6 @@
 export default {
+  'common.updating': 'Updating…',
+  'slicer.processing': 'Updating sprites…',
   'common.resetParameter': 'Reset {name}',
   'common.resetParameterTip': '{name}: restore default ({value})',
   'common.parameter': 'parameter',

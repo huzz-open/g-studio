@@ -12,6 +12,7 @@ const props = withDefaults(defineProps<{
   suffix?: string
   disabled?: boolean
   stacked?: boolean
+  compact?: boolean
   live?: boolean
 }>(), {
   step: 1,
@@ -19,6 +20,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [val: number]
+  commit: [val: number]
 }>()
 
 function onInput(e: Event) {
@@ -34,14 +36,15 @@ function onInput(e: Event) {
   if (props.step === 1) v = Math.round(v)
   if (e.type === 'change') input.value = String(v)
   emit('update:modelValue', v)
+  if (e.type === 'change') emit('commit', v)
 }
 </script>
 
 <template>
-  <div class="number-row" :class="{ disabled, stacked }">
+  <div class="number-row" :class="{ disabled, stacked, compact }">
     <label :for="inputId" class="number-label">{{ label }}</label>
     <div class="number-input-wrap">
-      <ParameterReset v-if="defaultValue !== undefined" :model-value="modelValue" :default-value="defaultValue" :label="label" :disabled="disabled" @reset="emit('update:modelValue', defaultValue!)" />
+      <ParameterReset v-if="defaultValue !== undefined" :model-value="modelValue" :default-value="defaultValue" :label="label" :disabled="disabled" @reset="emit('update:modelValue', defaultValue!); emit('commit', defaultValue!)" />
       <input :id="inputId"
         type="number"
         class="number-input"
@@ -101,4 +104,8 @@ function onInput(e: Event) {
 .number-row.stacked { display: flex; flex-direction: column; align-items: stretch; gap: 4px; margin: 0; min-width: 0; }
 .stacked .number-input-wrap { min-width: 0; }
 .stacked .number-input { width: 100%; min-width: 0; }
+.number-row.compact { flex-direction: row; align-items: center; flex-wrap: nowrap; gap: 4px; margin: 0; min-width: 0; }
+.compact .number-label { flex-shrink: 0; }
+.compact .number-input-wrap { flex: 1; min-width: 0; justify-content: flex-end; gap: 2px; }
+.compact .number-input { width: 48px; min-width: 48px; padding: 3px 4px; }
 </style>

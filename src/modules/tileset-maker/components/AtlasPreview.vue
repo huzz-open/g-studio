@@ -8,8 +8,9 @@ import ImageCanvas from '../../../shared/components/ImageCanvas.vue'
 const props = defineProps<{ store: TilesetInstance }>()
 const hoverTile = ref<{ col: number; row: number; idx: number } | null>(null)
 const atlasBlobUrl = ref('')
+let imageRevision = 0
 
-const layout = computed(() => getLayout(props.store.state.layout))
+const layout = computed(() => getLayout(props.store.state.atlasLayout))
 const tileW = computed(() => props.store.state.atlasTileW)
 const tileH = computed(() => props.store.state.atlasTileH)
 const atlasW = computed(() => props.store.state.atlasWidth)
@@ -18,17 +19,21 @@ const layoutCols = computed(() => layout.value.cols)
 const layoutRows = computed(() => layout.value.rows)
 
 watch(() => props.store.state.atlasPixels, async (pixels) => {
-  if (!pixels) { atlasBlobUrl.value = ''; return }
-  const oldUrl = atlasBlobUrl.value
-  atlasBlobUrl.value = await pixelsToBlobUrl(
+  const revision = ++imageRevision
+  if (!pixels) { if (atlasBlobUrl.value) URL.revokeObjectURL(atlasBlobUrl.value); atlasBlobUrl.value = ''; return }
+  const nextUrl = await pixelsToBlobUrl(
     pixels,
     props.store.state.atlasWidth,
     props.store.state.atlasHeight,
   )
+  if (revision !== imageRevision) { URL.revokeObjectURL(nextUrl); return }
+  const oldUrl = atlasBlobUrl.value
+  atlasBlobUrl.value = nextUrl
   if (oldUrl) URL.revokeObjectURL(oldUrl)
 }, { immediate: true })
 
 onUnmounted(() => {
+  imageRevision++
   if (atlasBlobUrl.value) URL.revokeObjectURL(atlasBlobUrl.value)
 })
 

@@ -1,4 +1,6 @@
 export default {
+  'common.updating': '更新中…',
+  'slicer.processing': '正在更新切图…',
   'common.resetParameter': '重置{name}',
   'common.resetParameterTip': '{name}：恢复默认值（{value}）',
   'common.parameter': '参数',

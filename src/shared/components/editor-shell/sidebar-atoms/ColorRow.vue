@@ -11,6 +11,7 @@ defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [val: string]
+  commit: [val: string]
 }>()
 </script>
 
@@ -18,7 +19,7 @@ const emit = defineEmits<{
   <div class="color-row" :class="{ disabled }">
     <label :for="inputId" class="color-label">{{ label }}</label>
     <div class="color-input-wrap">
-      <ParameterReset v-if="defaultValue !== undefined" :model-value="modelValue" :default-value="defaultValue" :label="label" :disabled="disabled" @reset="emit('update:modelValue', defaultValue!)" />
+      <ParameterReset v-if="defaultValue !== undefined" :model-value="modelValue" :default-value="defaultValue" :label="label" :disabled="disabled" @reset="emit('update:modelValue', defaultValue!); emit('commit', defaultValue!)" />
       <input :id="inputId"
         type="color"
         class="color-input"
@@ -26,6 +27,7 @@ const emit = defineEmits<{
         :aria-label="label"
         :disabled="disabled"
         @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
+        @change="emit('commit', ($event.target as HTMLInputElement).value)"
       />
       <span class="color-hex">{{ modelValue }}</span>
     </div>

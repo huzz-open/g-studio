@@ -86,7 +86,7 @@ const layoutOptions: SegmentOption[] = [
     </div>
 
     <div class="section sliders">
-      <SliderRow v-for="def in SLIDER_DEFS" :key="def.key" :label="t(def.labelKey)" :min="def.min" :max="def.max" :step="0.01" :precision="2"
+      <SliderRow @commit="props.store.flushGeneration" v-for="def in SLIDER_DEFS" :key="def.key" :label="t(def.labelKey)" :min="def.min" :max="def.max" :step="0.01" :precision="2"
         :model-value="(props.store.state.profile as any)[def.key]" :default-value="getProfile(props.store.state.profile.style)[def.key] as number" @update:model-value="onSlider(def.key, $event)" />
     </div>
   </div>

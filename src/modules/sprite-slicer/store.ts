@@ -1,12 +1,9 @@
-import { reactive, computed, watch, effectScope, type EffectScope } from 'vue'
+import { reactive, computed, watch, nextTick, effectScope, type EffectScope } from 'vue'
 import type { DetectedSprite } from './interfaces/sprite-detector'
 import type { BgRemovalOptions } from './interfaces/background-remover'
 import type { StandardizeOptions } from './interfaces/slice-mode'
 import { AutoRemover } from './core/background/auto-remover'
 import { NullRemover } from './core/background/null-remover'
-import { CcaDetector } from './core/detection/cca-detector'
-import { GridDetector } from './core/detection/grid-detector'
-import { opencvDetect } from './core/detection/opencv-detector'
 import { autoArrangeRects } from './core/layout/bin-packer'
 import { splitSpriteByLines, type Point } from './core/split/line-splitter'
 import { imageDataToDataUrl, createOffscreenCanvas } from './core/utils/canvas-utils'
@@ -21,6 +18,9 @@ import { writeGsFile, type WriteGsResult } from '../../shared/gs-format/writer'
 import { resolveDir, splitPath } from '../../shared/workspace/fs'
 import { normalSettings, type NormalSettings } from '../../shared/types/normal-settings'
 import { SLICER_PARAMETER_DEFAULTS } from './defaults'
+import { createLatestTask } from '../../shared/utils/latest-task'
+import { createWorkerClient } from '../../shared/utils/worker-client'
+import type { SliceTask, SliceResult } from './core/processing/types'
 
 function sortByReadingOrder(arr: DetectedSprite[], threshold = 20) {
   arr.sort((a, b) => {
@@ -39,8 +39,6 @@ function extractRegion(
 }
 
 const bgRemovers = [new AutoRemover(), new NullRemover()]
-const ccaDetector = new CcaDetector()
-const gridDetector = new GridDetector()
 
 export interface SlicerState {
   gsPath: string | null
@@ -56,6 +54,8 @@ export interface SlicerState {
   sourceFileName: string
   imgSize: { w: number; h: number }
   loading: boolean
+  processing: boolean
+  processingError: string
   detectionMode: 'auto' | 'grid'
   mergeGap: number
   minArea: number
@@ -90,6 +90,8 @@ function createSlicerInstance(id: string) {
     sourceFileName: '',
     imgSize: { w: 0, h: 0 },
     loading: false,
+    processing: false,
+    processingError: '',
     detectionMode: d.detectionMode as 'auto' | 'grid',
     mergeGap: d.mergeGap,
     minArea: d.minArea,
@@ -220,6 +222,57 @@ function createSlicerInstance(id: string) {
   let _pendingRestore: SpriteEntry[] | null = null
   let _loadingFromGs = false
 
+  let sourceImage: HTMLImageElement | null = null
+  let sourcePixels: ImageData | null = null
+  let sourceId = 0
+  const worker = createWorkerClient<SliceTask, SliceResult>(() => new Worker(new URL('./core/processing/slice.worker.ts', import.meta.url), { type: 'module' }))
+  const processing = createLatestTask<SliceTask, SliceResult>({
+    interval: 100, adaptive: { min: 80, max: 350 }, acceptIntermediate: true,
+    run: (input, signal) => worker.run(input, signal),
+    onBusy: busy => { state.processing = busy },
+    onError: error => { state.processingError = error instanceof Error ? error.message : String(error) },
+    apply(result, input) {
+      if (input.sourceId !== sourceId || input.detection.mode !== state.detectionMode || input.arrange !== state.arrangeMode) return
+      cleanImageData = result.clean
+      state.cleanImageUrl = result.displayUrl
+      state.imgSize = { w: result.width, h: result.height }
+      _origCleanImageUrl = input.arrange === 'none' ? null : result.cleanUrl
+      _origImgSize = input.arrange === 'none' ? null : { w: result.clean.width, h: result.clean.height }
+      const prefix = state.namePrefix || 'sprite'
+      result.sprites.forEach((sprite, i) => { sprite.name = prefix + '-' + String(i + 1).padStart(2, '0') })
+      state.sprites = result.sprites
+      state.selected = new Set(result.sprites.map(sprite => sprite.id))
+      cacheAllSprites(); history.clear()
+      if (state.detectionMode === 'auto' && result.sprites.length) {
+        state.cols = Math.ceil(Math.sqrt(result.sprites.length))
+        state.rows = Math.ceil(result.sprites.length / state.cols)
+      }
+      if (!_loadingFromGs) state.dirty = true
+    },
+  })
+  function requestProcessing(immediate = false) {
+    const image = state.sourceImage
+    if (!image) return
+    if (image !== sourceImage || !sourcePixels) {
+      processing.cancel()
+      sourceImage = image; sourceId++
+      const { ctx } = createOffscreenCanvas(image.width, image.height)
+      ctx.drawImage(image, 0, 0)
+      sourcePixels = ctx.getImageData(0, 0, image.width, image.height)
+    }
+    state.processingError = ''
+    processing.request({
+      sourceId, image: sourcePixels,
+      background: { id: state.bgRemoverId, options: { bgColor: [...state.bgColor], tolerance: state.bgTolerance, spillStrength: state.bgSpillStrength } },
+      detection: state.detectionMode === 'auto'
+        ? { mode: 'auto', mergeGap: state.mergeGap, minArea: state.minArea }
+        : { mode: 'grid', cols: state.cols, rows: state.rows, gapH: state.gapH, gapV: state.gapV, marginH: state.marginH, marginV: state.marginV },
+      arrange: state.arrangeMode,
+    }, immediate)
+  }
+  async function flushProcessing() { await nextTick(); processing.flush() }
+  function waitForProcessing() { processing.flush(); return processing.whenIdle() }
+
   function setPendingRestore(sprites: SpriteEntry[] | null) {
     _pendingRestore = sprites
   }
@@ -324,6 +377,8 @@ function createSlicerInstance(id: string) {
   }
 
   async function processBackground() {
+    if (!_pendingRestore) { requestProcessing(true); await processing.whenIdle(); return }
+    processing.cancel()
     const img = state.sourceImage
     if (!img) return
     restoreArrange()
@@ -377,67 +432,12 @@ function createSlicerInstance(id: string) {
   }
 
   async function runDetection() {
-    if (!cleanImageData) return
-    restoreArrange()
-    const w = cleanImageData.width
-    const h = cleanImageData.height
-    state.imgSize = { w, h }
-
-    let detected: DetectedSprite[]
-
-    if (state.detectionMode === 'auto') {
-      try {
-        detected = await opencvDetect(cleanImageData, w, h, {
-          mode: 'auto',
-          mergeGap: state.mergeGap,
-          minArea: state.minArea,
-        })
-      } catch (e) {
-        console.warn('[slicer] OpenCV failed, using JS CCA fallback:', e)
-        detected = ccaDetector.detect(cleanImageData, w, h, {
-          mode: 'auto',
-          mergeGap: state.mergeGap,
-          minArea: state.minArea,
-        })
-      }
-    } else {
-      detected = gridDetector.detect(cleanImageData, w, h, {
-        mode: 'grid',
-        cols: state.cols,
-        rows: state.rows,
-        gapH: state.gapH,
-        gapV: state.gapV,
-        marginH: state.marginH,
-        marginV: state.marginV,
-      })
-    }
-
-    const prefix = state.namePrefix || 'sprite'
-    detected.forEach((s, i) => {
-      s.name = `${prefix}-${String(i + 1).padStart(2, '0')}`
-    })
-
-    state.sprites = detected
-    state.selected = new Set(detected.map(s => s.id))
-    cacheAllSprites()
-    history.clear()
-
-    if (state.detectionMode === 'auto' && detected.length > 0) {
-      const autoCols = Math.ceil(Math.sqrt(detected.length))
-      state.cols = autoCols
-      state.rows = Math.ceil(detected.length / autoCols)
-    }
-
-    if (state.arrangeMode !== 'none') {
-      applyArrange()
-    }
-
-    if (!_loadingFromGs) {
-      state.dirty = true
-    }
+    requestProcessing(true)
+    await processing.whenIdle()
   }
 
   function mergeSprites(ids: number[]) {
+    if (state.processing) return
     if (ids.length < 2) return
     if (!cleanImageData) { console.error('[slicer] mergeSprites: cleanImageData missing'); return }
     restoreArrange()
@@ -497,6 +497,7 @@ function createSlicerInstance(id: string) {
   }
 
   function unmergeSprite(spriteId: number) {
+    if (state.processing) return false
     if (!cleanImageData) { console.error('[slicer] unmergeSprite: cleanImageData missing'); return false }
     const sprite = state.sprites.find(s => s.id === spriteId)
     if (!sprite?.mergedFromRects || sprite.mergedFromRects.length < 2) return false
@@ -536,6 +537,7 @@ function createSlicerInstance(id: string) {
   }
 
   function splitSprite(spriteId: number, lines: Point[][]) {
+    if (state.processing) return
     if (lines.length === 0) return
 
     const sprite = state.sprites.find(s => s.id === spriteId)
@@ -576,6 +578,8 @@ function createSlicerInstance(id: string) {
   }
 
   function loadFile(file: File): Promise<void> {
+    processing.cancel()
+    state.processingError = ''
     return new Promise((resolve) => {
       state.loading = true
       state.dirty = true
@@ -596,6 +600,8 @@ function createSlicerInstance(id: string) {
   }
 
   async function loadFromGsFile(path: string): Promise<void> {
+    processing.cancel()
+    state.processingError = ''
     _loadingFromGs = true
 
     const result = await readSpriteGsFile(path)
@@ -638,6 +644,8 @@ function createSlicerInstance(id: string) {
   }
 
   async function saveToGsFile(): Promise<WriteGsResult> {
+    await waitForProcessing()
+    if (state.processingError) throw new Error(state.processingError)
     if (!state.gsPath) throw new Error('No .gs file path bound')
 
     const data: SpriteData = {
@@ -746,39 +754,38 @@ function createSlicerInstance(id: string) {
   }
 
   // --- Internal reactivity: state changes drive side effects ---
-  let _bgDebounce = 0
   const _scope: EffectScope = effectScope()
 
   _scope.run(() => {
     watch(() => state.bgRemoverId, () => {
       if (_loadingFromGs || !state.sourceImage) return
-      processBackground()
+      requestProcessing()
     })
 
     watch(() => state.bgColor, () => {
       if (_loadingFromGs || !state.sourceImage) return
-      processBackground()
+      requestProcessing()
     }, { deep: true })
 
     watch([() => state.bgTolerance, () => state.bgSpillStrength], () => {
       if (_loadingFromGs || !state.sourceImage) return
-      clearTimeout(_bgDebounce)
-      _bgDebounce = window.setTimeout(() => processBackground(), 50)
+      requestProcessing()
     })
 
     watch([() => state.mergeGap, () => state.minArea], () => {
       if (_loadingFromGs || !state.sourceImage) return
-      if (state.detectionMode === 'auto') runDetection()
+      if (state.detectionMode === 'auto') requestProcessing()
     })
 
     watch([() => state.cols, () => state.rows, () => state.gapH, () => state.gapV, () => state.marginH, () => state.marginV], () => {
       if (_loadingFromGs || !state.sourceImage) return
-      if (state.detectionMode === 'grid') runDetection()
+      if (state.detectionMode === 'grid') requestProcessing()
     })
 
     watch(() => state.arrangeMode, () => {
       if (_loadingFromGs || !state.sourceImage) return
-      applyArrange()
+      if (state.processing) requestProcessing(true)
+      else applyArrange()
     })
 
     watch(() => state.namePrefix, () => {
@@ -797,7 +804,8 @@ function createSlicerInstance(id: string) {
   }
 
   function dispose() {
-    clearTimeout(_bgDebounce)
+    processing.dispose()
+    worker.dispose()
     _scope.stop()
   }
 
@@ -815,6 +823,8 @@ function createSlicerInstance(id: string) {
     loadFile,
     processBackground,
     runDetection,
+    flushProcessing,
+    waitForProcessing,
     mergeSprites,
     unmergeSprite,
     splitSprite,
