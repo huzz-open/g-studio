@@ -1,7 +1,12 @@
 <script setup lang="ts">
+import ParameterReset from '../../ParameterReset.vue'
+import { useId } from 'vue'
+const inputId = useId()
 defineProps<{
   label: string
+  defaultValue?: string
   modelValue: string
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -10,13 +15,16 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="color-row">
-    <label class="color-label">{{ label }}</label>
+  <div class="color-row" :class="{ disabled }">
+    <label :for="inputId" class="color-label">{{ label }}</label>
     <div class="color-input-wrap">
-      <input
+      <ParameterReset v-if="defaultValue !== undefined" :model-value="modelValue" :default-value="defaultValue" :label="label" :disabled="disabled" @reset="emit('update:modelValue', defaultValue!)" />
+      <input :id="inputId"
         type="color"
         class="color-input"
         :value="modelValue"
+        :aria-label="label"
+        :disabled="disabled"
         @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
       />
       <span class="color-hex">{{ modelValue }}</span>
@@ -34,7 +42,7 @@ const emit = defineEmits<{
   font-size: 11px;
   color: #aaa;
   white-space: nowrap;
-  min-width: 48px;
+  min-width: 72px;
 }
 .color-input-wrap {
   display: flex;
@@ -57,4 +65,7 @@ const emit = defineEmits<{
   color: #888;
   font-family: monospace;
 }
+.color-row { min-height: 28px; }
+.color-row.disabled { opacity: .4; }
+.color-input:focus-visible { outline: 2px solid #8ab4f8; outline-offset: 2px; }
 </style>

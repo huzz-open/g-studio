@@ -1,14 +1,19 @@
 <script setup lang="ts">
+import ParameterReset from '../../ParameterReset.vue'
+import { useId } from 'vue'
+const inputId = useId()
 import { computed } from 'vue'
 
 const props = withDefaults(defineProps<{
   label: string
+  defaultValue?: number
   modelValue: number
   min?: number
   max?: number
   step?: number
   suffix?: string
   disabled?: boolean
+  precision?: number
 }>(), {
   min: 0,
   max: 100,
@@ -21,16 +26,18 @@ const emit = defineEmits<{
 }>()
 
 const displayVal = computed(() =>
-  props.suffix ? `${props.modelValue}${props.suffix}` : String(props.modelValue)
+  (props.precision === undefined ? String(props.modelValue) : props.modelValue.toFixed(props.precision)) + (props.suffix ?? '')
 )
 </script>
 
 <template>
-  <div class="slider-row" :class="{ disabled }">
-    <span class="slider-label">{{ label }}</span>
-    <input
+  <div class="slider-row" :class="{ disabled, resettable: defaultValue !== undefined }">
+    <label :for="inputId" class="slider-label">{{ label }}</label>
+    <ParameterReset v-if="defaultValue !== undefined" :model-value="modelValue" :default-value="defaultValue" :label="label" :disabled="disabled" @reset="emit('update:modelValue', defaultValue!)" />
+    <input :id="inputId"
       type="range"
       class="slider-input"
+      :aria-label="label"
       :value="modelValue"
       :min="min"
       :max="max"
@@ -44,14 +51,16 @@ const displayVal = computed(() =>
 
 <style scoped>
 .slider-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) 42px;
   align-items: center;
   gap: 8px;
 }
 .slider-label {
   font-size: 11px;
   color: #aaa;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.35;
   min-width: 48px;
 }
 .slider-input {
@@ -80,4 +89,9 @@ const displayVal = computed(() =>
   text-align: right;
 }
 .slider-row.disabled { opacity: 0.4; pointer-events: none; }
+.slider-input:focus-visible { outline: 2px solid #8ab4f8; outline-offset: 5px; }
+.slider-row { min-height: 28px; }
+.slider-value { min-width: 42px; }
+.slider-row.resettable { grid-template-columns: 64px 22px minmax(0, 1fr) 36px; gap: 5px; }
+.slider-row.resettable .slider-value { min-width: 36px; }
 </style>

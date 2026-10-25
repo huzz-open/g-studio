@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import ParameterReset from '../../ParameterReset.vue'
+import { useId } from 'vue'
+const inputId = useId()
 export interface SelectOption {
   value: string
   label: string
@@ -6,8 +9,10 @@ export interface SelectOption {
 
 defineProps<{
   label: string
+  defaultValue?: string
   modelValue: string
   options: SelectOption[]
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -17,10 +22,12 @@ const emit = defineEmits<{
 
 <template>
   <div class="select-row">
-    <label class="select-label">{{ label }}</label>
-    <select
+    <div class="parameter-label"><label :for="inputId" class="select-label">{{ label }}</label><ParameterReset v-if="defaultValue !== undefined" :model-value="modelValue" :default-value="defaultValue" :label="label" :disabled="disabled" @reset="emit('update:modelValue', defaultValue!)" /></div>
+    <select :id="inputId"
       class="select-input"
       :value="modelValue"
+      :aria-label="label"
+      :disabled="disabled"
       @change="emit('update:modelValue', ($event.target as HTMLSelectElement).value)"
     >
       <option v-for="opt in options" :key="opt.value" :value="opt.value">
@@ -58,4 +65,8 @@ const emit = defineEmits<{
   outline: none;
   border-color: #5577aa;
 }
+.select-input { min-height: 28px; min-width: 0; }
+.select-input:focus-visible { outline: 2px solid #8ab4f8; outline-offset: 1px; }
+.select-input:disabled { opacity: .4; }
+.parameter-label { display: flex; align-items: center; justify-content: space-between; gap: 5px; min-height: 24px; }
 </style>

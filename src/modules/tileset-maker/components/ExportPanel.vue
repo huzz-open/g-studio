@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from '../../../shared/i18n'
-import { ActionButtons } from '../../../shared/components/editor-shell'
+import { ActionButtons, TextRow } from '../../../shared/components/editor-shell'
 import type { ActionButton } from '../../../shared/components/editor-shell'
 import type { TilesetInstance } from '../store'
 import type { SharedTerrainState } from '../terrain-state'
@@ -46,14 +46,7 @@ function onAction(id: string) {
 
 <template>
   <div class="export-panel">
-    <div class="export-field">
-      <label>{{ t('tileset.terrainName') }}</label>
-      <input
-        type="text"
-        v-model="terrain.state.terrainName"
-        class="export-input"
-      />
-    </div>
+    <TextRow v-model="terrain.state.terrainName" :label="t('tileset.terrainName')" stacked live />
     <ActionButtons
       :buttons="exportActions"
       direction="column"
@@ -69,26 +62,5 @@ function onAction(id: string) {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-.export-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.export-field label {
-  font-size: 11px;
-  color: #888;
-}
-.export-input {
-  padding: 4px 8px;
-  font-size: 12px;
-  background: #2a2a2a;
-  border: 1px solid #444;
-  border-radius: 4px;
-  color: #ccc;
-}
-.export-input:focus {
-  border-color: #6a8;
-  outline: none;
 }
 </style>

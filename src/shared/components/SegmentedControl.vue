@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from '../i18n'
+import ParameterReset from './ParameterReset.vue'
 
 export interface SegmentOption {
   value: string
@@ -7,13 +8,15 @@ export interface SegmentOption {
   labelKey?: string
 }
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: string
+  defaultValue?: string
+  label?: string
   options: SegmentOption[]
   disabled?: boolean
   indicator?: boolean
 }>(), {
-  indicator: true,
+  indicator: false,
 })
 
 const emit = defineEmits<{
@@ -27,23 +30,42 @@ function getLabel(opt: SegmentOption): string {
   if (opt.labelKey) return t(opt.labelKey)
   return opt.value
 }
+function onKeydown(event: KeyboardEvent, index: number) {
+  if (props.disabled || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+  event.preventDefault()
+  const count = props.options.length
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? count - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + count) % count
+  const buttons = (event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLButtonElement>('button')
+  buttons?.[next]?.focus()
+  emit('update:modelValue', props.options[next].value)
+}
 </script>
 
 <template>
+  <div class="seg-control">
   <div class="seg-ctrl" :class="{ disabled, 'no-indicator': !indicator }">
     <button
-      v-for="opt in options"
+      v-for="(opt, index) in options"
       :key="opt.value"
       class="seg-ctrl-item"
       :class="{ active: modelValue === opt.value }"
       :disabled="disabled"
+      type="button"
+      :aria-pressed="modelValue === opt.value"
+      :tabindex="modelValue === opt.value || (!options.some(o => o.value === modelValue) && index === 0) ? 0 : -1"
+      @keydown="onKeydown($event, index)"
       @click="emit('update:modelValue', opt.value)"
     >{{ getLabel(opt) }}</button>
+  </div>
+    <ParameterReset v-if="defaultValue !== undefined" :model-value="modelValue" :default-value="defaultValue" :label="label || String($attrs['aria-label'] || t('common.parameter'))" :disabled="disabled" @reset="emit('update:modelValue', defaultValue)" />
   </div>
 </template>
 
 <style scoped>
+.seg-control { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .seg-ctrl {
+  flex: 1;
+  min-width: 0;
   display: flex;
   border: 1px solid #444;
   border-radius: 5px;
@@ -84,4 +106,5 @@ function getLabel(opt: SegmentOption): string {
   box-shadow: none;
 }
 .seg-ctrl-item:disabled { cursor: default; }
+.seg-ctrl-item:focus-visible { outline: 2px solid #8ab4f8; outline-offset: -2px; }
 </style>

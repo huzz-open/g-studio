@@ -37,6 +37,7 @@ const isFetching = ref(false)
 const isLoading = computed(() => props.loading || isFetching.value)
 
 function triggerPicker() {
+  if (isLoading.value) return
   fileInput.value?.click()
 }
 
@@ -84,6 +85,10 @@ defineExpose({ triggerPicker })
   >
     <div
       class="dropzone"
+      role="button"
+      :tabindex="isLoading ? -1 : 0"
+      :aria-label="hint || fileName || accept"
+      :aria-disabled="isLoading"
       :class="{
         compact,
         'drag-over': dragging,
@@ -91,6 +96,8 @@ defineExpose({ triggerPicker })
         'is-fetching': isFetching,
       }"
       @click="triggerPicker"
+      @keydown.enter.prevent="triggerPicker"
+      @keydown.space.prevent="triggerPicker"
     >
       <input
         ref="fileInput"
@@ -126,6 +133,7 @@ defineExpose({ triggerPicker })
 </template>
 
 <style scoped>
+.dropzone:focus-visible { outline: 2px solid #8ab4f8; outline-offset: -2px; }
 .dropzone {
   display: flex;
   flex-direction: column;

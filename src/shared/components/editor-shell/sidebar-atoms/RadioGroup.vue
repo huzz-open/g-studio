@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useId } from 'vue'
+const groupName = useId()
 export interface RadioOption {
   value: string
   label: string
@@ -24,7 +26,7 @@ const emit = defineEmits<{
 <template>
   <div class="radio-group" :class="{ disabled }">
     <span v-if="label" class="radio-group-label">{{ label }}</span>
-    <div class="radio-options" :class="direction">
+    <div class="radio-options" :class="direction" role="radiogroup" :aria-label="label">
       <label
         v-for="opt in options"
         :key="opt.value"
@@ -33,6 +35,7 @@ const emit = defineEmits<{
       >
         <input
           type="radio"
+          :name="groupName"
           class="radio-input"
           :checked="modelValue === opt.value"
           :disabled="disabled"
@@ -85,4 +88,5 @@ const emit = defineEmits<{
   opacity: 0.4;
   pointer-events: none;
 }
+.radio-input:focus-visible { outline: 2px solid #8ab4f8; outline-offset: 2px; }
 </style>

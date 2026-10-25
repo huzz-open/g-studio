@@ -101,4 +101,5 @@ const emit = defineEmits<{
 .action-btn:disabled {
   cursor: not-allowed;
 }
+.action-btn:focus-visible { outline: 2px solid #8ab4f8; outline-offset: 2px; }
 </style>

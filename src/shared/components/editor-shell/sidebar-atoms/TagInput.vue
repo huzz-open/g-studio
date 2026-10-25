@@ -1,11 +1,15 @@
 <script setup lang="ts">
+import { useId } from 'vue'
+const inputId = useId()
 import { ref } from 'vue'
 import SvgIcon from '../../../icons/SvgIcon.vue'
 
-defineProps<{
+const props = defineProps<{
   label: string
   modelValue: string[]
   placeholder?: string
+  disabled?: boolean
+  commitOnBlur?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -18,33 +22,40 @@ function removeTag(tag: string, tags: string[]) {
   emit('update:modelValue', tags.filter(t => t !== tag))
 }
 
+function addTag(tags: string[]) {
+  if (props.disabled) return
+  const tag = inputVal.value.trim()
+  if (!tag) return
+  emit('update:modelValue', [...new Set([...tags, tag])])
+  inputVal.value = ''
+}
 function onKeyDown(e: KeyboardEvent, tags: string[]) {
   if (e.key === 'Enter') {
     e.preventDefault()
-    const tag = inputVal.value.trim()
-    if (!tag) return
-    emit('update:modelValue', [...new Set([...tags, tag])])
-    inputVal.value = ''
+    addTag(tags)
   }
 }
 </script>
 
 <template>
-  <div class="tag-input">
-    <label class="tag-label">{{ label }}</label>
+  <div class="tag-input" :class="{ disabled }">
+    <label :for="inputId" class="tag-label">{{ label }}</label>
     <div class="tag-list">
       <span v-for="tag in modelValue" :key="tag" class="tag-chip">
         {{ tag }}
-        <button class="tag-remove" @click="removeTag(tag, modelValue)">
+        <button class="tag-remove" :disabled="disabled" :aria-label="`× ${tag}`" @click="removeTag(tag, modelValue)">
           <SvgIcon name="close" :size="8" />
         </button>
       </span>
     </div>
-    <input
+    <input :id="inputId"
       v-model="inputVal"
+      :aria-label="label"
+      :disabled="disabled"
       class="tag-input-field"
       :placeholder="placeholder"
       @keydown="onKeyDown($event, modelValue)"
+      @blur="commitOnBlur && addTag(modelValue)"
     />
   </div>
 </template>
@@ -95,4 +106,7 @@ function onKeyDown(e: KeyboardEvent, tags: string[]) {
   color: #ddd;
 }
 .tag-input-field:focus { outline: none; border-color: #5577aa; }
+.tag-input-field { box-sizing: border-box; min-height: 28px; }
+.tag-input-field:focus-visible, .tag-remove:focus-visible { outline: 2px solid #8ab4f8; outline-offset: 1px; }
+.tag-input.disabled { opacity: .4; }
 </style>

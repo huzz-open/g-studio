@@ -1,4 +1,9 @@
 export default {
+  'common.resetParameter': '重置{name}',
+  'common.resetParameterTip': '{name}：恢复默认值（{value}）',
+  'common.parameter': '参数',
+  'common.on': '开启',
+  'common.off': '关闭',
   'normal.resetParameter': '重置{name}',
   'normal.resetParameterTip': '{name}：恢复默认值（{value}）',
   'normal.off': '关闭',

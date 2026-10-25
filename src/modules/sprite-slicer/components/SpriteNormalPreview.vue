@@ -8,7 +8,7 @@ import type { DetectedSprite } from '../interfaces/sprite-detector'
 import { computeNormals } from '../core/normal/client'
 import { spritePixels } from '../core/normal/source'
 import { createLighting, previewLight, DEFAULT_PREVIEW_LIGHT } from '../core/normal/lighting'
-import ParameterReset from './ParameterReset.vue'
+import ParameterReset from '../../../shared/components/ParameterReset.vue'
 
 const props = defineProps<{ sprite: DetectedSprite }>()
 const emit = defineEmits<{ close: []; settings: [settings?: NormalSettings] }>()

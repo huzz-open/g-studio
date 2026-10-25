@@ -42,6 +42,8 @@ export interface TilesetMakerState {
   showPainter: boolean
 }
 
+export const DEFAULT_MAGENTA_TOLERANCE = 30
+
 export function createTilesetInstance(id: string) {
   const { settings } = useSettings()
   const state = reactive<TilesetMakerState>({
@@ -58,7 +60,7 @@ export function createTilesetInstance(id: string) {
     nineGridHeight: 0,
     nineGridFileName: '',
     useMagenta: false,
-    magentaTolerance: 30,
+    magentaTolerance: DEFAULT_MAGENTA_TOLERANCE,
     nineGridSplitsX: [],
     nineGridSplitsY: [],
     layout: settings.tilesetMaker.defaults.layout as LayoutName,

@@ -20,6 +20,7 @@ import { readSpriteGsFile } from '../../shared/gs-format/reader'
 import { writeGsFile, type WriteGsResult } from '../../shared/gs-format/writer'
 import { resolveDir, splitPath } from '../../shared/workspace/fs'
 import { normalSettings, type NormalSettings } from '../../shared/types/normal-settings'
+import { SLICER_PARAMETER_DEFAULTS } from './defaults'
 
 function sortByReadingOrder(arr: DetectedSprite[], threshold = 20) {
   arr.sort((a, b) => {
@@ -82,9 +83,9 @@ function createSlicerInstance(id: string) {
     dirty: false,
     loaded: false,
     bgRemoverId: d.bgRemoval === 'none' ? 'none' : 'auto',
-    bgColor: [255, 0, 255],
-    bgTolerance: 50,
-    bgSpillStrength: 70,
+    bgColor: [...SLICER_PARAMETER_DEFAULTS.bgColor],
+    bgTolerance: SLICER_PARAMETER_DEFAULTS.bgTolerance,
+    bgSpillStrength: SLICER_PARAMETER_DEFAULTS.bgSpillStrength,
     sourceImage: null,
     sourceFileName: '',
     imgSize: { w: 0, h: 0 },
@@ -92,12 +93,12 @@ function createSlicerInstance(id: string) {
     detectionMode: d.detectionMode as 'auto' | 'grid',
     mergeGap: d.mergeGap,
     minArea: d.minArea,
-    cols: 6,
-    rows: 6,
-    gapH: 0,
-    gapV: 0,
-    marginH: 0,
-    marginV: 0,
+    cols: SLICER_PARAMETER_DEFAULTS.cols,
+    rows: SLICER_PARAMETER_DEFAULTS.rows,
+    gapH: SLICER_PARAMETER_DEFAULTS.gapH,
+    gapV: SLICER_PARAMETER_DEFAULTS.gapV,
+    marginH: SLICER_PARAMETER_DEFAULTS.marginH,
+    marginV: SLICER_PARAMETER_DEFAULTS.marginV,
     sprites: [],
     selected: new Set(),
     namePrefix: d.namePrefix,

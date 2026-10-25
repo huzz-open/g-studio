@@ -1,4 +1,9 @@
 export default {
+  'common.resetParameter': 'Reset {name}',
+  'common.resetParameterTip': '{name}: restore default ({value})',
+  'common.parameter': 'parameter',
+  'common.on': 'On',
+  'common.off': 'Off',
   'normal.resetParameter': 'Reset {name}',
   'normal.resetParameterTip': '{name}: restore default ({value})',
   'normal.off': 'Off',

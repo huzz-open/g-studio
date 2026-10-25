@@ -6,13 +6,14 @@ import { useWorkspace } from '../../../shared/workspace'
 import { listDirs, resolveDir } from '../../../shared/workspace/fs'
 import { prompt } from '../../../shared/components/prompt'
 import { showToast } from '../../../shared/components/toast'
-import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import FileDropZone from '../../../shared/components/FileDropZone.vue'
+import SidebarSection from '../../../shared/components/editor-shell/SidebarSection.vue'
 import SegmentedControl from '../../../shared/components/SegmentedControl.vue'
 import InlineSwitch from '../../../shared/components/InlineSwitch.vue'
-import { ActionButtons } from '../../../shared/components/editor-shell/sidebar-atoms'
+import { ActionButtons, SliderRow, NumberRow, ColorRow, TextRow, TagInput, DirPicker } from '../../../shared/components/editor-shell/sidebar-atoms'
 import type { ActionButton } from '../../../shared/components/editor-shell/sidebar-atoms'
 import { bgRemovers, type SlicerInstance } from '../store'
+import { SLICER_PARAMETER_DEFAULTS } from '../defaults'
 
 export interface OutputPayload {
   composite: boolean
@@ -44,7 +45,6 @@ const { isOpen: wsOpen } = useWorkspace()
 const workspaceDirs = ref<string[]>([])
 const saveDir = ref(settings.spriteSlicer.lastSaveDir ?? 'spritesheets')
 const tags = ref<string[]>([...(settings.spriteSlicer.lastTags ?? [])])
-const tagInput = ref('')
 
 const exportOpts = ref({ ...settings.spriteSlicer.defaults.exportOptions, normals: false })
 
@@ -65,26 +65,8 @@ watch(wsOpen, (open) => {
   if (open) refreshDirs()
 })
 
-function addTag() {
-  const v = tagInput.value.trim()
-  if (v && !tags.value.includes(v)) {
-    tags.value.push(v)
-  }
-  tagInput.value = ''
-}
-
-function removeTag(tag: string) {
-  tags.value = tags.value.filter(t => t !== tag)
-}
-
-function onTagKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter') {
-    e.preventDefault()
-    addTag()
-  }
-}
-
 async function onNewFolder() {
+  if (!wsOpen.value || props.outputBusy) return
   const name = await prompt({
     title: t('slicer.save.newFolder'),
     message: t('slicer.save.newFolderPrompt'),
@@ -133,8 +115,7 @@ function hexToRgb(hex: string): [number, number, number] {
   ]
 }
 
-function onBgColorChange(e: Event) {
-  const hex = (e.target as HTMLInputElement).value
+function onBgColorChange(hex: string) {
   props.store.state.bgColor = hexToRgb(hex)
 }
 
@@ -168,392 +149,80 @@ function onOutputAction(id: string) {
   if (id === 'export-local') emit('export-local', getPayload())
   else if (id === 'save-workspace') emit('save-workspace', getPayload())
 }
+
+const gridRows = [
+  [{ key: 'cols', label: 'slicer.grid.cols', max: 20, min: 1 }, { key: 'rows', label: 'slicer.grid.rows', max: 20, min: 1 }],
+  [{ key: 'gapH', label: 'slicer.grid.gapH', max: 200, min: 0 }, { key: 'gapV', label: 'slicer.grid.gapV', max: 200, min: 0 }],
+  [{ key: 'marginH', label: 'slicer.grid.margin', axis: 'H', max: 200, min: 0 }, { key: 'marginV', label: 'slicer.grid.margin', axis: 'V', max: 200, min: 0 }],
+] as const
+
 </script>
 
 <template>
   <div class="sidebar-content">
-    <!-- Source / Upload -->
-    <div class="sidebar-section">
-      <h4>{{ t('slicer.source') }}</h4>
-      <FileDropZone
-        compact
-        accept="image/png,image/jpeg,image/webp"
-        :hint="hasImage ? t('slicer.reselect') : t('slicer.upload.hint')"
-        :file-name="hasImage ? `${store.state.imgSize.w} × ${store.state.imgSize.h} px` : ''"
-        :loading="store.state.loading"
-        loading-text="..."
-        icon="image"
-        @file="(f: File) => emit('file', f)"
-      />
-    </div>
-
-    <!-- Background Removal -->
-    <div class="sidebar-section">
-      <h4>{{ t('slicer.bgRemoval') }}</h4>
-      <SegmentedControl
-        :model-value="store.state.bgRemoverId"
-        :options="bgRemoverOptions"
-        :disabled="!hasImage"
-        @update:model-value="store.state.bgRemoverId = $event"
-      />
-
+    <SidebarSection :title="t('slicer.source')" :collapsible="false">
+      <FileDropZone compact accept="image/png,image/jpeg,image/webp" :hint="hasImage ? t('slicer.reselect') : t('slicer.upload.hint')"
+        :file-name="hasImage ? `${store.state.imgSize.w} × ${store.state.imgSize.h} px` : ''" :loading="store.state.loading" loading-text="..." icon="image" @file="(f: File) => emit('file', f)" />
+    </SidebarSection>
+    <SidebarSection :title="t('slicer.bgRemoval')" :collapsible="false">
+      <SegmentedControl :model-value="store.state.bgRemoverId" :default-value="settings.spriteSlicer.defaults.bgRemoval" :options="bgRemoverOptions" :disabled="!hasImage" :aria-label="t('slicer.bgRemoval')" role="group" @update:model-value="store.state.bgRemoverId = $event" />
       <template v-if="store.state.bgRemoverId === 'auto'">
-        <div class="param-row slider-row" style="margin-top:8px">
-          <label class="slider-label">{{ t('slicer.bgRemoval.bgColor') }}</label>
-          <input
-            type="color"
-            :value="rgbToHex(store.state.bgColor)"
-            :disabled="!hasImage"
-            @input="onBgColorChange"
-            class="color-input"
-          />
-        </div>
-        <div class="param-row slider-row">
-          <label class="slider-label">{{ t('slicer.bgRemoval.tolerance') }}</label>
-          <input type="range" v-model.number="store.state.bgTolerance" min="0" max="100" class="slider" :disabled="!hasImage" />
-          <span class="range-val">{{ store.state.bgTolerance }}</span>
-        </div>
-        <div class="param-row slider-row">
-          <label class="slider-label">{{ t('slicer.bgRemoval.spillCorrection') }}</label>
-          <input type="range" v-model.number="store.state.bgSpillStrength" min="0" max="100" class="slider" :disabled="!hasImage" />
-          <span class="range-val">{{ store.state.bgSpillStrength }}</span>
-        </div>
+        <ColorRow :label="t('slicer.bgRemoval.bgColor')" :model-value="rgbToHex(store.state.bgColor)" :default-value="rgbToHex(SLICER_PARAMETER_DEFAULTS.bgColor)" :disabled="!hasImage" @update:model-value="onBgColorChange" />
+        <SliderRow v-model="store.state.bgTolerance" :default-value="SLICER_PARAMETER_DEFAULTS.bgTolerance" :label="t('slicer.bgRemoval.tolerance')" :min="0" :max="100" :disabled="!hasImage" />
+        <SliderRow v-model="store.state.bgSpillStrength" :default-value="SLICER_PARAMETER_DEFAULTS.bgSpillStrength" :label="t('slicer.bgRemoval.spillCorrection')" :min="0" :max="100" :disabled="!hasImage" />
       </template>
-    </div>
-
-    <!-- Detection Mode -->
-    <div class="sidebar-section">
-      <h4>{{ t('slicer.detection') }}</h4>
-      <SegmentedControl
-        :model-value="store.state.detectionMode"
-        :options="[
-          { value: 'auto', labelKey: 'slicer.detection.auto' },
-          { value: 'grid', labelKey: 'slicer.detection.grid' },
-        ]"
-        :disabled="!hasImage"
-        @update:model-value="store.state.detectionMode = $event as any; store.runDetection()"
-      />
-    </div>
-
-    <!-- Auto Detection Params -->
-    <div v-if="store.state.detectionMode === 'auto'" class="sidebar-section">
-      <h4>{{ t('slicer.detection.params') }}</h4>
-      <div class="param-row slider-row">
-        <label class="slider-label">{{ t('slicer.detection.mergeGap') }}</label>
-        <input type="range" v-model.number="store.state.mergeGap" min="0" max="30" class="slider" :disabled="!hasImage" />
-        <span class="range-val">{{ store.state.mergeGap }}px</span>
+    </SidebarSection>
+    <SidebarSection :title="t('slicer.detection')" :collapsible="false">
+      <SegmentedControl :model-value="store.state.detectionMode" :default-value="settings.spriteSlicer.defaults.detectionMode" :aria-label="t('slicer.detection')" role="group"
+        :options="[{ value: 'auto', labelKey: 'slicer.detection.auto' }, { value: 'grid', labelKey: 'slicer.detection.grid' }]"
+        :disabled="!hasImage" @update:model-value="store.state.detectionMode = $event as 'auto' | 'grid'; store.runDetection()" />
+    </SidebarSection>
+    <SidebarSection v-if="store.state.detectionMode === 'auto'" :title="t('slicer.detection.params')" :collapsible="false">
+      <SliderRow v-model="store.state.mergeGap" :default-value="settings.spriteSlicer.defaults.mergeGap" :label="t('slicer.detection.mergeGap')" :min="0" :max="30" suffix="px" :disabled="!hasImage" />
+      <SliderRow v-model="store.state.minArea" :default-value="settings.spriteSlicer.defaults.minArea" :label="t('slicer.detection.minArea')" :title="t('slicer.detection.minArea.tip')" :min="10" :max="500" suffix="px²" :disabled="!hasImage" />
+    </SidebarSection>
+    <SidebarSection v-else :title="t('slicer.grid')" :collapsible="false">
+      <div v-for="(row, index) in gridRows" :key="index" class="grid-fields">
+        <NumberRow v-for="field in row" :key="field.key" v-model="store.state[field.key]" :default-value="SLICER_PARAMETER_DEFAULTS[field.key]" stacked live
+          :label="('axis' in field ? t(field.label) + ' · ' + t(field.axis === 'H' ? 'slicer.grid.gapH' : 'slicer.grid.gapV') : (index === 1 ? t('slicer.grid.gap') + ' · ' : '') + t(field.label))" :min="field.min" :max="field.max" :disabled="!hasImage" />
       </div>
-      <div class="param-row slider-row">
-        <label class="slider-label" :title="t('slicer.detection.minArea.tip')">{{ t('slicer.detection.minArea') }}</label>
-        <input type="range" v-model.number="store.state.minArea" min="10" max="500" class="slider" :disabled="!hasImage" />
-        <span class="range-val">{{ store.state.minArea }}px</span>
-      </div>
-    </div>
-
-    <!-- Grid Params -->
-    <div v-else class="sidebar-section">
-      <h4>{{ t('slicer.grid') }}</h4>
-      <div class="param-row">
-        <label>{{ t('slicer.grid.cols') }} <input type="number" v-model.number="store.state.cols" min="1" max="20" :disabled="!hasImage" /></label>
-        <label>{{ t('slicer.grid.rows') }} <input type="number" v-model.number="store.state.rows" min="1" max="20" :disabled="!hasImage" /></label>
-      </div>
-      <div class="param-row" style="margin-top:4px">
-        <label>{{ t('slicer.grid.gapH') }} <input type="number" v-model.number="store.state.gapH" min="0" max="200" :disabled="!hasImage" /></label>
-        <label>{{ t('slicer.grid.gapV') }} <input type="number" v-model.number="store.state.gapV" min="0" max="200" :disabled="!hasImage" /></label>
-      </div>
-      <div class="param-row" style="margin-top:4px">
-        <label>{{ t('slicer.grid.margin') }} H <input type="number" v-model.number="store.state.marginH" min="0" max="200" :disabled="!hasImage" /></label>
-        <label>{{ t('slicer.grid.margin') }} V <input type="number" v-model.number="store.state.marginV" min="0" max="200" :disabled="!hasImage" /></label>
-      </div>
-    </div>
-
-    <!-- Arrange Mode -->
-    <div class="sidebar-section">
-      <h4>{{ t('slicer.arrangeMode') }}</h4>
-      <SegmentedControl
-        :model-value="store.state.arrangeMode"
-        :options="arrangeModeOptions"
-        :disabled="!hasImage"
-        :indicator="false"
-        @update:model-value="store.state.arrangeMode = $event as any"
-      />
-    </div>
-
-    <!-- Naming -->
-    <div class="sidebar-section">
-      <h4>{{ t('slicer.naming.prefix') }}</h4>
-      <input type="text" v-model="store.state.namePrefix" class="text-input" :disabled="!hasImage" />
-    </div>
-
-    <!-- Animation Preview -->
-    <div v-if="hasImage && store.selectedSprites.value.length >= 2" class="sidebar-section">
-      <h4>{{ t('slicer.anim.title') }}</h4>
-      <button class="btn btn-sm" @click="emit('show-anim')">
-        <SvgIcon name="play" :size="12" />
-        {{ t('slicer.anim.preview', { count: store.selectedSprites.value.length }) }}
-      </button>
-    </div>
-
-    <!-- Output -->
-    <div class="sidebar-section">
-      <h4>{{ t('slicer.output') }}</h4>
-
-      <div class="param-row" style="margin-bottom:6px">
-        <label>{{ t('slicer.save.saveDir') }}
-          <div class="dir-picker">
-            <select v-model="saveDir" :disabled="!hasImage" class="select-input">
-              <option v-for="d in workspaceDirs" :key="d" :value="d">{{ d }}</option>
-              <option v-if="!workspaceDirs.includes(saveDir)" :value="saveDir">{{ saveDir }}</option>
-            </select>
-            <button class="btn-new-folder" :disabled="!hasImage" @click="onNewFolder" :title="t('slicer.save.newFolder')">+</button>
-          </div>
-        </label>
-      </div>
-
-      <div class="param-row tag-section" style="margin-bottom:6px">
-        <label>{{ t('slicer.save.tags') }}
-          <div class="tag-input-area">
-            <span v-for="tag in tags" :key="tag" class="tag-chip">
-              {{ tag }}
-              <button class="tag-remove" @click="removeTag(tag)">&times;</button>
-            </span>
-            <input
-              type="text"
-              v-model="tagInput"
-              class="tag-text-input"
-              :placeholder="t('slicer.save.tagPlaceholder')"
-              :disabled="!hasImage"
-              @keydown="onTagKeydown"
-              @blur="addTag"
-            />
-          </div>
-        </label>
-      </div>
-
+    </SidebarSection>
+    <SidebarSection :title="t('slicer.arrangeMode')" :collapsible="false">
+      <SegmentedControl :model-value="store.state.arrangeMode" :default-value="settings.spriteSlicer.defaults.arrangeMode" :options="arrangeModeOptions" :disabled="!hasImage" :aria-label="t('slicer.arrangeMode')" role="group" @update:model-value="store.state.arrangeMode = $event as 'none' | 'standardize' | 'bin-pack'" />
+    </SidebarSection>
+    <div class="standalone-field"><TextRow v-model="store.state.namePrefix" :default-value="settings.spriteSlicer.defaults.namePrefix" :label="t('slicer.naming.prefix')" stacked live :disabled="!hasImage" /></div>
+    <SidebarSection v-if="hasImage && store.selectedSprites.value.length >= 2" :title="t('slicer.anim.title')" :collapsible="false">
+      <ActionButtons :buttons="[{ id: 'preview', label: t('slicer.anim.preview', { count: store.selectedSprites.value.length }), icon: 'play' }]" @click="emit('show-anim')" />
+    </SidebarSection>
+    <SidebarSection :title="t('slicer.output')" :collapsible="false">
+      <DirPicker v-model="saveDir" :label="t('slicer.save.saveDir')" :options="workspaceDirs" :action-label="t('slicer.save.newFolder')" :disabled="!hasImage || !wsOpen || outputBusy" @browse="onNewFolder" />
+      <TagInput v-model="tags" :label="t('slicer.save.tags')" :placeholder="t('slicer.save.tagPlaceholder')" :disabled="!hasImage || outputBusy" commit-on-blur />
       <div class="output-choices">
-        <label class="output-choice" :class="{ checked: exportOpts.composite }">
-          <input v-model="exportOpts.composite" type="checkbox" :disabled="!hasImage || outputBusy" />
-          <span>{{ t('slicer.output.composite') }}</span>
+        <label class="output-choice" :class="{ checked: exportOpts.composite, disabled: !hasImage || outputBusy }">
+          <input v-model="exportOpts.composite" type="checkbox" :disabled="!hasImage || outputBusy" /><span>{{ t('slicer.output.composite') }}</span>
         </label>
-        <label class="output-choice" :class="{ checked: exportOpts.sprites }">
-          <input v-model="exportOpts.sprites" type="checkbox" :disabled="!hasImage || outputBusy" />
-          <span>{{ t('slicer.output.sprites') }} ZIP</span>
+        <label class="output-choice" :class="{ checked: exportOpts.sprites, disabled: !hasImage || outputBusy }">
+          <input v-model="exportOpts.sprites" type="checkbox" :disabled="!hasImage || outputBusy" /><span>{{ t('slicer.output.sprites') }} ZIP</span>
         </label>
       </div>
-      <div class="output-meta">
-        <InlineSwitch
-          :model-value="exportOpts.meta"
-          :label="t('normal.exportMeta')"
-          :tooltip="t('slicer.output.metaTip')"
-          :disabled="!hasImage || !exportOpts.composite || outputBusy"
-          @update:model-value="onMetaChange($event)"
-        />
-      </div>
-      <label class="normal-export-row">
-        <span>{{ t('normal.export') }}<small>{{ t('normal.exportHint') }}</small></span>
-        <span class="switch"><input v-model="exportOpts.normals" type="checkbox" role="switch" :disabled="!hasImage || outputBusy" /><span class="switch-slider" /></span>
-      </label>
+      <InlineSwitch :model-value="exportOpts.meta" :default-value="settings.spriteSlicer.defaults.exportOptions.meta" :label="t('normal.exportMeta')" :tooltip="t('slicer.output.metaTip')" block
+        :disabled="!hasImage || !exportOpts.composite || outputBusy" @update:model-value="onMetaChange" />
+      <InlineSwitch v-model="exportOpts.normals" :default-value="false" :label="t('normal.export')" :description="t('normal.exportHint')" :disabled="!hasImage || !hasAnyImage || outputBusy" block />
       <p v-if="outputBusy" class="output-progress" role="status">{{ outputProgress || t('normal.exporting') }}</p>
-      <ActionButtons
-        :buttons="outputButtons"
-        @click="onOutputAction"
-      />
-    </div>
+      <ActionButtons :buttons="outputButtons" @click="onOutputAction" />
+    </SidebarSection>
   </div>
 </template>
 
 <style scoped>
-.sidebar-content {
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  height: 100%;
-  overflow-y: auto;
-}
-.output-choices { display: flex; gap: 6px; margin: 8px 0; }
+.sidebar-content { height: 100%; overflow-y: auto; }
+.grid-fields { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; }
+.standalone-field { padding: 10px; border-bottom: 1px solid #333; }
+.output-choices { display: flex; gap: 6px; }
 .output-choice { display: flex; flex: 1; align-items: center; gap: 7px; padding: 9px 8px; border: 1px solid #4b4b4b; border-radius: 5px; background: #303030; color: #bbb; font-size: 12px; cursor: pointer; }
 .output-choice.checked { border-color: #698dbd; background: #30445d; color: #d9e8fc; }
 .output-choice input { accent-color: #8ab4f8; margin: 0; width: 14px; height: 14px; }
 .output-choice:focus-within { outline: 2px solid #8ab4f8; outline-offset: 2px; }
-.output-meta { margin: 8px 0; }
-.normal-export-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0; padding: 10px 0; border-top: 1px solid #3c3c3c; color: #ccc; font-size: 12px; cursor: pointer; }
-.normal-export-row small { display: block; font-size: 10px; color: #999; line-height: 1.5; margin-top: 3px; }
-.switch:focus-within { outline: 2px solid #8ab4f8; outline-offset: 2px; border-radius: 9px; }
-.normal-export-row .switch input { width: 100%; height: 100%; inset: 0; margin: 0; z-index: 1; cursor: pointer; }
-.output-progress { font-size: 11px; color: #8ab4f8; }
-.sidebar-section {
-  padding-bottom: 10px;
-  margin-bottom: 6px;
-  border-bottom: 1px solid #333;
-}
-.sidebar-section:last-child { border-bottom: none; }
-.sidebar-section h4 {
-  margin: 0 0 6px;
-  font-size: 11px;
-  color: #888;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.param-row { display: flex; gap: 8px; }
-.param-row label {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: 11px;
-  color: #888;
-  flex: 1;
-}
-.param-row input[type="number"] {
-  width: 100%;
-  padding: 3px 5px;
-  background: #333;
-  color: #eee;
-  border: 1px solid #555;
-  border-radius: 3px;
-  font-size: 12px;
-}
-.slider-row { align-items: center; margin-top: 4px; }
-.slider-label {
-  font-size: 11px;
-  color: #888;
-  min-width: 48px;
-  flex: none !important;
-}
-.slider { flex: 1; min-width: 0; max-width: 90px; accent-color: #5577aa; }
-.range-val { font-size: 11px; color: #aaa; min-width: 28px; text-align: right; flex: none; }
-.color-input {
-  width: 28px;
-  height: 22px;
-  border: 1px solid #555;
-  border-radius: 3px;
-  cursor: pointer;
-  background: none;
-  padding: 0;
-}
-.section-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.section-header-row h4 { margin: 0; }
-.switch {
-  position: relative;
-  display: inline-block;
-  width: 32px;
-  height: 18px;
-  flex-shrink: 0;
-  cursor: pointer;
-}
-.switch input { opacity: 0; width: 0; height: 0; position: absolute; }
-.switch-slider {
-  position: absolute;
-  inset: 0;
-  background: #444;
-  border-radius: 9px;
-  transition: background 0.2s;
-}
-.switch-slider::before {
-  content: '';
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  left: 2px;
-  bottom: 2px;
-  background: #999;
-  border-radius: 50%;
-  transition: transform 0.2s, background 0.2s;
-}
-.switch input:checked + .switch-slider { background: #3a6a5a; }
-.switch input:checked + .switch-slider::before { transform: translateX(14px); background: #d0f0e0; }
-.switch input:disabled + .switch-slider { opacity: 0.4; cursor: default; }
-.select-input {
-  width: 100%;
-  padding: 3px 5px;
-  background: #333;
-  color: #eee;
-  border: 1px solid #555;
-  border-radius: 3px;
-  font-size: 12px;
-}
-.text-input {
-  width: 100%;
-  padding: 4px 8px;
-  background: #333;
-  color: #eee;
-  border: 1px solid #555;
-  border-radius: 4px;
-  font-size: 12px;
-}
-.actions { padding-top: 4px; display: flex; flex-direction: column; gap: 6px; }
-.cb-pair {
-  display: flex;
-  gap: 12px;
-}
-.dir-picker {
-  display: flex;
-  gap: 4px;
-  align-items: stretch;
-}
-.dir-picker .select-input { flex: 1; min-width: 0; }
-.btn-new-folder {
-  width: 28px;
-  background: #3a5070;
-  color: #dde4f0;
-  border: 1px solid #555;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: bold;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s;
-}
-.btn-new-folder:hover:not(:disabled) { background: #4a6080; }
-.btn-new-folder:disabled { opacity: 0.4; cursor: not-allowed; }
-.tag-section label { flex: 1; }
-.tag-input-area {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px 6px;
-  background: #333;
-  border: 1px solid #555;
-  border-radius: 4px;
-  min-height: 28px;
-  align-items: center;
-}
-.tag-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 1px 6px;
-  background: #3a5070;
-  color: #dde4f0;
-  border-radius: 3px;
-  font-size: 11px;
-  white-space: nowrap;
-}
-.tag-remove {
-  background: none;
-  border: none;
-  color: #aaa;
-  cursor: pointer;
-  font-size: 13px;
-  padding: 0 2px;
-  line-height: 1;
-}
-.tag-remove:hover { color: #ff9999; }
-.tag-text-input {
-  flex: 1;
-  min-width: 50px;
-  background: none;
-  border: none;
-  color: #eee;
-  font-size: 11px;
-  outline: none;
-  padding: 2px 0;
-}
+.output-choice.disabled { opacity: .4; cursor: default; }
+.output-progress { font-size: 11px; color: #8ab4f8; margin: 0; }
 </style>

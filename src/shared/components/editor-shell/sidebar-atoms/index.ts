@@ -1,4 +1,5 @@
 export { default as SliderRow } from './SliderRow.vue'
+export { default as ParameterReset } from '../../ParameterReset.vue'
 export { default as NumberRow } from './NumberRow.vue'
 export { default as ColorRow } from './ColorRow.vue'
 export { default as SelectRow } from './SelectRow.vue'

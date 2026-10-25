@@ -195,6 +195,7 @@ async function onDeleteAction() {
       />
 
       <SliderRow
+        :default-value="0"
         :label="t('sceneEditor.property.opacity')"
         :model-value="regionOpacity"
         :min="0"

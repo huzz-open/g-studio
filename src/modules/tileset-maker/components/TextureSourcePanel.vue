@@ -1,22 +1,23 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from '../../../shared/i18n'
+import { useSettings } from '../../../shared/settings'
 import type { TilesetInstance } from '../store'
 import { PROFILE_NAMES, SLIDER_DEFS, getProfile } from '../core/sdf/profiles'
 import type { TileSize } from '../core/types'
 import FileDropZone from '../../../shared/components/FileDropZone.vue'
-import { SegmentedControl } from '../../../shared/components/editor-shell'
+import { SegmentedControl, SliderRow, ActionButtons } from '../../../shared/components/editor-shell'
 import type { SegmentOption } from '../../../shared/components/editor-shell'
 
 const { t } = useI18n()
+const { settings } = useSettings()
 const props = defineProps<{ store: TilesetInstance }>()
 
 function selectStyle(name: string) {
   props.store.setProfile(getProfile(name))
 }
 
-function onSlider(key: string, e: Event) {
-  const val = parseFloat((e.target as HTMLInputElement).value)
+function onSlider(key: string, val: number) {
   props.store.setProfileParam(key as any, val)
 }
 
@@ -45,9 +46,7 @@ const layoutOptions: SegmentOption[] = [
         @file="(f: File) => props.store.loadTexture(f)"
       />
       <div class="source-actions">
-        <button class="btn-sm" @click="props.store.state.showPainter = true">
-          {{ t('tileset.source.draw') }}
-        </button>
+        <ActionButtons :buttons="[{ id: 'draw', label: t('tileset.source.draw') }]" @click="props.store.state.showPainter = true" />
       </div>
     </div>
 
@@ -55,6 +54,7 @@ const layoutOptions: SegmentOption[] = [
       <label class="section-title">{{ t('tileset.tileSize') }}</label>
       <SegmentedControl
         :model-value="String(props.store.state.tileSize)"
+        :default-value="String(settings.tilesetMaker.defaults.tileSize)" :label="t('tileset.tileSize')"
         :options="tileSizeOptions"
         :indicator="false"
         @update:model-value="props.store.setTileSize(Number($event) as TileSize)"
@@ -65,6 +65,7 @@ const layoutOptions: SegmentOption[] = [
       <label class="section-title">{{ t('tileset.layout') }}</label>
       <SegmentedControl
         :model-value="props.store.state.layout"
+        :default-value="settings.tilesetMaker.defaults.layout" :label="t('tileset.layout')"
         :options="layoutOptions"
         :indicator="false"
         @update:model-value="props.store.setLayout($event as any)"
@@ -85,18 +86,8 @@ const layoutOptions: SegmentOption[] = [
     </div>
 
     <div class="section sliders">
-      <div v-for="def in SLIDER_DEFS" :key="def.key" class="slider-row">
-        <label>{{ t(def.labelKey) }}</label>
-        <input
-          type="range"
-          :min="def.min"
-          :max="def.max"
-          :step="0.01"
-          :value="(props.store.state.profile as any)[def.key]"
-          @input="onSlider(def.key, $event)"
-        />
-        <span class="slider-val">{{ ((props.store.state.profile as any)[def.key] as number).toFixed(2) }}</span>
-      </div>
+      <SliderRow v-for="def in SLIDER_DEFS" :key="def.key" :label="t(def.labelKey)" :min="def.min" :max="def.max" :step="0.01" :precision="2"
+        :model-value="(props.store.state.profile as any)[def.key]" :default-value="getProfile(props.store.state.profile.style)[def.key] as number" @update:model-value="onSlider(def.key, $event)" />
     </div>
   </div>
 </template>
@@ -121,16 +112,6 @@ const layoutOptions: SegmentOption[] = [
   display: flex;
   gap: 6px;
 }
-.btn-sm {
-  padding: 4px 10px;
-  font-size: 11px;
-  background: #333;
-  border: 1px solid #555;
-  border-radius: 4px;
-  color: #ccc;
-  cursor: pointer;
-}
-.btn-sm:hover { border-color: #888; color: #eee; }
 .style-chips {
   display: flex;
   flex-wrap: wrap;
@@ -146,16 +127,8 @@ const layoutOptions: SegmentOption[] = [
   cursor: pointer;
   text-transform: capitalize;
 }
-.chip.active { border-color: #6a8; color: #ade; background: #2a3a2e; }
+.chip.active { border-color: #698dbd; color: #d9e8fc; background: #30445d; }
+.chip:focus-visible { outline: 2px solid #8ab4f8; outline-offset: 2px; }
 .chip:hover { border-color: #666; }
 .sliders { gap: 6px; display: flex; flex-direction: column; }
-.slider-row {
-  display: grid;
-  grid-template-columns: 1fr 100px 36px;
-  align-items: center;
-  gap: 6px;
-}
-.slider-row label { font-size: 11px; color: #999; }
-.slider-row input[type="range"] { width: 100%; }
-.slider-val { font-size: 10px; color: #888; text-align: right; }
 </style>

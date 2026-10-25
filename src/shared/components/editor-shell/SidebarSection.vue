@@ -17,11 +17,16 @@ const open = ref(props.defaultOpen)
 function toggle() {
   if (props.collapsible) open.value = !open.value
 }
+function onHeaderKey(event: KeyboardEvent) {
+  if (!props.collapsible || event.target !== event.currentTarget || !['Enter', ' '].includes(event.key)) return
+  event.preventDefault()
+  toggle()
+}
 </script>
 
 <template>
   <div class="sidebar-section" :class="{ closed: !open }">
-    <div class="section-header" :class="{ static: !collapsible }" @click="toggle">
+    <div class="section-header" :class="{ static: !collapsible }" :role="collapsible ? 'button' : undefined" :tabindex="collapsible ? 0 : undefined" :aria-expanded="collapsible ? open : undefined" @click="toggle" @keydown="onHeaderKey">
       <SvgIcon
         v-if="collapsible"
         name="chevron-right"
@@ -43,6 +48,7 @@ function toggle() {
 .sidebar-section {
   border-bottom: 1px solid #333;
 }
+.section-header:focus-visible { outline: 2px solid #8ab4f8; outline-offset: -2px; }
 .section-header {
   display: flex;
   align-items: center;

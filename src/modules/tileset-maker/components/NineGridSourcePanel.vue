@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { DEFAULT_MAGENTA_TOLERANCE } from '../store'
 import { ref, watch, nextTick, onMounted } from 'vue'
 import { useI18n } from '../../../shared/i18n'
 import type { TilesetInstance } from '../store'
 import FileDropZone from '../../../shared/components/FileDropZone.vue'
-import { CheckboxRow } from '../../../shared/components/editor-shell/sidebar-atoms'
+import { CheckboxRow, SliderRow } from '../../../shared/components/editor-shell/sidebar-atoms'
 
 const { t } = useI18n()
 const props = defineProps<{ store: TilesetInstance }>()
@@ -187,21 +188,12 @@ onMounted(() => {
     <div class="section">
       <CheckboxRow
         :label="t('tileset.ninegrid.magenta')"
+        :default-value="false"
         :model-value="props.store.state.useMagenta"
         @update:model-value="props.store.setMagenta($event)"
       />
-      <div v-if="props.store.state.useMagenta" class="slider-row">
-        <label>{{ t('tileset.ninegrid.tolerance') }}</label>
-        <input
-          type="range"
-          :min="0"
-          :max="100"
-          :step="1"
-          :value="props.store.state.magentaTolerance"
-          @input="props.store.setMagentaTolerance(parseInt(($event.target as HTMLInputElement).value))"
-        />
-        <span class="slider-val">{{ props.store.state.magentaTolerance }}</span>
-      </div>
+      <SliderRow v-if="props.store.state.useMagenta" :label="t('tileset.ninegrid.tolerance')" :min="0" :max="100" :step="1" :default-value="DEFAULT_MAGENTA_TOLERANCE"
+        :model-value="props.store.state.magentaTolerance" @update:model-value="props.store.setMagentaTolerance($event)" />
     </div>
   </div>
 </template>
@@ -251,13 +243,4 @@ onMounted(() => {
   image-rendering: pixelated;
 }
 .error { color: #e88; font-size: 11px; margin-top: 6px; }
-.slider-row {
-  display: grid;
-  grid-template-columns: auto 1fr 30px;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-}
-.slider-row label { font-size: 11px; color: #999; }
-.slider-val { font-size: 10px; color: #888; }
 </style>

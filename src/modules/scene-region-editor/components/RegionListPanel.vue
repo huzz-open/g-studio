@@ -148,6 +148,7 @@ function onExportAction(id: string) {
       />
 
       <SliderRow
+        :default-value="0"
         :label="t('sceneEditor.property.opacity')"
         :model-value="presetOpacity"
         :min="0"

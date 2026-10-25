@@ -1,10 +1,13 @@
 <script setup lang="ts">
+import ParameterReset from '../../ParameterReset.vue'
 const props = withDefaults(defineProps<{
   label: string
   modelValue: boolean
   disabled?: boolean
+  defaultValue?: boolean
 }>(), {
   disabled: false,
+  defaultValue: undefined,
 })
 
 const emit = defineEmits<{
@@ -13,7 +16,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="checkbox-row">
+  <div class="checkbox-row" :class="{ disabled }">
     <label class="checkbox-label">
       <span class="checkbox-text">{{ label }}</span>
       <input
@@ -24,11 +27,15 @@ const emit = defineEmits<{
         @change="emit('update:modelValue', ($event.target as HTMLInputElement).checked)"
       />
     </label>
+    <ParameterReset v-if="defaultValue !== undefined" :model-value="modelValue" :default-value="defaultValue" :label="label" :disabled="disabled" @reset="emit('update:modelValue', defaultValue)" />
   </div>
 </template>
 
 <style scoped>
 .checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 .checkbox-label {
   display: flex;
@@ -49,6 +56,8 @@ const emit = defineEmits<{
   accent-color: #5577aa;
   cursor: pointer;
 }
-.checkbox-input:disabled { opacity: 0.4; cursor: default; }
-.checkbox-input:disabled ~ .checkbox-text { opacity: 0.4; }
+.checkbox-input:disabled { cursor: default; }
+.checkbox-row.disabled { opacity: .4; }
+.checkbox-row.disabled .checkbox-label { cursor: default; }
+.checkbox-input:focus-visible { outline: 2px solid #8ab4f8; outline-offset: 2px; }
 </style>
