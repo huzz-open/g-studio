@@ -2,6 +2,7 @@
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import ImageCanvas from '../../../shared/components/ImageCanvas.vue'
 import SegmentedControl from '../../../shared/components/SegmentedControl.vue'
+import InlineSwitch from '../../../shared/components/InlineSwitch.vue'
 import { useI18n } from '../../../shared/i18n'
 import { DEFAULT_NORMAL_SETTINGS, NORMAL_RANGES, type NormalSettings } from '../../../shared/types/normal-settings'
 import type { DetectedSprite } from '../interfaces/sprite-detector'
@@ -10,12 +11,19 @@ import { spritePixels } from '../core/normal/source'
 import { createLighting, previewLight, DEFAULT_PREVIEW_LIGHT } from '../core/normal/lighting'
 import ParameterReset from '../../../shared/components/ParameterReset.vue'
 import { createLatestTask } from '../../../shared/utils/latest-task'
+import { createGroundShadow, previewShadow, DEFAULT_SHADOW_PREVIEW } from '../core/normal/ground-shadow'
+import { computeShadowGeometry } from '../core/normal/shadow-client'
+import { casterHeight, CASTER_HEIGHT_RATIO } from '../core/normal/shadow-geometry'
 
 const props = defineProps<{ sprite: DetectedSprite }>()
 const emit = defineEmits<{ close: []; settings: [settings?: NormalSettings] }>()
 const { t } = useI18n()
 const viewport = ref<InstanceType<typeof ImageCanvas>>()
 const canvas = ref<HTMLCanvasElement>()
+const shadowCanvas = ref<HTMLCanvasElement>()
+const shadowReady = ref(false), shadowBusy = ref(false), shadowError = ref('')
+const shadowVisible = computed(() => visible.value && enabled.value && previewShadow.enabled && shadowReady.value)
+const shadowHelp = computed(() => t('normal.shadowHelp') + (previewShadow.enabled && previewLight.height <= CASTER_HEIGHT_RATIO ? `\n${t('normal.shadowHorizon')}` : ''))
 const panel = ref(false), pinned = ref(false), temporary = ref(false), normalView = ref(false)
 const busy = ref(false), error = ref(''), ready = ref(false)
 const enabled = computed(() => pinned.value || temporary.value)
@@ -38,6 +46,9 @@ function resetLight<K extends keyof typeof previewLight>(key: K) {
   previewLight[key] = DEFAULT_PREVIEW_LIGHT[key]
 }
 let renderer: ReturnType<typeof createLighting> | undefined
+let shadowRenderer: ReturnType<typeof createGroundShadow> | undefined
+let shadowController: AbortController | undefined
+let shadowSource = '', surfaceHeight = 0
 let frame = 0
 let lightX = props.sprite.imageData.width * 0.25, lightY = props.sprite.imageData.height * 0.25
 let generatedSettings = { ...settings.value }
@@ -47,9 +58,35 @@ function draw() {
   if (frame) return
   frame = requestAnimationFrame(() => {
     frame = 0
-    if (ready.value && visible.value) renderer?.draw(lightX, lightY, normalView.value && !enabled.value, generatedSettings.normalFormat === 'directx')
+    if (ready.value && visible.value) renderer?.draw(lightX, lightY, normalView.value && !enabled.value, generatedSettings.normalFormat === 'directx', shadowVisible.value ? surfaceHeight : 0)
+    const view = viewport.value
+    if (shadowVisible.value && view) {
+      try {
+        shadowRenderer?.draw(lightX, lightY, { width: view.viewportWidth, height: view.viewportHeight, panX: view.panX, panY: view.panY, scale: view.scale }, previewLight)
+      } catch (e) { shadowReady.value = false; shadowError.value = String(e); draw() }
+    }
   })
 }
+async function ensureShadow(force = false) {
+  if (!enabled.value || !previewShadow.enabled) return
+  const source = props.sprite.dataUrl
+  if (!force && shadowSource === source && (shadowReady.value || shadowBusy.value)) return
+  shadowController?.abort()
+  const controller = new AbortController(); shadowController = controller; shadowSource = source
+  shadowBusy.value = true; shadowError.value = ''
+  try {
+    const pixels = await spritePixels(props.sprite)
+    const geometry = await computeShadowGeometry(pixels, controller.signal)
+    if (controller.signal.aborted || props.sprite.dataUrl !== source) return
+    shadowRenderer?.dispose(false)
+    shadowRenderer = createGroundShadow(shadowCanvas.value!, pixels, geometry)
+    surfaceHeight = casterHeight(pixels.width, pixels.height)
+    shadowReady.value = true; draw()
+  } catch (e) {
+    if (!controller.signal.aborted) shadowError.value = e instanceof Error ? e.message : String(e)
+  } finally { if (shadowController === controller) shadowBusy.value = false }
+}
+function retryPreview() { generate(); void ensureShadow(true) }
 const generation = createLatestTask<
   { source: string; sprite: DetectedSprite; settings: NormalSettings },
   { pixels: ImageData; normal: ImageData }
@@ -120,13 +157,18 @@ function updateFormat(value: string) {
 }
 watch(() => props.sprite.normalSettings, () => queueGeneration(), { deep: true, flush: 'sync' })
 watch(previewLight, draw, { deep: true })
+watch([enabled, () => previewShadow.enabled], () => { void ensureShadow(); draw() })
+watch(() => [viewport.value?.panX, viewport.value?.panY, viewport.value?.scale, viewport.value?.viewportWidth, viewport.value?.viewportHeight], draw)
 watch([enabled, normalView], draw)
 watch(enabled, active => { if (active) panel.value = true })
 watch(() => props.sprite.dataUrl, () => {
   generation.cancel()
   renderer?.dispose(false); renderer = undefined; ready.value = false; busy.value = false
+  shadowController?.abort(); shadowController = undefined
+  shadowRenderer?.dispose(false); shadowRenderer = undefined; shadowReady.value = false; shadowBusy.value = false; shadowError.value = ''; shadowSource = ''
   lightX = props.sprite.rect.w * 0.25; lightY = props.sprite.rect.h * 0.25
   if (enabled.value || normalView.value) void generate()
+  void ensureShadow()
 }, { flush: 'sync' })
 onMounted(() => {
   document.addEventListener('mouseup', release)
@@ -134,6 +176,7 @@ onMounted(() => {
 })
 onUnmounted(() => {
   generation.dispose(); cancelAnimationFrame(frame); renderer?.dispose()
+  shadowController?.abort(); shadowRenderer?.dispose()
   document.removeEventListener('mouseup', release); window.removeEventListener('blur', blur)
 })
 </script>
@@ -144,6 +187,7 @@ onUnmounted(() => {
     :viewport-cursor="enabled ? bulbCursor : undefined"
     @close="emit('close')" @canvas-mousedown="down" @canvas-mousemove="move" @canvas-mouseleave="release()">
     <canvas ref="canvas" class="normal-canvas" :data-mode="visible ? (enabled ? 'lighting' : 'normal') : 'original'" :style="{ visibility: visible ? 'visible' : 'hidden' }" />
+    <template #viewport-background><canvas ref="shadowCanvas" class="shadow-canvas" :style="{ visibility: shadowVisible ? 'visible' : 'hidden' }" /></template>
     <template #controls-extra>
       <span class="control-divider" />
       <button class="normal-control" :class="{ active: enabled }" :aria-pressed="enabled" :title="t('normal.lightTip')" :aria-label="t('normal.light')" @click="toggleLight">
@@ -151,9 +195,9 @@ onUnmounted(() => {
       </button>
     </template>
     <template #viewport-overlay>
-      <div v-if="busy || error" class="normal-status" role="status" @mousedown.stop @mousemove.stop @wheel.stop>
-        <template v-if="error">{{ t('normal.failed') }}: {{ error }} <button @click="generate">{{ t('normal.retry') }}</button></template>
-        <template v-else>{{ ready ? t('normal.updating') : t('normal.generating') }}</template>
+      <div v-if="busy || error || shadowBusy || shadowError" class="normal-status" role="status" @mousedown.stop @mousemove.stop @wheel.stop>
+        <template v-if="error || shadowError">{{ error ? t('normal.failed') : t('normal.shadowFailed') }}: {{ error || shadowError }} <button @click="retryPreview">{{ t('normal.retry') }}</button></template>
+        <template v-else>{{ shadowBusy && !busy ? t('normal.shadowPreparing') : ready ? t('normal.updating') : t('normal.generating') }}</template>
       </div>
       <aside v-if="panel" class="normal-panel" :aria-label="t('normal.panel')" @mousedown.stop @mousemove.stop @wheel.stop @mouseenter="release()" @change="flushGeneration">
         <header><strong>{{ t('normal.panel') }}</strong><button :aria-label="t('normal.collapse')" @click="panel = false">−</button></header>
@@ -192,7 +236,7 @@ onUnmounted(() => {
           </div>
         </details>
         <h4>{{ t('normal.previewLight') }}</h4>
-        <div v-for="row in lightRows" :key="row.key" class="normal-row"><span>{{ t(`normal.${row.key}`) }}</span>
+        <div v-for="row in lightRows" :key="row.key" class="normal-row" :title="row.key === 'height' ? t('normal.heightDescription') : undefined"><span>{{ t(`normal.${row.key}`) }}</span>
           <ParameterReset :changed="previewLight[row.key] !== DEFAULT_PREVIEW_LIGHT[row.key]" :label="t(`normal.${row.key}`)" :default-value="DEFAULT_PREVIEW_LIGHT[row.key]" @reset="resetLight(row.key)" />
           <input v-model.number="previewLight[row.key]" :aria-label="t(`normal.${row.key}`)" type="range" :min="row.min" :max="row.max" step="0.05" /><output>{{ previewLight[row.key].toFixed(2) }}</output>
         </div>
@@ -200,7 +244,9 @@ onUnmounted(() => {
           <ParameterReset :changed="previewLight.color !== DEFAULT_PREVIEW_LIGHT.color" :label="t('normal.color')" :default-value="DEFAULT_PREVIEW_LIGHT.color" @reset="resetLight('color')" />
           <label class="color-field"><input v-model="previewLight.color" :aria-label="t('normal.color')" type="color" /><span>{{ previewLight.color.toUpperCase() }}</span></label>
         </div>
-        <p>{{ t('normal.hint') }}</p>
+        <div class="shadow-settings">
+          <InlineSwitch v-model="previewShadow.enabled" :default-value="DEFAULT_SHADOW_PREVIEW.enabled" :label="t('normal.shadow')" :info="shadowHelp" block />
+        </div>
       </aside>
     </template>
   </ImageCanvas>
@@ -208,6 +254,8 @@ onUnmounted(() => {
 
 <style scoped>
 .normal-canvas { position: absolute; top: 0; left: 0; pointer-events: none; image-rendering: pixelated; }
+.shadow-canvas { display: block; width: 100%; height: 100%; pointer-events: none; image-rendering: pixelated; }
+.shadow-settings { border-top: 1px solid #444; margin-top: 12px; padding-top: 10px; }
 .control-divider { width: 1px; background: #6666; margin: 2px 3px; }
 .normal-control { width: 24px; height: 22px; padding: 0; display: grid; place-items: center; background: #3c3c3c99; border: 1px solid #64646466; border-radius: 4px; color: #bbb; cursor: pointer; }
 .active { color: #bcd8ff !important; border-color: #709ed4 !important; background: #304d70 !important; }

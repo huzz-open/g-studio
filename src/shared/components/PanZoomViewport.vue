@@ -288,6 +288,7 @@ defineExpose({
     :class="{
       checker: checkerBackground,
       'mode-logical': transformMode === 'logical',
+      'has-background': !!$slots.background,
     }"
     :style="{ cursor: cursorStyle }"
     @wheel.prevent="onWheel"
@@ -296,6 +297,7 @@ defineExpose({
     @mouseleave="emit('canvas-mouseleave', $event)"
     @contextmenu.prevent
   >
+    <div v-if="$slots.background" class="pzv-background"><slot name="background" /></div>
     <!-- CSS transform mode -->
     <div
       v-if="transformMode === 'css'"
@@ -374,6 +376,8 @@ defineExpose({
   will-change: transform;
   position: relative;
 }
+.pzv-background { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.pzv-container.has-background .pzv-transform { z-index: 1; }
 .pzv-transform.pixelated {
   image-rendering: pixelated;
 }

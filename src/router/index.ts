@@ -4,6 +4,11 @@ const router = createRouter({
   history: createWebHashHistory(),
   routes: [
     {
+      path: '/experiments/umbrella-shadow',
+      name: 'umbrella-shadow-experiment',
+      component: () => import('../modules/experiments/UmbrellaShadowDemo.vue'),
+    },
+    {
       path: '/',
       name: 'dashboard',
       component: () => import('../modules/dashboard/DashboardView.vue'),

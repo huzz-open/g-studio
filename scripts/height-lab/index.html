@@ -1,0 +1,65 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>区域高度与投影实验 · 即时预览</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#202124;color:#e6e6e6;font:14px system-ui}main{max-width:1320px;margin:auto;padding:24px}h1{font-size:22px}h2{font-size:15px}p{line-height:1.7;color:#c0c3c7}button,input,select{font:inherit;color:inherit;background:#343639;border:1px solid #62656a;border-radius:4px;padding:7px}button{cursor:pointer}button:hover{background:#494c50}button:disabled{opacity:.4}label{display:flex;align-items:center;gap:8px}input[type=number]{width:80px}input[type=range]{width:115px}header,.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin:14px 0}.panels{display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:16px}section{min-width:0}canvas{display:block;width:100%;background:#303236;border:1px solid #555;image-rendering:pixelated;touch-action:none}#status{min-height:48px;color:#b6d3ff}small{color:#b9bdc4}a{color:#a8caff}.legend{margin:8px 0} @media(max-width:850px){.panels{grid-template-columns:1fr}main{padding:14px}}
+</style><main><h1>区域高度与投影 · 即时预览</h1>
+<p>打开即载入人工示例并计算，可直接在右侧移动鼠标。示例并非自动识别或真实高度。在原图上涂出已知高度：接地处填 0，上方区域填正值。其余像素通过拉普拉斯插值求解。这里没有自动识别物体结构；不含约束的独立区域保持未知。</p>
+<header><label>素材 <select id="asset"><option value="10">伞</option><option value="15">凳子</option><option value="17">盆栽</option></select></label><button id="example">载入人工示例约束</button><button id="clear">清空约束</button><button id="undo">撤销笔画</button><button id="export" disabled>导出当前实验数据</button></header>
+<div class="controls"><label>画笔 <select id="tool"><option value="height">指定高度</option><option value="ground">接地（0）</option><option value="erase">擦除约束</option></select></label><label>高度 <input id="value" type="number" min="0" max="500" value="60">单位</label><label>半径 <input id="radius" type="number" min="1" max="20" value="2">像素</label><button id="solve">计算高度与投影</button></div>
+<div class="controls"><label>相机俯角 <input id="angle" type="range" min="10" max="75" value="20"><output id="angleOut">20°</output></label><label>灯高 <input id="lightHeight" type="range" min="10" max="300" value="150"><output id="lightOut">150</output></label></div>
+<small>俯角 20°、灯高 150 是可调整的实验设置，不是识别结果；世界长度单位约定为 1 单位 = 1 图像横向像素。只投影当前可见表面，不补背面或厚度。</small>
+<p id="status" role="status" aria-live="polite">加载素材…</p>
+<div class="panels"><section><h2>1 · 原图与约束</h2><canvas id="paint" width="420" height="420" aria-label="在原图上绘制高度约束"></canvas><div class="legend">青色：接地　橙色：指定高度</div><label>键盘添加点：X <input id="px" type="number" min="0" value="0"> Y <input id="py" type="number" min="0" value="0"><button id="add">添加</button></label></section><section><h2>2 · 求解高度</h2><canvas id="height" width="420" height="420" aria-label="求解的高度图"></canvas><div class="legend">黑 → 白：低 → 高；紫色：未知区域</div></section><section><h2>3 · 地面投影</h2><canvas id="preview" width="560" height="420" aria-label="可移动灯光的投影预览"></canvas><div class="legend">直接移动鼠标查看投影，无需按住；移出后保留灯位。黄色十字表示灯光位置。</div></section></div>
+<p>“人工示例”只用于比较交互和算法表现，并非素材真实高度。建议先使用示例，移动灯光、改变灯高，再修改约束观察断层及变形。仅有接地点和顶部高度，通常不足以表达不同表面的空间结构。</p>
+<p><a href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.lsqr.html">最小二乘背景</a> · 求解目标为相邻有效像素高度差的平方和最小，固定涂抹值作为 Dirichlet 边界；使用 Jacobi 预条件共轭梯度法。投影使用正交逆投影与射线–地面求交。</p></main>
+<script>/*ASSETS*/</script><script>/*MATH*/</script><script>
+const $=id=>document.getElementById(id), paint=$('paint'), hc=$('height'), preview=$('preview');
+let img,w,h,mask,alpha,constraints,solution=null,history=[],painting=false,previousPoint=null,revision=0,worker=null;
+let light={x:-90,v:-70},editTransform,viewTransform;
+const ctx=paint.getContext('2d'),heightCtx=hc.getContext('2d'),pv=preview.getContext('2d');
+function fit(c){const scale=Math.min((c.width-80)/w,(c.height-80)/h,4);return {scale,x:(c.width-w*scale)/2,y:(c.height-h*scale)/2};}
+function background(c,g){g.fillStyle='#303236';g.fillRect(0,0,c.width,c.height);}
+function cancel(){revision++;if(worker){worker.terminate();worker=null;}solution=null;$('export').disabled=true;}
+function invalidate(){cancel();$('status').textContent='约束已修改，点击“计算高度与投影”更新；当前投影已清除。';draw();}
+function draw(){
+ background(paint,ctx);editTransform=fit(paint);const t=editTransform;ctx.imageSmoothingEnabled=false;ctx.drawImage(img,t.x,t.y,w*t.scale,h*t.scale);
+ for(let i=0;i<constraints.length;i++)if(Number.isFinite(constraints[i])){ctx.fillStyle=constraints[i]===0?'#60ead6aa':'#ffad55bb';ctx.fillRect(t.x+i%w*t.scale,t.y+Math.floor(i/w)*t.scale,t.scale,t.scale);}
+ background(hc,heightCtx);
+ if(solution){const temp=document.createElement('canvas');temp.width=w;temp.height=h;const g=temp.getContext('2d'),pixels=g.createImageData(w,h);let max=1;for(let i=0;i<mask.length;i++)if(solution.supported[i])max=Math.max(max,solution.values[i]);
+ for(let i=0;i<mask.length;i++){if(!mask[i])continue;const k=i*4;if(solution.supported[i]){pixels.data[k]=pixels.data[k+1]=pixels.data[k+2]=Math.round(solution.values[i]/max*255);}else{pixels.data[k]=175;pixels.data[k+2]=220;}pixels.data[k+3]=255;}
+ g.putImageData(pixels,0,0);heightCtx.imageSmoothingEnabled=false;heightCtx.drawImage(temp,t.x,t.y,w*t.scale,h*t.scale);}
+ drawPreview();
+}
+function drawPreview(){background(preview,pv);if(!img)return;viewTransform=fit(preview);viewTransform.scale*=.65;viewTransform.x=(preview.width-w*viewTransform.scale)/2;viewTransform.y=(preview.height-h*viewTransform.scale)/2;const t=viewTransform,angle=Number($('angle').value)*Math.PI/180,L=Number($('lightHeight').value);let max=0;if(solution)for(let i=0;i<mask.length;i++)if(solution.supported[i])max=Math.max(max,solution.values[i]);
+ if(solution&&L>max&&solution.converged){
+  // One opaque mask: overlapping projected patches do not compound darkness.
+  const shadow=document.createElement('canvas');shadow.width=preview.width;shadow.height=preview.height;const g=shadow.getContext('2d');g.fillStyle='#000';g.beginPath();const vertex=(x,y)=>{let sum=0,count=0;for(const dy of [-1,0])for(const dx of [-1,0]){const xx=x+dx,yy=y+dy,i=yy*w+xx;if(xx>=0&&xx<w&&yy>=0&&yy<h&&solution.supported[i]){sum+=solution.values[i];count++;}}return count?sum/count:0;};
+  for(let i=0;i<mask.length;i++)if(solution.supported[i]){const x=i%w,y=Math.floor(i/w),z=solution.values[i];const corners=[[x,y],[x+1,y],[x+1,y+1],[x,y+1]].map(([a,b])=>projectGround(a-w/2,b-h,vertex(a,b),light.x,light.v,L,angle));corners.forEach((p,j)=>{const x=t.x+(p[0]+w/2)*t.scale,y=t.y+(p[1]+h)*t.scale;j?g.lineTo(x,y):g.moveTo(x,y);});g.closePath();}g.fill();
+  pv.globalAlpha=.55;pv.drawImage(shadow,0,0);pv.globalAlpha=1;
+ }else if(solution){pv.fillStyle='#ffd39a';pv.fillText(L<=max?'灯高须高于全部表面；此范围暂不预览':'求解未收敛，暂不预览',12,20);}
+ pv.imageSmoothingEnabled=false;pv.drawImage(img,t.x,t.y,w*t.scale,h*t.scale);
+ const lx=t.x+(light.x+w/2)*t.scale,ly=t.y+(light.v+h)*t.scale;pv.strokeStyle='#ffe180';pv.lineWidth=2;pv.beginPath();pv.moveTo(lx-7,ly);pv.lineTo(lx+7,ly);pv.moveTo(lx,ly-7);pv.lineTo(lx,ly+7);pv.stroke();pv.fillStyle='#e6e6e6';pv.fillText(`灯位 ${light.x.toFixed(0)}, ${light.v.toFixed(0)}`,12,preview.height-12);if(!solution){pv.fillStyle='#ffd39a';pv.fillText(worker?'正在计算示例高度…':'尚无有效高度，请载入示例或绘制后计算',12,20);}
+}
+function dab(x,y){const radius=Math.max(1,Math.min(20,Number($('radius').value)||1));const value=$('tool').value==='erase'?NaN:$('tool').value==='ground'?0:Math.max(0,Math.min(500,Number($('value').value)||0));
+ for(let yy=Math.max(0,Math.floor(y-radius));yy<Math.min(h,Math.ceil(y+radius+1));yy++)for(let xx=Math.max(0,Math.floor(x-radius));xx<Math.min(w,Math.ceil(x+radius+1));xx++)if((xx-x)**2+(yy-y)**2<=radius**2&&mask[yy*w+xx])constraints[yy*w+xx]=value;}
+function point(e){const r=paint.getBoundingClientRect(),t=editTransform;return [( (e.clientX-r.left)*paint.width/r.width-t.x)/t.scale,((e.clientY-r.top)*paint.height/r.height-t.y)/t.scale];}
+paint.onpointerdown=e=>{if(e.button!==0)return;history.push(constraints.slice());painting=true;previousPoint=point(e);paint.setPointerCapture(e.pointerId);dab(...previousPoint);invalidate();};
+paint.onpointermove=e=>{if(!painting)return;const p=point(e),d=Math.ceil(Math.hypot(p[0]-previousPoint[0],p[1]-previousPoint[1]));for(let k=1;k<=d;k++)dab(previousPoint[0]+(p[0]-previousPoint[0])*k/d,previousPoint[1]+(p[1]-previousPoint[1])*k/d);previousPoint=p;draw();};
+paint.onpointerup=paint.onpointercancel=()=>{painting=false;previousPoint=null;};
+$('add').onclick=()=>{history.push(constraints.slice());dab(Number($('px').value),Number($('py').value));invalidate();};
+$('undo').onclick=()=>{if(history.length){constraints=history.pop();invalidate();}};
+$('clear').onclick=()=>{history.push(constraints.slice());constraints.fill(NaN);invalidate();};
+$('solve').onclick=()=>{cancel();let count=0;for(const v of constraints)if(Number.isFinite(v))count++;if(!count){$('status').textContent='请先添加至少一个接地或高度约束。';draw();return;}
+ const id=revision;$('status').textContent='正在求解高度…';draw();const blob=new Blob(['const solveHeight='+solveHeight.toString()+';onmessage=e=>postMessage(solveHeight(...e.data));'],{type:'text/javascript'});const url=URL.createObjectURL(blob);worker=new Worker(url);URL.revokeObjectURL(url);
+ worker.onmessage=e=>{if(id!==revision)return;solution=e.data;worker.terminate();worker=null;$('export').disabled=!solution.converged;$('status').textContent=`${solution.converged?'求解完成':'达到迭代上限，未收敛'} · ${count} 个约束像素 · ${solution.unsupported} 个像素缺少区域约束 · ${solution.iterations} 次迭代。结果是约束插值，不是真实几何识别。`;draw();};worker.onerror=()=>{cancel();$('status').textContent='求解失败，请减少约束范围后重试。';draw();};worker.postMessage([mask,w,h,Array.from(constraints)]);
+};
+$('example').onclick=()=>{history.push(constraints.slice());constraints.fill(NaN);const id=$('asset').value;
+ // Explicitly hand-authored demonstrators. They are never labeled automatic.
+ const samples=id==='10'?[[.5,.21,60],[.5,.86,0]]:id==='15'?[[.5,.18,40],[.28,.85,0],[.72,.85,0],[.5,.94,0]]:[[.5,.35,45],[.5,.9,0]];
+ for(const [nx,ny,value] of samples){let best=-1,distance=Infinity;for(let i=0;i<mask.length;i++)if(mask[i]){const d=(i%w-nx*w)**2+(Math.floor(i/w)-ny*h)**2;if(d<distance){best=i;distance=d;}}if(best>=0)constraints[best]=value;}
+ invalidate();$('solve').click();};
+for(const id of ['angle','lightHeight'])$(id).oninput=()=>{$('angleOut').value=$('angle').value+'°';$('lightOut').value=$('lightHeight').value;drawPreview();};
+preview.onpointermove=e=>{if(!viewTransform)return;const r=preview.getBoundingClientRect(),t=viewTransform;light={x:((e.clientX-r.left)*preview.width/r.width-t.x)/t.scale-w/2,v:((e.clientY-r.top)*preview.height/r.height-t.y)/t.scale-h};drawPreview();};
+$('export').onclick=()=>{if(!solution||!solution.converged)return;const data={version:1,experimental:true,asset:'sprite-'+$('asset').value,width:w,height:h,alphaThreshold:128,units:'1 world unit per image horizontal pixel',camera:{projection:'orthographic',downwardAngleDegrees:Number($('angle').value)},method:'graph Laplacian with explicit Dirichlet constraints',constraints:Array.from(constraints,v=>Number.isFinite(v)?v:null),height:Array.from(solution.values,(v,i)=>solution.supported[i]?v:null),limitations:['visible surface only','no inferred thickness or hidden geometry','height constraints supplied by user']};const url=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='sprite-'+$('asset').value+'-height-experiment.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+async function load(){cancel();history=[];const chosen=$('asset').value,token=revision;const image=new Image();image.src=ASSETS[chosen];await image.decode();if(token!==revision)return;img=image;w=img.width;h=img.height;const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');g.drawImage(img,0,0);alpha=g.getImageData(0,0,w,h).data;mask=Array.from({length:w*h},(_,i)=>alpha[i*4+3]>=128?1:0);constraints=new Float64Array(w*h).fill(NaN);$('px').max=w-1;$('py').max=h-1;draw();$('example').click();history=[];}
+$('asset').onchange=load;load();
+</script></html>

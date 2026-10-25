@@ -63,6 +63,8 @@ const imageReady = ref(false)
 const scale = computed(() => pzvRef.value?.scale ?? 1)
 const panX = computed(() => pzvRef.value?.panX ?? 0)
 const panY = computed(() => pzvRef.value?.panY ?? 0)
+const viewportWidth = computed(() => pzvRef.value?.containerWidth ?? 0)
+const viewportHeight = computed(() => pzvRef.value?.containerHeight ?? 0)
 const showPzvControls = computed(() => props.controlsPosition !== 'none')
 
 const pzvControlsPosition = computed(() => {
@@ -175,6 +177,8 @@ onUnmounted(() => {
 })
 
 defineExpose({
+  viewportWidth,
+  viewportHeight,
   scale,
   panX,
   panY,
@@ -238,6 +242,7 @@ defineExpose({
             </div>
           </template>
           <template #controls-extra><slot name="controls-extra" /></template>
+          <template v-if="$slots['viewport-background']" #background><slot name="viewport-background" /></template>
           <template #toolbar-right><slot name="viewport-overlay" /></template>
         </PanZoomViewport>
         <slot name="overlay-footer" />
@@ -287,6 +292,7 @@ defineExpose({
             <slot :scale="slotProps.scale" :panX="slotProps.panX" :panY="slotProps.panY" />
           </div>
         </template>
+        <template v-if="$slots['viewport-background']" #background><slot name="viewport-background" /></template>
       </PanZoomViewport>
     </div>
   </template>

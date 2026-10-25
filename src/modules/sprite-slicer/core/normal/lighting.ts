@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { lightElevation } from './shadow-geometry'
 
 export const DEFAULT_PREVIEW_LIGHT = Object.freeze({ brightness: 1, height: 0.6, ambient: 0.35, color: '#ffffff' })
 export const previewLight = reactive({ ...DEFAULT_PREVIEW_LIGHT })
@@ -36,7 +37,9 @@ export function createLighting(canvas: HTMLCanvasElement, image: ImageData) {
       normal.y *= ySign;
       // Image coordinates increase downward; OpenGL normals increase upward.
       vec3 direction = normalize(vec3(light.x - uv.x * size.x, (1.0 - uv.y) * size.y - light.y, light.z));
-      float diffuse = max(dot(normal, direction), 0.0);
+      // With an extruded caster, a light below its top cannot directly illuminate
+      // that top surface through the solid volume. Ambient illumination remains.
+      float diffuse = light.z > 0.0 ? max(dot(normal, direction), 0.0) : 0.0;
       // The browser composites a premultiplied drawing buffer. Clamp before multiplying:
       // even a bright light must not expose hidden RGB in almost-transparent pixels.
       vec3 lit = clamp(color.rgb * (vec3(ambient) + tint * brightness * diffuse), 0.0, 1.0);
@@ -67,9 +70,9 @@ export function createLighting(canvas: HTMLCanvasElement, image: ImageData) {
   gl.viewport(0, 0, image.width, image.height)
   return {
     update: (normal: ImageData) => upload(1, normal),
-    draw(x: number, y: number, showNormal: boolean, directX: boolean) {
+    draw(x: number, y: number, showNormal: boolean, directX: boolean, surfaceHeight = 0) {
       const hex = previewLight.color.substring(1)
-      gl.uniform3f(uniform('light'), x, y, Math.max(image.width, image.height) * previewLight.height)
+      gl.uniform3f(uniform('light'), x, y, lightElevation(image.width, image.height, previewLight.height) - surfaceHeight)
       gl.uniform3f(uniform('tint'), parseInt(hex.slice(0, 2), 16) / 255, parseInt(hex.slice(2, 4), 16) / 255, parseInt(hex.slice(4, 6), 16) / 255)
       gl.uniform1f(uniform('brightness'), previewLight.brightness)
       gl.uniform1f(uniform('ambient'), previewLight.ambient)

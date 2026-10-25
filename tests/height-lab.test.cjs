@@ -1,0 +1,14 @@
+const assert=require('node:assert/strict');
+const {solveHeight,projectGround}=require('../scripts/height-lab/math.cjs');
+const result=solveHeight([1,1,1,1,1],5,1,[0,NaN,NaN,NaN,40]);
+assert(result.converged);
+result.values.forEach((v,i)=>assert(Math.abs(v-i*10)<.001));
+const missing=solveHeight([1,0,1],3,1,[0,NaN,NaN]);
+assert.equal(missing.unsupported,1);assert.equal(missing.supported[2],0);
+const a=Math.PI/9;
+projectGround(10,20,0,30,-40,100,a).forEach((v,i)=>assert(Math.abs(v-[10,20][i])<1e-10));
+const low=projectGround(0,0,20,-50,0,50,a),high=projectGround(0,0,20,-50,0,100,a);
+assert(low[0]>high[0]);
+assert.equal(projectGround(0,0,20,0,0,20,a),null);
+assert.equal(projectGround(0,0,20,0,0,10,a),null);
+console.log('Height lab: hard constraints, linear interpolation, disconnected regions, contact, light height and invalid light checks passed');
