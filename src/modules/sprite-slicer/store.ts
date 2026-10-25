@@ -109,11 +109,20 @@ function createSlicerInstance(id: string) {
   const _pixelCache = new Map<number, { imageData: ImageData; dataUrl: string }>()
 
   function cacheSprite(sprite: DetectedSprite) {
-    _pixelCache.set(sprite.id, { imageData: sprite.imageData, dataUrl: sprite.dataUrl })
+    _pixelCache.set(sprite.id, {
+      imageData: sprite._origImageData ?? sprite.imageData,
+      dataUrl: sprite._origDataUrl ?? sprite.dataUrl,
+    })
   }
 
   function cacheAllSprites() {
+    _pixelCache.clear()
     for (const s of state.sprites) cacheSprite(s)
+  }
+
+  function nextSpriteId(): number {
+    // Undo may leave newer pixel snapshots in the cache; never overwrite them.
+    return Math.max(-1, ..._pixelCache.keys()) + 1
   }
 
   interface SpriteSnapshotEntry {
@@ -134,7 +143,7 @@ function createSlicerInstance(id: string) {
       return {
         sprites: state.sprites.map(s => ({
           id: s.id,
-          rect: { ...s.rect },
+          rect: { ...(s._origRect ?? s.rect) },
           name: s.name,
           mergedFrom: s.mergedFrom ? [...s.mergedFrom] : undefined,
           mergedFromRects: s.mergedFromRects ? s.mergedFromRects.map(r => ({ ...r })) : undefined,
@@ -144,6 +153,7 @@ function createSlicerInstance(id: string) {
       }
     },
     restore(snap) {
+      restoreArrange()
       state.sprites = snap.sprites.map(entry => {
         const cached = _pixelCache.get(entry.id)!
         return {
@@ -214,8 +224,10 @@ function createSlicerInstance(id: string) {
       if (sprite._origDataUrl) {
         sprite.dataUrl = sprite._origDataUrl
         sprite.rect = sprite._origRect!
+        sprite.imageData = sprite._origImageData ?? sprite.imageData
         delete sprite._origDataUrl
         delete sprite._origRect
+        delete sprite._origImageData
         changed = true
       }
     }
@@ -233,6 +245,7 @@ function createSlicerInstance(id: string) {
       if (!sprite._origRect) {
         sprite._origRect = { ...sprite.rect }
         sprite._origDataUrl = sprite.dataUrl
+        sprite._origImageData = sprite.imageData
       }
     }
     if (!_origCleanImageUrl) {
@@ -279,6 +292,7 @@ function createSlicerInstance(id: string) {
         cellCtx.putImageData(sprite.imageData, ox, oy)
 
         sprite.dataUrl = cellCv.toDataURL('image/png')
+        sprite.imageData = cellCtx.getImageData(0, 0, tw, th)
         sprite.rect = { x: col * tw, y: row * th, w: tw, h: th }
 
         sheetCtx.drawImage(cellCv, col * tw, row * th)
@@ -306,6 +320,8 @@ function createSlicerInstance(id: string) {
   async function processBackground() {
     const img = state.sourceImage
     if (!img) return
+    restoreArrange()
+    state.imgSize = { w: img.width, h: img.height }
 
     const { canvas: cv, ctx } = createOffscreenCanvas(img.width, img.height)
     ctx.drawImage(img, 0, 0)
@@ -354,8 +370,10 @@ function createSlicerInstance(id: string) {
 
   async function runDetection() {
     if (!cleanImageData) return
-    const w = state.imgSize.w
-    const h = state.imgSize.h
+    restoreArrange()
+    const w = cleanImageData.width
+    const h = cleanImageData.height
+    state.imgSize = { w, h }
 
     let detected: DetectedSprite[]
 
@@ -414,6 +432,7 @@ function createSlicerInstance(id: string) {
   function mergeSprites(ids: number[]) {
     if (ids.length < 2) return
     if (!cleanImageData) { console.error('[slicer] mergeSprites: cleanImageData missing'); return }
+    restoreArrange()
 
     const toMerge = state.sprites.filter(s => ids.includes(s.id))
     if (toMerge.length < 2) return
@@ -429,19 +448,26 @@ function createSlicerInstance(id: string) {
     }
 
     const newRect = { x: mx, y: my, w: mx2 - mx, h: my2 - my }
-    const cellData = extractRegion(cleanImageData, state.imgSize.w, state.imgSize.h, newRect)
+    const { ctx: mergedCtx } = createOffscreenCanvas(newRect.w, newRect.h)
+    for (const s of toMerge) {
+      const { canvas, ctx } = createOffscreenCanvas(s.rect.w, s.rect.h)
+      ctx.putImageData(s.imageData, 0, 0)
+      // Source-over preserves other sprites under transparent parts of this rect.
+      mergedCtx.drawImage(canvas, s.rect.x - mx, s.rect.y - my)
+    }
+    const cellData = mergedCtx.getImageData(0, 0, newRect.w, newRect.h)
 
     const allFromSameSplit = toMerge.every(s => s.splitFrom != null)
       && new Set(toMerge.map(s => s.splitFrom)).size === 1
 
-    const maxId = Math.max(...state.sprites.map(s => s.id)) + 1
+    const maxId = nextSpriteId()
     const mergedSprite: DetectedSprite = {
       id: maxId,
       rect: newRect,
       imageData: cellData,
       dataUrl: imageDataToDataUrl(cellData, newRect.w, newRect.h),
       name: toMerge[0].name,
-      mergedFrom: ids,
+      mergedFrom: toMerge.map(s => s.id),
       mergedFromRects: allFromSameSplit ? undefined : toMerge.map(s => ({ ...s.rect })),
     }
 
@@ -466,12 +492,16 @@ function createSlicerInstance(id: string) {
     if (!cleanImageData) { console.error('[slicer] unmergeSprite: cleanImageData missing'); return false }
     const sprite = state.sprites.find(s => s.id === spriteId)
     if (!sprite?.mergedFromRects || sprite.mergedFromRects.length < 2) return false
+    restoreArrange()
 
     history.record()
-    const fullW = state.imgSize.w, fullH = state.imgSize.h
-    let nextId = Math.max(...state.sprites.map(s => s.id)) + 1
+    let nextId = nextSpriteId()
     const restored: DetectedSprite[] = sprite.mergedFromRects.map((rect, i) => {
-      const cellData = extractRegion(cleanImageData!, fullW, fullH, rect)
+      const original = sprite.mergedFrom?.[i]
+      const cached = original === undefined ? undefined : _pixelCache.get(original)
+      const cellData = cached?.imageData ?? extractRegion(sprite.imageData, sprite.rect.w, sprite.rect.h, {
+        ...rect, x: rect.x - sprite.rect.x, y: rect.y - sprite.rect.y,
+      })
       return {
         id: nextId++,
         rect: { ...rect },
@@ -503,9 +533,19 @@ function createSlicerInstance(id: string) {
     const sprite = state.sprites.find(s => s.id === spriteId)
     if (!sprite) { console.error('[slicer] splitSprite: sprite not found:', spriteId); return }
 
-    const maxId = Math.max(...state.sprites.map(s => s.id)) + 1
-    const newSprites = splitSpriteByLines(sprite, lines, maxId)
-    if (newSprites.length < 2) return
+    // The editor uses displayed coordinates; convert back before editing source pixels.
+    const sourceRect = sprite._origRect ?? sprite.rect
+    const offsetX = Math.round((sprite.rect.w - sourceRect.w) / 2)
+    const offsetY = Math.round((sprite.rect.h - sourceRect.h) / 2)
+    const sourceLines = lines.map(line => line.map(p => ({
+      x: p.x - sprite.rect.x - offsetX + sourceRect.x,
+      y: p.y - sprite.rect.y - offsetY + sourceRect.y,
+    })))
+    restoreArrange()
+
+    const maxId = nextSpriteId()
+    const newSprites = splitSpriteByLines(sprite, sourceLines, maxId)
+    if (newSprites.length < 2) { applyArrange(); return }
 
     history.record()
     for (const s of newSprites) {

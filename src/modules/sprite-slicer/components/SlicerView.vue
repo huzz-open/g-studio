@@ -11,6 +11,10 @@ import type { OutputPayload } from './SlicerSidebar.vue'
 import SlicerSidebar from './SlicerSidebar.vue'
 import SlicerPreview from './SlicerPreview.vue'
 import AnimationPreview from './AnimationPreview.vue'
+import { PngExporter } from '../core/export/png-exporter'
+import { createOffscreenCanvas } from '../core/utils/canvas-utils'
+import { downloadBlob } from '../../../shared/utils/download'
+import { showToast } from '../../../shared/components/toast'
 
 const { t } = useI18n()
 const tabsManager = useSlicerTabs()
@@ -111,6 +115,30 @@ function onSaveOutput(_payload: OutputPayload) {
   void handleSave()
 }
 
+async function onExportLocal(payload: OutputPayload) {
+  const inst = activeInstance.value
+  if (!inst) return
+  const sprites = inst.selectedSprites.value
+  const name = inst.getLabel() || 'sprites'
+  const exporter = new PngExporter()
+  try {
+    if (payload.composite) {
+      const { w, h } = inst.state.imgSize
+      const { ctx } = createOffscreenCanvas(w, h)
+      for (const sprite of sprites) {
+        const { canvas, ctx: cellCtx } = createOffscreenCanvas(sprite.rect.w, sprite.rect.h)
+        cellCtx.putImageData(sprite.imageData, 0, 0)
+        ctx.drawImage(canvas, sprite.rect.x, sprite.rect.y)
+      }
+      downloadBlob(await exporter.exportPng(sprites, ctx.getImageData(0, 0, w, h)), `${name}.png`)
+      if (payload.meta) downloadBlob(await exporter.exportMetaJson(sprites), `${name}.json`)
+    }
+    if (payload.sprites) downloadBlob(await exporter.exportZip(sprites), `${name}-sprites.zip`)
+  } catch (error) {
+    showToast(`${t('toast.save.error')}: ${(error as Error).message}`, 'error')
+  }
+}
+
 </script>
 
 <template>
@@ -137,7 +165,7 @@ function onSaveOutput(_payload: OutputPayload) {
         :has-image="!!sidebarInstance.state.sourceImage"
         @file="onFile"
         @show-anim="showAnimPreview = true"
-        @export-local="onSaveOutput"
+        @export-local="onExportLocal"
         @save-workspace="onSaveOutput"
       />
     </template>

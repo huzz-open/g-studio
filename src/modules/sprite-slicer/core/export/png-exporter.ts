@@ -18,9 +18,9 @@ export class PngExporter implements ISpriteExporter {
 
     for (const sprite of sprites) {
       const resp = await fetch(sprite.dataUrl)
-      const blob = await resp.blob()
+      const bytes = await resp.arrayBuffer()
       const name = sprite.name.endsWith('.png') ? sprite.name : `${sprite.name}.png`
-      zip.file(name, blob)
+      zip.file(name, bytes)
     }
 
     return zip.generateAsync({ type: 'blob' })

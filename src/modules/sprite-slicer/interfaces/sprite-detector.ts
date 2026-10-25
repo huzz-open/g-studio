@@ -14,6 +14,7 @@ export interface DetectedSprite {
   splitFrom?: number
   _origDataUrl?: string
   _origRect?: Rect
+  _origImageData?: ImageData
 }
 
 export interface AutoDetectOptions {
