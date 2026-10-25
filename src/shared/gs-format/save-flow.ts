@@ -37,29 +37,31 @@ export function useSaveFlow(config: SaveFlowConfig) {
   const { t } = useI18n()
   const { settings } = useSettings()
 
-  async function handleSave(): Promise<void> {
+  async function saveWithResult(): Promise<boolean> {
     const inst = config.getInstance()
-    if (!inst) return
+    if (!inst) return false
 
     if (inst.state.gsPath) {
-      await overwriteSave(inst)
+      return overwriteSave(inst)
     } else {
-      await saveAsNew()
+      return saveAsNew()
     }
   }
 
-  async function overwriteSave(inst: SaveableInstance): Promise<void> {
+  async function overwriteSave(inst: SaveableInstance): Promise<boolean> {
     try {
       const result = await inst.saveToGsFile()
       if (result.status === 'ok') {
         config.tabsManager.saveSession()
         showToast(t('toast.save.success'), 'success')
+        return true
       } else {
         showToast(t('toast.save.conflict'), 'error')
       }
     } catch (e) {
       showToast(`${t('toast.save.error')}: ${(e as Error).message}`, 'error')
     }
+    return false
   }
 
   async function findAvailableName(baseName: string): Promise<string> {
@@ -76,19 +78,19 @@ export function useSaveFlow(config: SaveFlowConfig) {
     }
   }
 
-  async function saveAsNew(): Promise<void> {
+  async function saveAsNew(): Promise<boolean> {
     const inst = config.getInstance()
-    if (!inst) return
+    if (!inst) return false
 
     if (!getWorkspaceHandle()) {
       showToast(t('workspace.openFirst'), 'info')
-      return
+      return false
     }
 
     const params = config.getSaveAsParams(inst)
     if (!params) {
       showToast(t('save.noSource'), 'error')
-      return
+      return false
     }
 
     const suggestedName = await findAvailableName(params.defaultName)
@@ -111,7 +113,7 @@ export function useSaveFlow(config: SaveFlowConfig) {
       defaultValue: suggestedName,
       inlineChoices,
     })
-    if (!promptResult) return
+    if (!promptResult) return false
 
     const userInput = promptResult.value
     const imageConflictChoice = promptResult.choices.imageConflict as 'skip' | 'overwrite' | undefined
@@ -138,7 +140,7 @@ export function useSaveFlow(config: SaveFlowConfig) {
       } catch (e) {
         if (e instanceof GsDifferentTypeConflictError) {
           showToast(t('save.typeMismatch'), 'error')
-          return
+          return false
         }
         if (e instanceof GsSameTypeConflictError) {
           const overwrite = await confirm({
@@ -147,7 +149,7 @@ export function useSaveFlow(config: SaveFlowConfig) {
             confirmText: t('save.overwrite'),
             cancelText: t('common.cancel'),
           })
-          if (!overwrite) return
+          if (!overwrite) return false
           const result = await createGsFile({
             path: gsPath,
             type: config.type,
@@ -163,10 +165,13 @@ export function useSaveFlow(config: SaveFlowConfig) {
       config.onSaved(inst, { gsPath, version, texturePath })
       config.tabsManager.saveSession()
       showToast(`${t('toast.save.success')}: ${gsPath}`, 'success')
+      return true
     } catch (e) {
       showToast(`${t('toast.save.error')}: ${(e as Error).message}`, 'error')
     }
+    return false
   }
 
-  return { handleSave, saveAsNew }
+  async function handleSave(): Promise<void> { await saveWithResult() }
+  return { handleSave, saveAsNew, saveWithResult }
 }

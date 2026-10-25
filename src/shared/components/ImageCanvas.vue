@@ -10,6 +10,7 @@ type ControlsDirection = 'horizontal' | 'vertical'
 
 const props = withDefaults(defineProps<{
   src?: string
+  imageHidden?: boolean
   checkerBackground?: boolean
   pixelated?: boolean
   minScale?: number
@@ -48,6 +49,9 @@ const emit = defineEmits<{
   (e: 'close'): void
   (e: 'scale-change', scale: number): void
   (e: 'ctrl-mousedown', event: MouseEvent): void
+  (e: 'canvas-mousedown', event: MouseEvent): void
+  (e: 'canvas-mousemove', event: MouseEvent): void
+  (e: 'canvas-mouseleave', event: MouseEvent): void
 }>()
 
 const pzvRef = ref<InstanceType<typeof PanZoomViewport>>()
@@ -209,6 +213,10 @@ defineExpose({
           :controls-direction="controlsDirection"
           :show-zoom-label="showZoomLabel"
           :fullscreen-toggle="fullscreenToggle"
+          :viewport-cursor="viewportCursor"
+          @canvas-mousedown="emit('canvas-mousedown', $event)"
+          @canvas-mousemove="emit('canvas-mousemove', $event)"
+          @canvas-mouseleave="emit('canvas-mouseleave', $event)"
           @scale-change="onScaleChange"
           @ctrl-mousedown="onCtrlMouseDown"
           @fullscreen-toggle="toggleFullscreen"
@@ -218,6 +226,7 @@ defineExpose({
               <img
                 v-if="src && !imageError"
                 :src="src"
+                :style="{ visibility: imageHidden ? 'hidden' : undefined }"
                 class="ic-image"
                 :class="{ pixelated }"
                 draggable="false"
@@ -227,6 +236,8 @@ defineExpose({
               <slot :scale="slotProps.scale" :panX="slotProps.panX" :panY="slotProps.panY" />
             </div>
           </template>
+          <template #controls-extra><slot name="controls-extra" /></template>
+          <template #toolbar-right><slot name="viewport-overlay" /></template>
         </PanZoomViewport>
         <slot name="overlay-footer" />
       </div>

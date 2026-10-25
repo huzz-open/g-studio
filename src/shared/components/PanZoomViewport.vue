@@ -43,6 +43,9 @@ const emit = defineEmits<{
   'ctrl-mousedown': [event: MouseEvent]
   'resize': [width: number, height: number]
   'fullscreen-toggle': []
+  'canvas-mousedown': [event: MouseEvent]
+  'canvas-mousemove': [event: MouseEvent]
+  'canvas-mouseleave': [event: MouseEvent]
 }>()
 
 const containerEl = ref<HTMLElement>()
@@ -111,6 +114,7 @@ function onWheel(e: WheelEvent) {
 }
 
 function onContainerMouseDown(e: MouseEvent) {
+  emit('canvas-mousedown', e)
   if (props.panMode === 'left') {
     if (e.button === 0) {
       if (e.ctrlKey) {
@@ -288,6 +292,8 @@ defineExpose({
     :style="{ cursor: cursorStyle }"
     @wheel.prevent="onWheel"
     @mousedown="onContainerMouseDown"
+    @mousemove="emit('canvas-mousemove', $event)"
+    @mouseleave="emit('canvas-mouseleave', $event)"
     @contextmenu.prevent
   >
     <!-- CSS transform mode -->
@@ -320,7 +326,7 @@ defineExpose({
     />
 
     <!-- Zoom controls -->
-    <div v-if="showControls" class="pzv-controls" :class="[`pos-${controlsPosition}`, controlsDirection === 'vertical' ? 'dir-vertical' : '']">
+    <div v-if="showControls" class="pzv-controls" :class="[`pos-${controlsPosition}`, controlsDirection === 'vertical' ? 'dir-vertical' : '']" @mousedown.stop @mousemove.stop @wheel.stop @mouseenter="emit('canvas-mouseleave', $event)">
       <span v-if="showZoomLabel && !isEditingZoom" class="pzv-ctrl-zoom" @click="startEditZoom">{{ zoomPercent }}%</span>
       <input
         v-if="showZoomLabel && isEditingZoom"

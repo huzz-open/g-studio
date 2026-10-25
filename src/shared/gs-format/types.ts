@@ -1,3 +1,5 @@
+import type { NormalSettings } from '../types/normal-settings'
+
 export const GsType = {
   SceneRegion: 1,
   Tileset: 2,
@@ -31,6 +33,7 @@ export interface SceneRegionData {
 
 export interface SpriteEntry {
   name: string
+  normalSettings?: NormalSettings
   rect: [number, number, number, number]
   originalRect?: [number, number, number, number]
 }

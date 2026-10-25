@@ -4,6 +4,7 @@ import { useI18n } from '../../../shared/i18n'
 import ImageCanvas from '../../../shared/components/ImageCanvas.vue'
 import ActionMenu, { type ActionItem } from '../../../shared/components/ActionMenu.vue'
 import SplitEditor from './SplitEditor.vue'
+import SpriteNormalPreview from './SpriteNormalPreview.vue'
 import type { Point } from '../core/split/line-splitter'
 import type { SlicerInstance } from '../store'
 
@@ -75,7 +76,8 @@ const hoveredIdx = ref<number | null>(null)
 const hoverAnchor = ref<{ top: number; left: number; width: number; height: number } | null>(null)
 let hoverLeaveTimer: ReturnType<typeof setTimeout> | null = null
 
-const zoomedSprite = ref<{ dataUrl: string; name: string; w: number; h: number } | null>(null)
+const zoomedId = ref<number | null>(null)
+const zoomedSprite = computed(() => props.store.state.sprites.find(s => s.id === zoomedId.value))
 const renameTarget = ref<{ id: number; name: string } | null>(null)
 const renameValue = ref('')
 const renameDuplicate = ref(false)
@@ -237,6 +239,12 @@ function onRectMouseDown(idx: number, e: MouseEvent) {
   }
 }
 
+function onRectDoubleClick(idx: number, e: MouseEvent) {
+  if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return
+  closeCtxMenu()
+  showZoomed(idx)
+}
+
 function onRectContextMenu(_idx: number, e: MouseEvent) {
   e.preventDefault()
 }
@@ -354,12 +362,7 @@ function onPanelLeave() {
 function showZoomed(idx: number) {
   const sprite = props.store.state.sprites.find(s => s.id === idx)
   if (!sprite) return
-  zoomedSprite.value = {
-    dataUrl: sprite.dataUrl,
-    name: sprite.name,
-    w: sprite.rect.w,
-    h: sprite.rect.h,
-  }
+  zoomedId.value = sprite.id
   clearHover()
 }
 
@@ -450,6 +453,7 @@ function clearHover() {
           :fill="store.state.selected.has(r.idx) ? 'transparent' : 'rgba(0,0,0,0.45)'"
           :class="['grid-rect', { highlighted: highlightedCells.has(r.idx), merged: r.merged }]"
           @mousedown="onRectMouseDown(r.idx, $event)"
+          @dblclick.stop.prevent="onRectDoubleClick(r.idx, $event)"
           @mouseenter="onRectMouseEnter(r.idx, $event)"
           @mouseleave="onRectMouseLeave"
           @contextmenu="onRectContextMenu(r.idx, $event)"
@@ -545,15 +549,12 @@ function clearHover() {
   </Teleport>
 
   <!-- Zoomed single sprite -->
-  <ImageCanvas
+  <SpriteNormalPreview
     v-if="zoomedSprite"
-    overlay
-    :src="zoomedSprite.dataUrl"
-    :overlay-title="zoomedSprite.name"
-    :overlay-subtitle="`${zoomedSprite.w} × ${zoomedSprite.h} px`"
-    :min-scale="0.5"
-    :max-scale="32"
-    @close="zoomedSprite = null"
+    :key="`${store.id}-${zoomedSprite.id}`"
+    :sprite="zoomedSprite"
+    @settings="store.setNormalSettings(zoomedSprite.id, $event)"
+    @close="zoomedId = null"
   />
 
   <!-- Split Editor -->

@@ -11,8 +11,10 @@ import type { OutputPayload } from './SlicerSidebar.vue'
 import SlicerSidebar from './SlicerSidebar.vue'
 import SlicerPreview from './SlicerPreview.vue'
 import AnimationPreview from './AnimationPreview.vue'
-import { PngExporter } from '../core/export/png-exporter'
-import { createOffscreenCanvas } from '../core/utils/canvas-utils'
+import { buildOutput } from '../core/export/output'
+import { resolveDir, writeFile, fileExists, splitPath, joinPath } from '../../../shared/workspace/fs'
+import { confirm } from '../../../shared/components/confirm'
+import { useSettings } from '../../../shared/settings'
 import { downloadBlob } from '../../../shared/utils/download'
 import { showToast } from '../../../shared/components/toast'
 
@@ -39,8 +41,11 @@ useTabRouteSync({
 
 const showAnimPreview = ref(false)
 const leftCollapsed = ref(false)
+const outputBusy = ref(false)
+const outputProgress = ref('')
+const { settings } = useSettings()
 
-const { handleSave } = useSaveFlow({
+const { handleSave, saveWithResult } = useSaveFlow({
   type: GsType.Sprite,
   tabsManager,
   getInstance: () => activeInstance.value,
@@ -48,11 +53,11 @@ const { handleSave } = useSaveFlow({
     if (!inst.state.sourceImage) return null
     return {
       defaultName: inst.state.sourceFileName?.replace(/\.[^.]+$/, '') || 'sprites',
-      imageFileName: inst.state.sourceFileName || 'texture.png',
+      imageFileName: `${inst.getLabel() || 'texture'}_source.png`,
       imageBuffer: () => imageToPngBuffer(inst.state.sourceImage!),
       buildData: (texPath: string) => ({
         texture: texPath,
-        size: [inst.state.imgSize.w, inst.state.imgSize.h] as [number, number],
+        size: [inst.state.sourceImage!.width, inst.state.sourceImage!.height] as [number, number],
         isComposite: false,
         sliceConfig: inst.getSliceConfig(),
         sprites: inst.getSpriteSnapshot(),
@@ -68,7 +73,7 @@ const { handleSave } = useSaveFlow({
 })
 
 useEditorKeyboard(() => activeInstance.value ? {
-  save: handleSave,
+  save: async () => { await handleSave() },
   history: activeInstance.value.history,
 } : null)
 
@@ -111,33 +116,48 @@ function onTabClose(id: string) {
   closeTab(id)
 }
 
-function onSaveOutput(_payload: OutputPayload) {
-  void handleSave()
-}
-
-async function onExportLocal(payload: OutputPayload) {
+async function output(payload: OutputPayload, workspace: boolean) {
   const inst = activeInstance.value
-  if (!inst) return
-  const sprites = inst.selectedSprites.value
+  if (!inst || outputBusy.value) return
+  outputBusy.value = true
+  outputProgress.value = t('normal.exporting')
   const name = inst.getLabel() || 'sprites'
-  const exporter = new PngExporter()
   try {
-    if (payload.composite) {
-      const { w, h } = inst.state.imgSize
-      const { ctx } = createOffscreenCanvas(w, h)
-      for (const sprite of sprites) {
-        const { canvas, ctx: cellCtx } = createOffscreenCanvas(sprite.rect.w, sprite.rect.h)
-        cellCtx.putImageData(sprite.imageData, 0, 0)
-        ctx.drawImage(canvas, sprite.rect.x, sprite.rect.y)
+    const files = await buildOutput(inst.selectedSprites.value, { ...inst.state.imgSize }, name, payload,
+      (done, total) => { outputProgress.value = t('normal.exportProgress', { done, total }) })
+    if (workspace) {
+      const dir = await resolveDir(payload.dir, true)
+      if (inst.state.gsPath) {
+        const sourcePath = joinPath(splitPath(inst.state.gsPath).dir, inst.state.gsTexturePath.replace(/^\.\//, ''))
+        if (files.some(file => joinPath(payload.dir, file.name).toLowerCase() === sourcePath.toLowerCase())) {
+          throw new Error(t('normal.sourceConflict'))
+        }
       }
-      downloadBlob(await exporter.exportPng(sprites, ctx.getImageData(0, 0, w, h)), `${name}.png`)
-      if (payload.meta) downloadBlob(await exporter.exportMetaJson(sprites), `${name}.json`)
+      const existing: string[] = []
+      for (const file of files) if (await fileExists(dir, file.name)) existing.push(file.name)
+      if (existing.length) {
+        const strategy = settings.workspace.imageConflictStrategy
+        if (strategy === 'skip') { showToast(t('normal.skipped'), 'info'); return }
+        if (strategy === 'ask' && !await confirm({ title: t('save.conflictTitle'), message: existing.join('\n'), confirmText: t('save.overwrite') })) return
+      }
+      // The project save also persists per-sprite settings. A cancelled save cancels output.
+      if (activeInstance.value !== inst || !await saveWithResult()) return
+      for (const file of files) await writeFile(dir, file.name, file.blob)
+      settings.spriteSlicer.lastSaveDir = payload.dir
+      settings.spriteSlicer.lastTags = payload.tags
+    } else {
+      for (const file of files) downloadBlob(file.blob, file.name)
     }
-    if (payload.sprites) downloadBlob(await exporter.exportZip(sprites), `${name}-sprites.zip`)
+    showToast(t('toast.save.success'), 'success')
   } catch (error) {
     showToast(`${t('toast.save.error')}: ${(error as Error).message}`, 'error')
+  } finally {
+    outputBusy.value = false
+    outputProgress.value = ''
   }
 }
+function onSaveOutput(payload: OutputPayload) { void output(payload, true) }
+function onExportLocal(payload: OutputPayload) { void output(payload, false) }
 
 </script>
 
@@ -163,6 +183,8 @@ async function onExportLocal(payload: OutputPayload) {
         v-if="sidebarInstance"
         :store="sidebarInstance"
         :has-image="!!sidebarInstance.state.sourceImage"
+        :output-busy="outputBusy"
+        :output-progress="outputProgress"
         @file="onFile"
         @show-anim="showAnimPreview = true"
         @export-local="onExportLocal"

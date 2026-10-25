@@ -1,4 +1,5 @@
 import type { Rect } from '../../../shared/types'
+import type { NormalSettings } from '../../../shared/types/normal-settings'
 
 export interface DetectedSprite {
   id: number
@@ -6,6 +7,7 @@ export interface DetectedSprite {
   imageData: ImageData
   dataUrl: string
   name: string
+  normalSettings?: NormalSettings
   /** IDs of components merged into this sprite */
   mergedFrom?: number[]
   /** Original rects before merge, for smart split restoration */

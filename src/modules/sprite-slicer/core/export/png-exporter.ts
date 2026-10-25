@@ -9,7 +9,7 @@ export class PngExporter implements ISpriteExporter {
   ): Promise<Blob> {
     const { canvas, ctx } = createOffscreenCanvas(cleanImageData.width, cleanImageData.height)
     ctx.putImageData(cleanImageData, 0, 0)
-    return new Promise((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png'))
+    return new Promise((resolve, reject) => canvas.toBlob((b) => b ? resolve(b) : reject(new Error('PNG encoding failed')), 'image/png'))
   }
 
   async exportZip(sprites: DetectedSprite[]): Promise<Blob> {

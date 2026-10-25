@@ -19,6 +19,7 @@ import { GsType, type SpriteData, type SliceConfig, type SpriteEntry } from '../
 import { readSpriteGsFile } from '../../shared/gs-format/reader'
 import { writeGsFile, type WriteGsResult } from '../../shared/gs-format/writer'
 import { resolveDir, splitPath } from '../../shared/workspace/fs'
+import { normalSettings, type NormalSettings } from '../../shared/types/normal-settings'
 
 function sortByReadingOrder(arr: DetectedSprite[], threshold = 20) {
   arr.sort((a, b) => {
@@ -129,6 +130,7 @@ function createSlicerInstance(id: string) {
     id: number
     rect: Rect
     name: string
+    normalSettings?: NormalSettings
     mergedFrom?: number[]
     mergedFromRects?: Rect[]
     splitFrom?: number
@@ -145,6 +147,7 @@ function createSlicerInstance(id: string) {
           id: s.id,
           rect: { ...(s._origRect ?? s.rect) },
           name: s.name,
+          normalSettings: s.normalSettings ? { ...s.normalSettings } : undefined,
           mergedFrom: s.mergedFrom ? [...s.mergedFrom] : undefined,
           mergedFromRects: s.mergedFromRects ? s.mergedFromRects.map(r => ({ ...r })) : undefined,
           splitFrom: s.splitFrom,
@@ -160,6 +163,7 @@ function createSlicerInstance(id: string) {
           id: entry.id,
           rect: { ...entry.rect },
           name: entry.name,
+          normalSettings: entry.normalSettings ? { ...entry.normalSettings } : undefined,
           imageData: cached.imageData,
           dataUrl: cached.dataUrl,
           mergedFrom: entry.mergedFrom,
@@ -169,6 +173,7 @@ function createSlicerInstance(id: string) {
       })
       state.selected = new Set(snap.selected)
       if (state.arrangeMode !== 'none') applyArrange()
+      state.dirty = true
     },
   })
 
@@ -351,6 +356,7 @@ function createSlicerInstance(id: string) {
           imageData: cellData,
           dataUrl: imageDataToDataUrl(cellData, rw, rh),
           name: s.name,
+          normalSettings: s.normalSettings ? normalSettings(s.normalSettings) : undefined,
         }
         if (s.originalRect) {
           const [ox, oy, ow, oh] = s.originalRect
@@ -363,6 +369,7 @@ function createSlicerInstance(id: string) {
       state.selected = new Set(all.map(s => s.id))
       cacheAllSprites()
       history.clear()
+      if (state.arrangeMode !== 'none' && !pending.some(s => s.originalRect)) applyArrange()
     } else {
       await runDetection()
     }
@@ -634,7 +641,7 @@ function createSlicerInstance(id: string) {
 
     const data: SpriteData = {
       texture: state.gsTexturePath,
-      size: [state.imgSize.w, state.imgSize.h],
+      size: [state.sourceImage!.width, state.sourceImage!.height],
       isComposite: false,
       sliceConfig: getSliceConfig(),
       sprites: getSpriteSnapshot(),
@@ -700,10 +707,11 @@ function createSlicerInstance(id: string) {
   function getSpriteSnapshot(): SpriteEntry[] {
     return state.sprites.map(s => ({
       name: s.name,
-      rect: [s.rect.x, s.rect.y, s.rect.w, s.rect.h] as [number, number, number, number],
-      originalRect: s._origRect
-        ? [s._origRect.x, s._origRect.y, s._origRect.w, s._origRect.h] as [number, number, number, number]
-        : undefined,
+      normalSettings: s.normalSettings ? { ...s.normalSettings } : undefined,
+      rect: [
+        (s._origRect ?? s.rect).x, (s._origRect ?? s.rect).y,
+        (s._origRect ?? s.rect).w, (s._origRect ?? s.rect).h,
+      ] as [number, number, number, number],
     }))
   }
 
@@ -719,6 +727,16 @@ function createSlicerInstance(id: string) {
     state.sprites = [...state.sprites]
     state.dirty = true
     return true
+  }
+
+  function setNormalSettings(id: number, settings?: NormalSettings) {
+    const sprite = state.sprites.find(s => s.id === id)
+    if (!sprite) return
+    const next = settings ? normalSettings(settings) : undefined
+    if (JSON.stringify(sprite.normalSettings) === JSON.stringify(next)) return
+    history.record()
+    sprite.normalSettings = next
+    state.dirty = true
   }
 
   function isSpriteNameTaken(name: string, excludeId?: number): boolean {
@@ -802,6 +820,7 @@ function createSlicerInstance(id: string) {
     applyArrange,
     restoreArrange,
     renameSprite,
+    setNormalSettings,
     isSpriteNameTaken,
     getSliceConfig,
     applySliceConfig,

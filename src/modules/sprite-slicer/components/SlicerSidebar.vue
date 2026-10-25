@@ -10,7 +10,7 @@ import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import FileDropZone from '../../../shared/components/FileDropZone.vue'
 import SegmentedControl from '../../../shared/components/SegmentedControl.vue'
 import InlineSwitch from '../../../shared/components/InlineSwitch.vue'
-import { CheckboxRow, ActionButtons } from '../../../shared/components/editor-shell/sidebar-atoms'
+import { ActionButtons } from '../../../shared/components/editor-shell/sidebar-atoms'
 import type { ActionButton } from '../../../shared/components/editor-shell/sidebar-atoms'
 import { bgRemovers, type SlicerInstance } from '../store'
 
@@ -18,6 +18,7 @@ export interface OutputPayload {
   composite: boolean
   sprites: boolean
   meta: boolean
+  normals: boolean
   tags: string[]
   dir: string
 }
@@ -25,6 +26,8 @@ export interface OutputPayload {
 const props = defineProps<{
   store: SlicerInstance
   hasImage: boolean
+  outputBusy?: boolean
+  outputProgress?: string
 }>()
 
 const emit = defineEmits<{
@@ -43,11 +46,11 @@ const saveDir = ref(settings.spriteSlicer.lastSaveDir ?? 'spritesheets')
 const tags = ref<string[]>([...(settings.spriteSlicer.lastTags ?? [])])
 const tagInput = ref('')
 
-const exportOpts = ref({ ...settings.spriteSlicer.defaults.exportOptions })
+const exportOpts = ref({ ...settings.spriteSlicer.defaults.exportOptions, normals: false })
 
 const hasAnyImage = computed(() => exportOpts.value.composite || exportOpts.value.sprites)
 const outputDisabled = computed(() =>
-  !props.hasImage || !hasAnyImage.value || props.store.selectedSprites.value.length === 0,
+  props.outputBusy || !props.hasImage || !hasAnyImage.value || props.store.selectedSprites.value.length === 0,
 )
 
 async function refreshDirs() {
@@ -111,6 +114,7 @@ function getPayload(): OutputPayload {
     composite: exportOpts.value.composite,
     sprites: exportOpts.value.sprites,
     meta: exportOpts.value.composite ? exportOpts.value.meta : false,
+    normals: exportOpts.value.normals,
     tags: [...tags.value],
     dir: saveDir.value,
   }
@@ -326,27 +330,30 @@ function onOutputAction(id: string) {
         </label>
       </div>
 
-      <div class="cb-pair">
-        <CheckboxRow
-          :label="t('slicer.output.composite')"
-          :model-value="exportOpts.composite"
-          :disabled="!hasImage"
-          @update:model-value="exportOpts.composite = $event"
-        />
+      <div class="output-choices">
+        <label class="output-choice" :class="{ checked: exportOpts.composite }">
+          <input v-model="exportOpts.composite" type="checkbox" :disabled="!hasImage || outputBusy" />
+          <span>{{ t('slicer.output.composite') }}</span>
+        </label>
+        <label class="output-choice" :class="{ checked: exportOpts.sprites }">
+          <input v-model="exportOpts.sprites" type="checkbox" :disabled="!hasImage || outputBusy" />
+          <span>{{ t('slicer.output.sprites') }} ZIP</span>
+        </label>
+      </div>
+      <div class="output-meta">
         <InlineSwitch
           :model-value="exportOpts.meta"
-          label=""
+          :label="t('normal.exportMeta')"
           :tooltip="t('slicer.output.metaTip')"
-          :disabled="!hasImage || !exportOpts.composite"
+          :disabled="!hasImage || !exportOpts.composite || outputBusy"
           @update:model-value="onMetaChange($event)"
         />
       </div>
-      <CheckboxRow
-        :label="t('slicer.output.sprites')"
-        :model-value="exportOpts.sprites"
-        :disabled="!hasImage"
-        @update:model-value="exportOpts.sprites = $event"
-      />
+      <label class="normal-export-row">
+        <span>{{ t('normal.export') }}<small>{{ t('normal.exportHint') }}</small></span>
+        <span class="switch"><input v-model="exportOpts.normals" type="checkbox" role="switch" :disabled="!hasImage || outputBusy" /><span class="switch-slider" /></span>
+      </label>
+      <p v-if="outputBusy" class="output-progress" role="status">{{ outputProgress || t('normal.exporting') }}</p>
       <ActionButtons
         :buttons="outputButtons"
         @click="onOutputAction"
@@ -364,6 +371,17 @@ function onOutputAction(id: string) {
   height: 100%;
   overflow-y: auto;
 }
+.output-choices { display: flex; gap: 6px; margin: 8px 0; }
+.output-choice { display: flex; flex: 1; align-items: center; gap: 7px; padding: 9px 8px; border: 1px solid #4b4b4b; border-radius: 5px; background: #303030; color: #bbb; font-size: 12px; cursor: pointer; }
+.output-choice.checked { border-color: #698dbd; background: #30445d; color: #d9e8fc; }
+.output-choice input { accent-color: #8ab4f8; margin: 0; width: 14px; height: 14px; }
+.output-choice:focus-within { outline: 2px solid #8ab4f8; outline-offset: 2px; }
+.output-meta { margin: 8px 0; }
+.normal-export-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0; padding: 10px 0; border-top: 1px solid #3c3c3c; color: #ccc; font-size: 12px; cursor: pointer; }
+.normal-export-row small { display: block; font-size: 10px; color: #999; line-height: 1.5; margin-top: 3px; }
+.switch:focus-within { outline: 2px solid #8ab4f8; outline-offset: 2px; border-radius: 9px; }
+.normal-export-row .switch input { width: 100%; height: 100%; inset: 0; margin: 0; z-index: 1; cursor: pointer; }
+.output-progress { font-size: 11px; color: #8ab4f8; }
 .sidebar-section {
   padding-bottom: 10px;
   margin-bottom: 6px;
