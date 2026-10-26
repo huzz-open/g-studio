@@ -1,0 +1,5 @@
+aiohttp==3.13.2
+Pillow==13.0.0
+numpy==1.26.4
+trimesh==4.0.5
+fast-simplification==0.2.0

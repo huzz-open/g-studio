@@ -76,5 +76,5 @@ test('legacy .gs sheets still validate; linked parts round-trip with full source
   sheet.data.sprites[0].partAsset=make();sheet.data.sprites[0].normalSettings=make().normal
   const restored=JSON.parse(JSON.stringify(sheet));validateSpriteData(restored.data)
   assert.deepEqual(restored.data.sprites[0].partAsset,sheet.data.sprites[0].partAsset)
-  restored.data.sprites[0].partAsset.version=2;assert.throws(()=>validateSpriteData(restored.data))
+  restored.data.sprites[0].partAsset.version=99;assert.throws(()=>validateSpriteData(restored.data))
 })

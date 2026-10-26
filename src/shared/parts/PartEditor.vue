@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import GenerationPanel from '../generation/GenerationPanel.vue'
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from '../i18n'
@@ -26,7 +27,8 @@ import InfoHint from '../components/InfoHint.vue'
 const props=defineProps<{asset:PartAsset;origin:'slicer'|'scene'}>()
 const {t}=useI18n(),router=useRouter(),draft=ref(clonePart(props.asset)),baseline=ref(clonePart(props.asset))
 const saving=ref(false),error=ref(''),view=ref<'original'|'normal'|'preview'>('preview'),normalUrl=ref(''),normalBusy=ref(false)
-const confirming=ref(false)
+const confirming=ref(false),showGeneration=ref(false)
+function applyGenerated(part:PartAsset){draft.value=clonePart(part);geometryJson.value=JSON.stringify(part.geometry,null,2);showGeneration.value=false;framePreview()}
 const geometryJson=ref(JSON.stringify(draft.value.geometry,null,2)),panel=ref<HTMLElement>()
 const dirty=computed(()=>JSON.stringify(draft.value)!==JSON.stringify(baseline.value))
 const conflict=computed(()=>partLibrary[props.asset.id]?.revision!==baseline.value.revision)
@@ -77,6 +79,7 @@ async function exportPackage(){
   }catch(e){error.value=String(e)}finally{saving.value=false}
 }
 function captureKey(event:KeyboardEvent){
+  if(showGeneration.value){if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();showGeneration.value=false}return}
   if(confirming.value)return
   if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();void leave()}
   else if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();event.stopImmediatePropagation();void save()}
@@ -93,7 +96,8 @@ onUnmounted(()=>{normals.dispose();document.removeEventListener('keydown',captur
     <div class="editor-body"><ScrollArea class="part-properties-scroll" :label="t('parts.partSettings')"><fieldset class="part-properties" :disabled="saving">
       <SidebarSection :title="t('parts.asset')" :collapsible="false"><label class="name-field">{{t('parts.name')}}<input v-model="draft.name" maxlength="120" :aria-label="t('parts.name')"/></label></SidebarSection>
       <SidebarSection :title="t('parts.geometry')" :collapsible="false">
-        <select :value="geometryChoice" :aria-label="t('parts.geometryType')" @change="chooseGeometry"><option value="silhouette">{{t('parts.silhouette')}}</option><option value="box">{{t('parts.box')}}</option><option value="cylinder">{{t('parts.cylinder')}}</option><option v-for="id in TEMPLATE_IDS" :key="id" :value="'template:'+id">{{t('sceneLight.'+id)}} · {{t('parts.template')}}</option><option v-if="draft.geometry.kind==='compound'" value="compound">{{t('parts.compound')}}</option></select>
+        <select :value="geometryChoice" :aria-label="t('parts.geometryType')" @change="chooseGeometry"><option value="silhouette">{{t('parts.silhouette')}}</option><option value="box">{{t('parts.box')}}</option><option value="cylinder">{{t('parts.cylinder')}}</option><option v-for="id in TEMPLATE_IDS" :key="id" :value="'template:'+id">{{t('sceneLight.'+id)}} · {{t('parts.template')}}</option><option v-if="draft.geometry.kind==='mesh'" value="mesh">{{t('generation.mesh')}}</option><option v-if="draft.geometry.kind==='compound'" value="compound">{{t('parts.compound')}}</option></select>
+        <button class="wide" @click="showGeneration=true">{{t('generation.generate')}}</button>
         <InfoHint :label="t('parts.geometry')" :text="t(draft.geometry.kind==='silhouette'?'parts.silhouetteNote':'parts.geometryHint')"/>
         <SliderRow v-for="(label,i) in ['parts.width','parts.height','parts.depth']" :key="label" v-model="draft.geometry.size[i]" :default-value="parameterDefaults.geometry.size[i]" :label="t(label)" :min="0.02" :max="8" :step="0.01" :precision="2"/>
         <details><summary>{{t('parts.geometryJson')}}</summary><textarea v-model="geometryJson" spellcheck="false" :aria-label="t('parts.geometryJson')"/><div class="button-row"><button @click="geometryJson=JSON.stringify(draft.geometry,null,2)">{{t('parts.readConfig')}}</button><button @click="applyGeometry">{{t('parts.applyConfig')}}</button></div></details>
@@ -117,8 +121,9 @@ onUnmounted(()=>{normals.dispose();document.removeEventListener('keydown',captur
       <LightingViewport v-else :state="preview" :assets="[draft]" compact :editable="false"><template #actions><button :title="t('common.fitView')" :aria-label="t('common.fitView')" @click="framePreview"><SvgIcon name="fit-view" :size="13"/></button></template></LightingViewport>
     </main></div>
     <footer><div class="button-row"><button :disabled="saving" @click="exportAsset">{{t('parts.exportAsset')}}</button><button :disabled="saving" @click="exportPackage">{{t('parts.exportPackage')}}</button><button v-if="origin==='scene'" :disabled="saving" @click="locate">{{t('parts.locateSlicer')}}</button></div><div class="button-row"><button :disabled="saving" @click="addToScene">{{t('parts.addOne')}}</button><button :disabled="saving" @click="leave">{{t(origin==='scene'?'parts.backScene':'parts.backSlicer')}}</button><button class="primary" :disabled="saving||conflict" @click="saveAndClose">{{t(saving?'common.loading':'parts.saveReturn')}}</button></div></footer>
-  </section></div></Teleport>
+  </section></div><div v-if="showGeneration" class="generation-overlay"><GenerationPanel :part="draft" @apply="applyGenerated" @close="showGeneration=false"/></div></Teleport>
 </template>
 <style scoped>
+.generation-overlay{position:fixed;inset:4vh 3vw;z-index:1800;border:1px solid #555;border-radius:9px;overflow:hidden;box-shadow:0 0 0 100vmax #0009}
 .part-editor-overlay{position:fixed;inset:0;z-index:1700;background:#000b;display:flex;align-items:center;justify-content:center}.part-editor{width:min(1300px,96vw);height:92vh;display:flex;flex-direction:column;background:#202526;border:1px solid #56625b;border-radius:9px;overflow:hidden;color:#d6ded9;outline:none;box-shadow:0 15px 70px #0008}.part-editor header{display:flex;align-items:center;justify-content:space-between;padding:12px 15px;background:#2a3230}.part-editor header>div{display:flex;gap:16px;align-items:center}.part-editor header span{font-size:12px;color:#a8b5ad}.part-editor button{font:inherit;font-size:11px;color:inherit;cursor:pointer;border:1px solid #536058;border-radius:4px;background:#303c35;padding:7px 10px}.part-editor button:disabled{opacity:.45;cursor:default}.part-editor button.primary{background:#426b53;border-color:#84ab8d}.editor-body{display:flex;flex:1;min-height:0}.part-properties-scroll{flex:0 0 285px;width:285px;min-width:0;border-right:1px solid #333}.part-properties{width:100%;min-width:0;padding:0;margin:0;border:0;box-sizing:border-box}.name-field{display:flex;flex-direction:column;font-size:11px;gap:7px}.name-field input,select,textarea{box-sizing:border-box;width:100%;border:1px solid #4c5850;border-radius:4px;padding:7px;background:#2b3330;color:#e0e8e1;font-size:12px}textarea{scrollbar-width:thin;scrollbar-color:#63736a #2b3330;height:150px;font:11px/1.5 monospace;margin-top:8px;resize:vertical}.note{font-size:10px;color:#a0b0a5;line-height:1.6;margin:8px 0}.approximation{color:#d5bd8b}.button-row{display:flex;gap:6px;flex-wrap:wrap}summary{font-size:11px;color:#b1c5b7;cursor:pointer;margin:10px 0}.wide{width:100%;margin-top:7px}.part-preview{display:flex;flex-direction:column;min-width:0;flex:1}.part-preview nav{display:flex;gap:5px;padding:8px 12px;background:#252e29;border-bottom:1px solid #39443c}.part-preview nav button.active{background:#47644e;border-color:#8db394}.flat-preview{position:relative;flex:1;min-height:0;display:flex;justify-content:center;align-items:center;padding:20px;background:repeating-conic-gradient(#303633 0 25%,#252b28 0 50%) 0/16px 16px}.flat-preview img{max-width:100%;max-height:100%;object-fit:contain;image-rendering:pixelated}.flat-preview span{position:absolute;top:12px;left:12px;padding:6px;background:#222b}.part-caption{font-size:10px;padding:8px 12px;color:#9dab9f;background:#202923}.part-editor footer{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 13px;border-top:1px solid #46534a;background:#28322c}.editor-error{font-size:11px;padding:8px 14px;background:#512b28;color:#ffd4c6;overflow-wrap:anywhere}@media(max-width:800px){.part-properties-scroll{flex-basis:230px;width:230px}.part-editor header>div{gap:7px;flex-wrap:wrap}.part-editor footer{padding:7px}.part-editor button{padding:6px;font-size:10px}}@media(max-width:560px){.editor-body{flex-direction:column;overflow:auto}.part-properties-scroll{width:100%;flex-basis:220px;height:220px;flex-shrink:0}.part-preview{min-height:380px}.part-editor{height:96vh}}
 </style>

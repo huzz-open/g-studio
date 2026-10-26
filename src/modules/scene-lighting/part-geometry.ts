@@ -1,3 +1,4 @@
+import { decodeMesh } from '../../shared/parts/mesh'
 import { type PartAsset, type PartGeometry, type TemplateId, type Triple } from '../../shared/parts/schema'
 import { buildItem, meshBuilder, roomBounds, type RoomSize, spriteBounds, YAW, type Mesh } from './model'
 import { normalize, type Vec3 } from '../experiments/umbrella/math'
@@ -23,6 +24,7 @@ function resize(mesh: Mesh, size: Triple): Mesh {
 export function templateGeometry(id: TemplateId): PartGeometry { return { kind: 'template', template: id, size: meshExtents(buildItem(id)).size } }
 export function buildPartGeometry(part: PartAsset, pixels: { width: number; height: number; data: Uint8ClampedArray }): Mesh {
   const g = part.geometry, color: Vec3 = [.56, .58, .53]
+  if (g.kind === 'mesh') return resize(decodeMesh(g.mesh!.uri), g.size)
   if (g.kind === 'template') return resize(buildItem(g.template!), g.size)
   const builder = meshBuilder()
   if (g.kind === 'box') builder.box(0, 0, 0, 1, 1, 1, color)

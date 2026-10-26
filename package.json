@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/generation/start.mjs dev",
     "build": "vue-tsc --noEmit -p tsconfig.app.json && vite build",
     "test:normals": "node --test tests/normal-generator.test.cjs",
     "test:history": "node --test tests/history.test.cjs",
@@ -12,18 +12,31 @@
     "test:shadows": "node --test tests/shadow-geometry.test.cjs",
     "test:scene-lighting": "node --test tests/scene-lighting.test.cjs tests/scene-environment.test.cjs tests/direction-control.test.cjs",
     "test:parts": "node --test tests/parts.test.cjs tests/sprite-assets.test.cjs tests/part-preview.test.cjs tests/parameter-defaults.test.cjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:web": "vite",
+    "generation:start": "node scripts/generation/start.mjs start",
+    "generation:download": "node scripts/generation/start.mjs download",
+    "generation:doctor": "node scripts/generation/start.mjs doctor",
+    "relay:dev": "tsx services/generation-relay/server.ts",
+    "relay:start": "tsx services/generation-relay/server.ts",
+    "check:relay": "tsc --noEmit -p services/tsconfig.json",
+    "test:generation": "node --import tsx --test tests/generation.test.ts"
   },
   "dependencies": {
     "@techstark/opencv-js": "github:TechStark/opencv-js#92e4734",
     "jszip": "^3.10.1",
+    "three": "^0.186.1",
     "vue": "^3.5.34",
-    "vue-router": "^4.5.1"
+    "vue-router": "^4.5.1",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@types/node": "^24.12.3",
+    "@types/three": "^0.186.0",
+    "@types/ws": "^8.18.2",
     "@vitejs/plugin-vue": "^6.0.6",
     "@vue/tsconfig": "^0.9.1",
+    "tsx": "^4.23.15",
     "typescript": "~6.0.2",
     "vite": "^8.0.12",
     "vue-tsc": "^3.2.8"

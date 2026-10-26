@@ -32,6 +32,7 @@ const confirmDialogRef = ref<InstanceType<typeof ConfirmDialog> | null>(null)
 const promptDialogRef = ref<InstanceType<typeof PromptDialog> | null>(null)
 
 const navItems = [
+  { route:'/model-generation',labelKey:'generation.title',icon:'wand' },
   { route: '/resource-manager', labelKey: 'nav.resourceManager', icon: 'folder-open' },
   { route: '/sprite-slicer', labelKey: 'nav.spriteSlicer', icon: 'scissors' },
   { route: '/scene-lighting', labelKey: 'sceneLight.title', icon: 'layers' },

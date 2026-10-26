@@ -1,3 +1,4 @@
+import { decodeMesh, type MeshGeometry } from './mesh'
 import { normalSettings, DEFAULT_NORMAL_SETTINGS, type NormalSettings } from '../types/normal-settings'
 
 export const PART_FORMAT = 'g-studio/part' as const
@@ -6,14 +7,15 @@ export type TemplateId = typeof TEMPLATE_IDS[number]
 export type Triple = [number, number, number]
 export interface PrimitivePart { shape: 'box' | 'cylinder' | 'ellipsoid'; position: Triple; size: Triple }
 export interface PartGeometry {
-  kind: 'silhouette' | 'box' | 'cylinder' | 'template' | 'compound'
+  kind: 'silhouette' | 'box' | 'cylinder' | 'template' | 'compound' | 'mesh'
   size: Triple
   template?: TemplateId
   parts?: PrimitivePart[]
+  mesh?: MeshGeometry
 }
 export interface PartAsset {
   format: typeof PART_FORMAT
-  version: 1
+  version: 1 | 2
   id: string
   revision: number
   name: string
@@ -37,7 +39,7 @@ export function validatePart(value: unknown): asserts value is PartAsset {
   const fail = (s: string): never => { throw new Error(`Invalid part: ${s}`) }
   if (!object(value)) fail('object required')
   const v = value as Record<string, any>
-  if (v.format !== PART_FORMAT || v.version !== 1) fail('unsupported format/version')
+  if (v.format !== PART_FORMAT || ![1, 2].includes(v.version)) fail('unsupported format/version')
   if (!validId(v.id)) fail('id')
   if (!Number.isSafeInteger(v.revision) || v.revision < 1) fail('revision')
   if (typeof v.name !== 'string' || !v.name.trim() || v.name.length > 120) fail('name')
@@ -49,8 +51,12 @@ export function validatePart(value: unknown): asserts value is PartAsset {
   if (!object(v.normal) || !Object.keys(DEFAULT_NORMAL_SETTINGS).every(k => k in v.normal)) fail('normal settings')
   normalSettings(v.normal)
   const g = v.geometry
-  if (!object(g) || !['silhouette', 'box', 'cylinder', 'template', 'compound'].includes(g.kind) || !tuple(g.size, 3, .02, 8)) fail('geometry')
+  if (!object(g) || !['silhouette', 'box', 'cylinder', 'template', 'compound', 'mesh'].includes(g.kind) || !tuple(g.size, 3, .02, 8)) fail('geometry')
   if (g.kind === 'template' && !TEMPLATE_IDS.includes(g.template)) fail('unknown template')
+  if (g.kind === 'mesh') {
+    if (v.version !== 2 || !object(g.mesh) || typeof g.mesh.uri !== 'string' || !/^[a-f0-9]{64}$/.test(g.mesh.sha256) || !/^[a-f0-9]{64}$/.test(g.mesh.inputSha256) || typeof g.mesh.providerId !== 'string' || !Array.isArray(g.mesh.warnings) || !g.mesh.warnings.every((s:unknown)=>typeof s==='string')) fail('mesh metadata')
+    decodeMesh(g.mesh.uri)
+  }
   if (g.kind === 'compound') {
     if (!Array.isArray(g.parts) || !g.parts.length || g.parts.length > 64) fail('compound requires 1–64 primitives')
     for (const p of g.parts) if (!object(p) || !['box', 'cylinder', 'ellipsoid'].includes(p.shape)
