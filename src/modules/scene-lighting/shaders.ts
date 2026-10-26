@@ -8,10 +8,10 @@ void main(){world=position*objectScale+offset;surfaceNormal=normal;surfaceColor=
 `
 export const depthFragment = `#version 300 es
 precision highp float;
-in vec3 world; uniform vec3 light; uniform float objectId; uniform float farPlane;
+in vec3 world; uniform vec3 light; uniform float objectId; uniform float farPlane; uniform float directional;
 out vec4 color;
 void main(){
-  float depth=min(length(world-light)/farPlane,0.99999);
+  float depth=directional>0.5?min(gl_FragCoord.z,0.99999):min(length(world-light)/farPlane,0.99999);
   vec3 encoded=fract(depth*vec3(1.0,255.0,65025.0));
   encoded-=encoded.yzz*vec3(1.0/255.0,1.0/255.0,0.0);
   color=vec4(encoded,objectId/255.0);
@@ -41,6 +41,25 @@ const lighting = `
 uniform vec3 light; uniform samplerCube shadowMap; uniform float farPlane;
 uniform float filtered; uniform float shadows; uniform float receives;
 uniform float ambient; uniform float power; uniform float visibilityOnly;
+uniform float directional; uniform vec3 sunDirection; uniform mat4 sunMatrix; uniform sampler2D sunShadowMap;
+float sunSample(vec2 uv,float depth,float bias,float ignoreId){
+  if(any(lessThan(uv,vec2(0)))||any(greaterThan(uv,vec2(1))))return 1.0;
+  vec4 packed=texture(sunShadowMap,uv);
+  if(ignoreId>0.5&&abs(packed.a*255.0-ignoreId)<0.5)return 1.0;
+  float stored=dot(packed.rgb,vec3(1.0,1.0/255.0,1.0/65025.0));
+  return depth-bias<=stored?1.0:0.0;
+}
+float sunVisibility(vec3 p,vec3 n,float ignoreId){
+  vec4 clip=sunMatrix*vec4(p,1.0);vec3 q=clip.xyz/clip.w*.5+.5;
+  if(q.z<0.0||q.z>1.0)return 1.0;
+  float cosine=max(dot(n,sunDirection),0.2);
+  float slope=sqrt(max(0.0,1.0-cosine*cosine))/cosine;
+  float bias=max(0.0001,(filtered>0.5?0.0013:0.0007)*slope);
+  if(filtered<0.5)return sunSample(q.xy,q.z,bias,ignoreId);
+  float sum=0.0;
+  for(int a=-1;a<=1;a++)for(int b=-1;b<=1;b++)sum+=sunSample(q.xy+vec2(float(a),float(b))/1024.0,q.z,bias,ignoreId)/9.0;
+  return sum;
+}
 float sampleVisibility(vec3 direction,float distance,float bias,float ignoreId){
   vec4 packed=texture(shadowMap,direction);
   if(ignoreId>0.5&&abs(packed.a*255.0-ignoreId)<0.5)return 1.0;
@@ -49,6 +68,7 @@ float sampleVisibility(vec3 direction,float distance,float bias,float ignoreId){
 }
 float visibility(vec3 p,vec3 n,float ignoreId){
   if(shadows<0.5||receives<0.5)return 1.0;
+  if(directional>0.5)return sunVisibility(p,n,ignoreId);
   vec3 delta=p-light;float distance=length(delta);vec3 direction=delta/max(distance,0.001);
   float cosine=max(dot(n,-direction),0.2);
   float slope=sqrt(max(0.0,1.0-cosine*cosine))/cosine;
@@ -62,8 +82,8 @@ float visibility(vec3 p,vec3 n,float ignoreId){
 vec3 shade(vec3 base,vec3 p,vec3 n,float ignoreId){
   float vis=visibility(p,n,ignoreId);
   if(visibilityOnly>0.5)return vec3(mix(0.075,0.82,vis));
-  vec3 delta=light-p;float diffuse=max(dot(n,normalize(delta)),0.0);
-  vec3 linearColor=base*(ambient+power*diffuse*vis/max(dot(delta,delta),0.4));
+  vec3 delta=directional>0.5?sunDirection:light-p;float diffuse=max(dot(n,normalize(delta)),0.0);
+  vec3 linearColor=base*(ambient+power*diffuse*vis/(directional>0.5?1.0:max(dot(delta,delta),0.4)));
   return pow(clamp(linearColor,0.0,1.0),vec3(1.0/2.2));
 }
 `

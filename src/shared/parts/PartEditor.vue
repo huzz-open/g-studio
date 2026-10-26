@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from '../i18n'
-import { normalSettings, NORMAL_RANGES, DEFAULT_NORMAL_SETTINGS } from '../types/normal-settings'
+import { normalSettings, NORMAL_RANGES } from '../types/normal-settings'
 import { clonePart, validatePart, TEMPLATE_IDS, type PartAsset } from './schema'
 import { partLibrary, savePart } from './library'
 import { partImageUrl, normalImageUrl, portablePart } from './images'
@@ -11,10 +11,12 @@ import { openPartInSlicer } from './slicer-bridge'
 import { createLatestTask } from '../utils/latest-task'
 import { downloadBlob } from '../utils/download'
 import { confirm } from '../components/confirm'
+import { partParameterDefaults } from './parameter-defaults'
 import { createPartPreview, fitPartPreview, changePartGeometry } from './preview-state'
 import SvgIcon from '../icons/SvgIcon.vue'
 import { addPartsToScene } from '../../modules/scene-lighting/store'
 import LightingViewport from '../../modules/scene-lighting/LightingViewport.vue'
+import LightSettings from '../../modules/scene-lighting/LightSettings.vue'
 import SidebarSection from '../components/editor-shell/SidebarSection.vue'
 import { SliderRow } from '../components/editor-shell/sidebar-atoms'
 import InlineSwitch from '../components/InlineSwitch.vue'
@@ -29,7 +31,9 @@ const geometryJson=ref(JSON.stringify(draft.value.geometry,null,2)),panel=ref<HT
 const dirty=computed(()=>JSON.stringify(draft.value)!==JSON.stringify(baseline.value))
 const conflict=computed(()=>partLibrary[props.asset.id]?.revision!==baseline.value.revision)
 const geometryChoice=computed(()=>draft.value.geometry.kind==='template'?'template:'+draft.value.geometry.template:draft.value.geometry.kind)
-const preview=reactive(createPartPreview(props.asset))
+const previewDefaults=createPartPreview(props.asset)
+const preview=reactive(clonePart(previewDefaults))
+const parameterDefaults=computed(()=>partParameterDefaults(draft.value))
 function framePreview(){
   const canvas=panel.value?.querySelector('.part-preview canvas')
   const rect=canvas?.getBoundingClientRect()
@@ -91,22 +95,22 @@ onUnmounted(()=>{normals.dispose();document.removeEventListener('keydown',captur
       <SidebarSection :title="t('parts.geometry')" :collapsible="false">
         <select :value="geometryChoice" :aria-label="t('parts.geometryType')" @change="chooseGeometry"><option value="silhouette">{{t('parts.silhouette')}}</option><option value="box">{{t('parts.box')}}</option><option value="cylinder">{{t('parts.cylinder')}}</option><option v-for="id in TEMPLATE_IDS" :key="id" :value="'template:'+id">{{t('sceneLight.'+id)}} · {{t('parts.template')}}</option><option v-if="draft.geometry.kind==='compound'" value="compound">{{t('parts.compound')}}</option></select>
         <InfoHint :label="t('parts.geometry')" :text="t(draft.geometry.kind==='silhouette'?'parts.silhouetteNote':'parts.geometryHint')"/>
-        <SliderRow v-for="(label,i) in ['parts.width','parts.height','parts.depth']" :key="label" v-model="draft.geometry.size[i]" :label="t(label)" :min="0.02" :max="8" :step="0.01" :precision="2"/>
+        <SliderRow v-for="(label,i) in ['parts.width','parts.height','parts.depth']" :key="label" v-model="draft.geometry.size[i]" :default-value="parameterDefaults.geometry.size[i]" :label="t(label)" :min="0.02" :max="8" :step="0.01" :precision="2"/>
         <details><summary>{{t('parts.geometryJson')}}</summary><textarea v-model="geometryJson" spellcheck="false" :aria-label="t('parts.geometryJson')"/><div class="button-row"><button @click="geometryJson=JSON.stringify(draft.geometry,null,2)">{{t('parts.readConfig')}}</button><button @click="applyGeometry">{{t('parts.applyConfig')}}</button></div></details>
       </SidebarSection>
       <SidebarSection :title="t('parts.alignment')">
-        <SliderRow v-model="draft.alignment.anchor[0]" :label="t('parts.anchorX')" :min="0" :max="1" :step="0.01" :precision="2"/><SliderRow v-model="draft.alignment.anchor[1]" :label="t('parts.anchorY')" :min="0" :max="1" :step="0.01" :precision="2"/>
-        <SliderRow v-model="draft.alignment.offset[0]" :label="t('parts.offsetX')" :min="-4" :max="4" :step="0.01" :precision="2"/><SliderRow v-model="draft.alignment.offset[1]" :label="t('parts.offsetY')" :min="-4" :max="4" :step="0.01" :precision="2"/>
-        <SliderRow v-model="draft.alignment.scale" :label="t('parts.imageScale')" :min="0.25" :max="3" :step="0.01" :precision="2"/>
+        <SliderRow v-model="draft.alignment.anchor[0]" :default-value="parameterDefaults.alignment.anchor[0]" :label="t('parts.anchorX')" :min="0" :max="1" :step="0.01" :precision="2"/><SliderRow v-model="draft.alignment.anchor[1]" :default-value="parameterDefaults.alignment.anchor[1]" :label="t('parts.anchorY')" :min="0" :max="1" :step="0.01" :precision="2"/>
+        <SliderRow v-model="draft.alignment.offset[0]" :default-value="0" :label="t('parts.offsetX')" :min="-4" :max="4" :step="0.01" :precision="2"/><SliderRow v-model="draft.alignment.offset[1]" :default-value="0" :label="t('parts.offsetY')" :min="-4" :max="4" :step="0.01" :precision="2"/>
+        <SliderRow v-model="draft.alignment.scale" :default-value="1" :label="t('parts.imageScale')" :min="0.25" :max="3" :step="0.01" :precision="2"/>
       </SidebarSection>
       <SidebarSection :title="t('normal.currentSprite')">
-        <SliderRow v-for="key in normalKeys" :key="key" v-model="draft.normal[key]" :label="t('normal.'+key)" :min="NORMAL_RANGES[key][0]" :max="NORMAL_RANGES[key][1]" :step="key==='alphaThreshold'?0.01:0.05" :precision="2"/>
+        <SliderRow v-for="key in normalKeys" :key="key" v-model="draft.normal[key]" :default-value="parameterDefaults.normal[key]" :label="t('normal.'+key)" :min="NORMAL_RANGES[key][0]" :max="NORMAL_RANGES[key][1]" :step="key==='alphaThreshold'?0.01:0.05" :precision="2"/>
         <label class="name-field">{{t('normal.format')}}<select v-model="draft.normal.normalFormat" :aria-label="t('normal.format')"><option value="opengl">OpenGL</option><option value="directx">DirectX</option></select></label><InlineSwitch v-model="draft.normal.invertX" :label="t('normal.invertX')" block/><InlineSwitch v-model="draft.normal.invertY" :label="t('normal.invertY')" block/>
-        <button class="wide" @click="draft.normal=normalSettings(DEFAULT_NORMAL_SETTINGS)">{{t('normal.reset')}}</button>
+        <button class="wide" @click="draft.normal=normalSettings(parameterDefaults.normal)">{{t('normal.reset')}}</button>
       </SidebarSection>
       <SidebarSection :title="t('parts.previewOnly')" :collapsible="false">
         <select v-model="preview.scene" :aria-label="t('sceneLight.environment')"><option value="open">{{t('sceneLight.open')}}</option><option value="corner">{{t('sceneLight.corner')}}</option></select>
-        <SliderRow v-model="preview.light[1]" :label="t('sceneLight.lightHeight')" :min="0.5" :max="8" :step="0.1" :precision="1"/><SliderRow v-model="preview.power" :label="t('sceneLight.power')" :min="0" :max="60" :step="1" :precision="0"/><SliderRow v-model="preview.ambient" :label="t('sceneLight.ambient')" :min="0" :max="1" :step="0.01" :precision="2"/><InlineSwitch v-model="preview.shadows" :label="t('sceneLight.shadows')" block/>
+        <LightSettings :state="preview" :defaults="previewDefaults"/>
       </SidebarSection>
     </fieldset></ScrollArea><main class="part-preview"><nav :aria-label="t('parts.previewMode')"><button v-for="v in (['original','normal','preview'] as const)" :key="v" :aria-pressed="view===v" :class="{active:view===v}" @click="view=v">{{t('parts.view.'+v)}}</button></nav>
       <div v-if="view!=='preview'" class="flat-preview"><img v-if="view==='original'" :src="partImageUrl(draft)" :alt="draft.name"/><img v-else-if="normalUrl" :src="normalUrl" :alt="t('normal.map')"/><span v-if="view==='normal'&&normalBusy" role="status">{{t('normal.generating')}}</span></div>

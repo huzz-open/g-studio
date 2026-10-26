@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useI18n } from '../../../shared/i18n'
+import ParameterReset from '../../../shared/components/ParameterReset.vue'
 import SvgIcon from '../../../shared/icons/SvgIcon.vue'
 import ImageCanvas from '../../../shared/components/ImageCanvas.vue'
 import type { DetectedSprite } from '../interfaces/sprite-detector'
@@ -16,12 +17,14 @@ const { t } = useI18n()
 
 const playing = ref(true)
 const frameIdx = ref(0)
-const fps = ref(8)
+const DEFAULT_FPS=8, DEFAULT_GROUP_COUNT=4
+const fps = ref(DEFAULT_FPS)
 const loop = ref(true)
 let timer: number | null = null
 
 const selectionMode = ref<SelectionMode>('by-row')
-const groupFrameCount = ref(4)
+const defaultGroupCount=computed(()=>Math.max(1,Math.min(DEFAULT_GROUP_COUNT,props.frames.length)))
+const groupFrameCount = ref(defaultGroupCount.value)
 const activeGroupIdx = ref(0)
 const showCountInput = ref(false)
 const countInputEl = ref<HTMLInputElement>()
@@ -209,6 +212,7 @@ scheduleNext()
           </div>
           <div v-if="showCountInput" class="count-popover" @click.stop>
             <label class="count-popover-label">{{ t('slicer.anim.frameCount') }}</label>
+            <ParameterReset :model-value="groupFrameCount" :default-value="defaultGroupCount" :label="t('slicer.anim.frameCount')" @mousedown.prevent @reset="groupFrameCount=defaultGroupCount"/>
             <input
               ref="countInputEl"
               type="number"
@@ -277,6 +281,7 @@ scheduleNext()
               <div class="anim-settings">
                 <div class="anim-setting-row">
                   <label class="anim-label">{{ t('slicer.anim.fps') }}</label>
+                  <ParameterReset :model-value="fps" :default-value="DEFAULT_FPS" :label="t('slicer.anim.fps')" @reset="fps=DEFAULT_FPS"/>
                   <input type="range" class="slider" v-model.number="fps" min="1" max="60" />
                   <input type="number" class="anim-num-input" v-model.number="fps" min="1" max="60" />
                 </div>

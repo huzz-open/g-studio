@@ -35,7 +35,7 @@ export function camera(settings: CameraSettings, aspect: number, target: Vec3 = 
   const eye = add(target, scale([Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)], settings.distance))
   const forward = normalize(sub(target, eye)), right = normalize(cross(forward, [0, 1, 0])), up = cross(right, forward)
   const half = settings.distance * 0.4, fov = 45 * Math.PI / 180
-  const projection = settings.projection === 'perspective' ? perspective(fov, aspect, 0.05, 40) : orthographic(half, aspect, 0.05, 40)
+  const projection = settings.projection === 'perspective' ? perspective(fov, aspect, 0.05, 40) : orthographic(half, aspect, 0.05, Math.max(40,settings.distance+40))
   const matrix = multiply(projection, lookAt(eye, target, [0, 1, 0]))
   return {
     matrix, eye,

@@ -18,11 +18,12 @@ import { partImageUrl, portablePart } from '../../shared/parts/images'
 import { openPartEditor } from '../../shared/parts/editor-session'
 import { useSceneTabs, initializeScene, newSceneTab, closeSceneTab, reopenSceneTab, renameSceneTab, closedScenes, emptyScene, addPartsToScene, removeSceneItem, sceneHistory, parseScene, sceneStorageError } from './store'
 import { partMovementLimits } from './part-geometry'
-import { createScene, type Preset } from './model'
+import { createScene, roomBounds, DEFAULT_ROOM, type Preset } from './model'
 import LightingViewport from './LightingViewport.vue'
+import LightSettings from './LightSettings.vue'
 
 const { t } = useI18n(), error = ref(''), busy = ref(false), importInput = ref<HTMLInputElement>()
-const librarySelection = ref<string[]>([]), search = ref(''), leftCollapsed = ref(false)
+const search = ref(''), leftCollapsed = ref(false)
 const manager = useSceneTabs(), fallback = emptyScene()
 const history = computed(()=>manager.activeInstance.value ? sceneHistory(manager.activeInstance.value) : null)
 const state = computed(() => manager.activeInstance.value?.state ?? fallback)
@@ -30,19 +31,20 @@ const tabs = computed(() => manager.instances.value.map(doc => ({id: doc.id, lab
 const leftPanel = definePanelConfig('scene-lighting-sidebar-width', 300)
 const rightPanel = definePanelConfig('scene-lighting-properties-width', 260)
 const viewport = ref<InstanceType<typeof LightingViewport>>()
-function togglePart(id:string){librarySelection.value=librarySelection.value.includes(id)?librarySelection.value.filter(i=>i!==id):[...librarySelection.value,id]}
 function dropPart(part:PartAsset,x:number,y:number){const point=viewport.value?.dropPoint(x,y);if(point)void add([part],point)}
 const selected = computed(() => state.value.items.find(i => i.id === state.value.selected))
 const asset = computed(() => selected.value ? partLibrary[selected.value.assetId] : undefined)
-const limits = computed(() => partMovementLimits(asset.value, selected.value?.scale))
+const limits = computed(() => partMovementLimits(asset.value, selected.value?.scale,state.value.room))
 const assets = computed(() => [...new Set(state.value.items.map(i=>i.assetId))].map(id=>partLibrary[id]).filter((a): a is PartAsset => !!a))
 const library = computed(() => Object.values(partLibrary).filter(p => p.name.toLowerCase().includes(search.value.toLowerCase())).sort((a,b)=>a.name.localeCompare(b.name)))
+const bounds=computed(()=>roomBounds(state.value.room))
+const objectX=computed({get:()=>(selected.value?.x??bounds.value.minX)-bounds.value.minX,set:v=>{if(selected.value)selected.value.x=v+bounds.value.minX}})
+const objectZ=computed({get:()=>(selected.value?.z??bounds.value.minZ)-bounds.value.minZ,set:v=>{if(selected.value)selected.value.z=v+bounds.value.minZ}})
 const missing = computed(() => state.value.items.filter(i=>!partLibrary[i.assetId]))
 function edit(id?: string) { if(id && partLibrary[id]) openPartEditor({assetId:id,origin:'scene'}) }
 function revealItems(){history.value?.batch(()=>state.value.items.forEach(item=>{item.visible=true}))}
 function changeScene(value:string){if(value==='open'||value==='corner')state.value.scene=value}
-function addSelected(){void add(librarySelection.value.map(id=>partLibrary[id]).filter(Boolean))}
-async function add(parts: PartAsset[], point?: {x:number;z:number}) { error.value='';try { await addPartsToScene(parts,manager.activeTabId.value??undefined,point);librarySelection.value=[] } catch(e){error.value=String(e)} }
+async function add(parts: PartAsset[], point?: {x:number;z:number}) { error.value='';try { await addPartsToScene(parts,manager.activeTabId.value??undefined,point) } catch(e){error.value=String(e)} }
 async function preset(id: Preset) { await newSceneTab(t('sceneLight.'+id), createScene(id)) }
 async function newTab() { await newSceneTab() }
 async function renameTab(id: string) {
@@ -72,7 +74,7 @@ async function importAssetFile(file: File, newTab: boolean) {
       next.items.forEach(i=>{i.assetId=map.get(i.assetId)??i.assetId})
       if(newTab||!target)await newSceneTab(typeof json.name==='string'?json.name:file.name.replace(/\.json$/i,''),next)
       else {sceneHistory(target).batch(()=>{target.state=next})}
-    }else { const saved=await importPart(json);const doc=newTab?await newSceneTab(saved.name):target;await addPartsToScene([saved],doc?.id) }
+    }else { const saved=await importPart(json);if(newTab){const doc=await newSceneTab(saved.name);await addPartsToScene([saved],doc.id)} }
   }catch(e){error.value=String(e)}finally{busy.value=false}
 }
 onMounted(async()=>{try{await initializeScene()}catch(e){error.value=String(e)}})
@@ -87,6 +89,10 @@ onMounted(async()=>{try{await initializeScene()}catch(e){error.value=String(e)}}
       <SidebarSection title="" :collapsible="false">
         <SegmentedControl :label="t('sceneLight.environment')" :model-value="state.scene" :options="[{value:'open',label:t('sceneLight.open')},{value:'corner',label:t('sceneLight.corner')}]" role="group" :aria-label="t('sceneLight.environment')" @update:model-value="changeScene" />
 
+        <SliderRow v-model="state.room.width" :default-value="DEFAULT_ROOM.width" :label="t('sceneLight.roomWidth')" :min="2" :max="24" :step="0.1" :precision="1"/>
+        <SliderRow v-model="state.room.depth" :default-value="DEFAULT_ROOM.depth" :label="t('sceneLight.roomDepth')" :min="2" :max="24" :step="0.1" :precision="1"/>
+        <SliderRow v-if="state.scene==='corner'" v-model="state.room.height" :default-value="DEFAULT_ROOM.height" :label="t('sceneLight.wallHeight')" :min="0.5" :max="12" :step="0.1" :precision="1"/>
+
       </SidebarSection>
       <SidebarSection title="" :collapsible="false">
         <div class="view-controls"><SceneViewControls :state="state"/><InlineSwitch v-model="state.showNames" :label="t('sceneLight.showNames')" block/></div>
@@ -94,15 +100,12 @@ onMounted(async()=>{try{await initializeScene()}catch(e){error.value=String(e)}}
       </SidebarSection>
       <SidebarSection :title="t('parts.library')" :collapsible="false">
         <input class="search" v-model="search" :placeholder="t('parts.search')" :aria-label="t('parts.search')"/>
-        <ScrollArea class="library-scroll" :style="{height:Math.min(Math.ceil(library.length/3)*96,320)+'px'}" :label="t('parts.library')"><PartPalette :parts="library" :selected="librarySelection" @select="togglePart" @edit="edit" @add="add([$event])" @drop="dropPart"/></ScrollArea>
+        <ScrollArea class="library-scroll" :label="t('parts.library')"><PartPalette :parts="library" :disabled="busy" @edit="edit" @add="add([$event])" @drop="dropPart" @import="importInput?.click()"/></ScrollArea>
         <p v-if="!library.length" class="note">{{t('parts.noMatches')}}</p>
-        <button class="wide primary" :disabled="!librarySelection.length||busy" @click="addSelected">{{t('parts.addSelected',{count:librarySelection.length})}}</button>
-        <button class="wide" :disabled="busy" @click="importInput?.click()">{{t('parts.import')}}</button><input ref="importInput" hidden type="file" accept=".json,application/json" @change="importFile"/>
+        <input ref="importInput" hidden type="file" accept=".json,application/json" @change="importFile"/>
       </SidebarSection>
-      <SidebarSection :title="t('sceneLight.light')" :collapsible="false">
-        <SliderRow v-model="state.light[0]" :label="t('sceneLight.lightX')" :min="-5" :max="5" :step="0.01" :precision="2"/><SliderRow v-model="state.light[2]" :label="t('sceneLight.lightZ')" :min="-3.5" :max="5" :step="0.01" :precision="2"/><SliderRow v-model="state.light[1]" :label="t('sceneLight.lightHeight')" :min="0.5" :max="8" :step="0.1" :precision="1"/>
-        <SliderRow v-model="state.power" :label="t('sceneLight.power')" :min="0" :max="60" :step="1" :precision="0"/><SliderRow v-model="state.ambient" :label="t('sceneLight.ambient')" :min="0" :max="1" :step="0.01" :precision="2"/>
-        <InlineSwitch v-model="state.shadows" :label="t('sceneLight.shadows')" block/><InlineSwitch v-model="state.filtered" :label="t('sceneLight.filter')" block/>
+      <SidebarSection :title="t('sceneLight.lighting')" :collapsible="false">
+        <LightSettings :state="state"/>
       </SidebarSection>
       <div class="lighting-info"><button class="wide" :disabled="busy" @click="exportScene">{{t('parts.exportScene')}}</button></div>
     </ScrollArea></template>
@@ -111,9 +114,9 @@ onMounted(async()=>{try{await initializeScene()}catch(e){error.value=String(e)}}
       <SidebarSection v-if="selected" :key="selected.id" :title="asset?.name??t('parts.missing')" :collapsible="false">
         <img v-if="asset" class="property-image" :src="partImageUrl(asset)" alt=""/><div class="row"><button class="primary" :disabled="!asset" @click="edit(selected.assetId)">{{t('parts.edit')}}</button><button @click="removeSceneItem(selected.id)">{{t('parts.removeInstance')}}</button></div>
 
-        <SliderRow v-model="selected.x" :label="t('sceneLight.objectX')" :min="limits.minX" :max="limits.maxX" :step="0.01" :precision="2" />
-        <SliderRow v-model="selected.z" :label="t('sceneLight.objectZ')" :min="limits.minZ" :max="limits.maxZ" :step="0.01" :precision="2" />
-        <SliderRow v-model="selected.scale" :label="t('parts.instanceScale')" :min="0.2" :max="3" :step="0.05" :precision="2" />
+        <SliderRow v-model="objectX" :default-value="state.room.width/2" :label="t('sceneLight.positionX')" :min="limits.minX-bounds.minX" :max="limits.maxX-bounds.minX" :step="0.01" :precision="2" />
+        <SliderRow v-model="objectZ" :default-value="state.room.depth/2" :label="t('sceneLight.positionZ')" :min="limits.minZ-bounds.minZ" :max="limits.maxZ-bounds.minZ" :step="0.01" :precision="2" />
+        <SliderRow v-model="selected.scale" :default-value="1" :label="t('parts.instanceScale')" :min="0.2" :max="3" :step="0.05" :precision="2" />
         <InlineSwitch v-model="selected.visible" :label="t('sceneLight.visible')" block/><InlineSwitch v-model="selected.casts" :label="t('sceneLight.casts')" block/><InlineSwitch v-model="selected.receives" :label="t('sceneLight.receives')" block/>
       </SidebarSection>
       <p v-if="missing.length" class="error">{{t('parts.missingHelp')}}</p>
@@ -122,5 +125,5 @@ onMounted(async()=>{try{await initializeScene()}catch(e){error.value=String(e)}}
   </EditorShell>
 </template>
 <style scoped>
-.lighting-sidebar{background:#202020;color:#ccc}.row{display:flex;gap:6px;margin:8px 0}.row>*{flex:1}button{font:inherit;color:inherit;cursor:pointer;background:#2c3430;border:1px solid #48514e;border-radius:5px;padding:7px;font-size:11px}button:disabled{opacity:.4;cursor:default}.primary{background:#355344;border-color:#688b75}.wide{width:100%;margin-top:8px}.library-scroll{flex:none;margin-top:8px}.view-controls{display:flex;flex-direction:column;gap:10px}.property-empty{padding:20px 12px;color:#888;font-size:12px;text-align:center}.property-image{display:block;width:100%;height:104px;object-fit:contain;image-rendering:pixelated;margin:10px 0}.search{width:100%;box-sizing:border-box;background:#292929;border:1px solid #444;color:#ddd;border-radius:4px;padding:7px;margin-top:8px}.lighting-info{padding:10px;border-top:1px solid #333}.note{font-size:11px;color:#888;margin:4px 0}.error{color:#eab2a5;font-size:11px;padding:9px;overflow-wrap:anywhere}.reopen-tab{width:28px;border:0;border-radius:0;background:none;color:#888;display:grid;place-items:center;padding:0}.reopen-tab:hover{background:#2d2d2d;color:#ddd}.viewport-undo{display:grid;place-items:center;padding:5px;background:none;border-color:transparent;color:#aaa}
+.lighting-sidebar{background:#202020;color:#ccc}.row{display:flex;gap:6px;margin:8px 0}.row>*{flex:1}button{font:inherit;color:inherit;cursor:pointer;background:#2c3430;border:1px solid #48514e;border-radius:5px;padding:7px;font-size:11px}button:disabled{opacity:.4;cursor:default}.primary{background:#355344;border-color:#688b75}.wide{width:100%;margin-top:8px}.library-scroll{flex:none;height:auto;max-height:300px;margin-top:6px}.library-scroll :deep(.scroll-viewport){height:auto;max-height:300px}.library-scroll :deep(.scroll-content){min-height:0}.view-controls{display:flex;flex-direction:column;gap:10px}.property-empty{padding:20px 12px;color:#888;font-size:12px;text-align:center}.property-image{display:block;width:100%;height:104px;object-fit:contain;image-rendering:pixelated;margin:10px 0}.search{width:100%;box-sizing:border-box;background:#292929;border:1px solid #444;color:#ddd;border-radius:4px;padding:7px;margin-top:8px}.lighting-info{padding:10px;border-top:1px solid #333}.note{font-size:11px;color:#888;margin:4px 0}.error{color:#eab2a5;font-size:11px;padding:9px;overflow-wrap:anywhere}.reopen-tab{width:28px;border:0;border-radius:0;background:none;color:#888;display:grid;place-items:center;padding:0}.reopen-tab:hover{background:#2d2d2d;color:#ddd}.viewport-undo{display:grid;place-items:center;padding:5px;background:none;border-color:transparent;color:#aaa}
 </style>

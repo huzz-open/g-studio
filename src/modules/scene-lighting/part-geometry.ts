@@ -1,5 +1,5 @@
 import { type PartAsset, type PartGeometry, type TemplateId, type Triple } from '../../shared/parts/schema'
-import { buildItem, meshBuilder, ROOM, spriteBounds, YAW, type Mesh } from './model'
+import { buildItem, meshBuilder, roomBounds, type RoomSize, spriteBounds, YAW, type Mesh } from './model'
 import { normalize, type Vec3 } from '../experiments/umbrella/math'
 
 export function meshExtents(mesh: Mesh) {
@@ -61,7 +61,8 @@ export function alignedBounds(part: PartAsset, mesh: Mesh) {
   const width = base.width * part.alignment.scale, height = base.height * part.alignment.scale
   return { width, height, left: -width * part.alignment.anchor[0] + part.alignment.offset[0], bottom: -height * (1 - part.alignment.anchor[1]) + part.alignment.offset[1] }
 }
-export function partMovementLimits(part: PartAsset | undefined, scale = 1) {
+export function partMovementLimits(part: PartAsset | undefined, scale = 1, room?: RoomSize) {
+  const ROOM=roomBounds(room)
   let width=part?.geometry.size[0]??1,depth=part?.geometry.size[2]??1
   if(part?.geometry.kind==='silhouette'){const angle=YAW*Math.PI/180;[width,depth]=[width*Math.cos(angle)+depth*Math.sin(angle),width*Math.sin(angle)+depth*Math.cos(angle)]}
   const w = Math.min(ROOM.maxX - ROOM.minX - .1, width * scale)

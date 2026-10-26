@@ -7,7 +7,12 @@ export type SceneKind = 'open' | 'corner'
 export type DisplayMode = 'sprites' | 'geometry' | 'visibility'
 export type Preset = 'spread' | 'wall' | 'mutual'
 export type SceneItem = PartInstance
+export interface RoomSize { width: number; depth: number; height: number }
+export interface SunLight { azimuth: number; elevation: number; intensity: number }
+export const DEFAULT_ROOM: RoomSize = {width:11,depth:9,height:4.8}
+export function roomBounds(size:RoomSize=DEFAULT_ROOM){return {minX:-5.5,maxX:-5.5+size.width,minZ:-4,maxZ:-4+size.depth,height:size.height}}
 export interface SceneState {
+  room: RoomSize; lightKind:'point'|'directional'; sun: SunLight
   scene: SceneKind; mode: DisplayMode; selected: string; tool: 'objects' | 'light'
   items: SceneItem[]; light: Vec3; ambient: number; power: number
   showNames: boolean; shadows: boolean; filtered: boolean; zoom: number
@@ -34,6 +39,7 @@ export function createScene(preset: Preset = 'spread'): SceneState {
     mutual: [[-1.4, 0], [3, -1.1], [1.1, 1.1], [-0.55, -0.35], [1.2, -0.5], [-2.9, 1.5]],
   }
   return {
+    room:{...DEFAULT_ROOM}, lightKind:'point', sun:{azimuth:45,elevation:45,intensity:1.2},
     scene: preset === 'wall' ? 'corner' : 'open', mode: 'sprites', selected: preset === 'mutual' ? 'vase' : 'umbrella', tool: 'objects',
     items: DEFINITIONS.map((d, i) => ({ id: d.id, assetId: `example:${d.id}`, scale: 1, x: positions[preset][i][0], z: positions[preset][i][1], visible: true, casts: true, receives: true })),
     light: preset === 'wall' ? [1.5, 3.5, 3.6] : preset === 'mutual' ? [-2.2, 5.5, 2.4] : [-2.8, 5, 2.5],
@@ -119,8 +125,8 @@ export function buildItem(id: ItemId): Mesh {
   return b.build()
 }
 
-export function buildRoom(kind: SceneKind) {
-  const b = meshBuilder(), { minX: x, maxX: X, minZ: z, maxZ: Z, height: h } = ROOM
+export function buildRoom(kind: SceneKind, size: RoomSize = DEFAULT_ROOM) {
+  const b = meshBuilder(), { minX: x, maxX: X, minZ: z, maxZ: Z, height: h } = roomBounds(size)
   b.quad([x, 0, z], [x, 0, Z], [X, 0, Z], [X, 0, z], [.43, .45, .43])
   if (kind === 'corner') {
     b.quad([x, 0, z], [X, 0, z], [X, h, z], [x, h, z], [.65, .63, .55])

@@ -1,11 +1,12 @@
+import { directionalShadowCamera, sunDirection } from './lighting-math'
 import { add, camera, dot, lookAt, multiply, normalize, perspective, sub, transform, type Mat4, type Vec3 } from '../experiments/umbrella/math'
-import { buildRoom, FORWARD, PITCH, RIGHT, ROOM, UP, YAW, type Mesh, type SceneState, type SpriteBounds } from './model'
+import { buildRoom, FORWARD, PITCH, RIGHT, roomBounds, UP, YAW, type Mesh, type SceneState, type SpriteBounds } from './model'
 import { buildPartGeometry, alignedBounds } from './part-geometry'
 import { clonePart, partRenderKey, type PartAsset } from '../../shared/parts/schema'
 import { partPixels, normalImageUrl, loadImage } from '../../shared/parts/images'
 import { depthFragment, fieldFragment, fieldVertex, meshVertex, spriteFragment, spriteVertex, surfaceFragment } from './shaders'
 
-const FAR = 40, MAP_SIZE = 1024
+const FAR = 64, MAP_SIZE = 1024
 const DIRECTIONS: Vec3[] = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]
 const UPS: Vec3[] = [[0, -1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1], [0, -1, 0], [0, -1, 0]]
 export function sceneCamera(state: SceneState, aspect: number) {
@@ -53,7 +54,13 @@ export function createSceneRenderer(canvas: HTMLCanvasElement) {
     for (let i = 0; i < 3; i++) { gl!.enableVertexAttribArray(i); gl!.vertexAttribPointer(i, 3, gl!.FLOAT, false, 36, i * 12) }
     return { mesh, vao, buffer: vertexBuffer, count: mesh.vertices.length / 9 }
   }
-  const rooms = { open: meshBuffer(buildRoom('open')), corner: meshBuffer(buildRoom('corner')) }
+  let room:GpuMesh|undefined, roomKey=''
+  function updateRoom(state:SceneState){
+    const key=JSON.stringify([state.scene,state.room]);if(key===roomKey)return
+    const next=meshBuffer(buildRoom(state.scene,state.room))
+    if(room){gl!.deleteBuffer(room.buffer);buffers.splice(buffers.indexOf(room.buffer),1);gl!.deleteVertexArray(room.vao);vaos.splice(vaos.indexOf(room.vao),1)}
+    room=next;roomKey=key;shadowKey=''
+  }
   const quadVao = gl.createVertexArray()!; vaos.push(quadVao); gl.bindVertexArray(quadVao)
   buffer(new Float32Array([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1])); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
   function texture(width: number, height: number, image?: HTMLImageElement) {
@@ -65,6 +72,7 @@ export function createSceneRenderer(canvas: HTMLCanvasElement) {
     gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_S, gl!.CLAMP_TO_EDGE); gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_T, gl!.CLAMP_TO_EDGE)
     return t
   }
+  const sunMap=texture(MAP_SIZE,MAP_SIZE)
   const cube = gl.createTexture()!; textures.push(cube); gl.bindTexture(gl.TEXTURE_CUBE_MAP, cube)
   for (let i = 0; i < 6; i++) gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, gl.RGBA, MAP_SIZE, MAP_SIZE, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
   for (const key of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_CUBE_MAP, key, gl.NEAREST)
@@ -76,6 +84,7 @@ export function createSceneRenderer(canvas: HTMLCanvasElement) {
   const fieldFbo = gl.createFramebuffer()!, fieldDepth = gl.createRenderbuffer()!
   const assets = new Map<string, SpriteAsset>()
   const lightProjection = perspective(Math.PI / 2, 1, .03, FAR)
+  let sunMatrix:Mat4=new Float32Array(16)
   let lightMatrices: Mat4[] = [], shadowKey = '', lastState: SceneState | undefined
   function status() { if (gl!.checkFramebufferStatus(gl!.FRAMEBUFFER) !== gl!.FRAMEBUFFER_COMPLETE) throw new Error('Lighting framebuffer is unavailable') }
   function basis(p: WebGLProgram, bounds: SpriteBounds) {
@@ -157,23 +166,27 @@ export function createSceneRenderer(canvas: HTMLCanvasElement) {
     gl!.drawArrays(gl!.TRIANGLES, 0, mesh.count)
   }
   function updateShadow(state: SceneState) {
-    const key = JSON.stringify([state.scene, state.light, state.items.map(i => [i.id, i.assetId, i.scale, i.x, i.z, i.visible, i.casts]), assets.size])
+    const key = JSON.stringify([state.scene, state.room,state.lightKind,state.sun.azimuth,state.sun.elevation,state.light, state.items.map(i => [i.id, i.assetId, i.scale, i.x, i.z, i.visible, i.casts]), assets.size])
     if (key === shadowKey) return
     gl!.bindFramebuffer(gl!.FRAMEBUFFER, shadowFbo); gl!.drawBuffers([gl!.COLOR_ATTACHMENT0]); gl!.viewport(0, 0, MAP_SIZE, MAP_SIZE)
     gl!.enable(gl!.DEPTH_TEST); gl!.depthFunc(gl!.LESS); gl!.disable(gl!.CULL_FACE); gl!.disable(gl!.BLEND); gl!.disable(gl!.DITHER)
-    gl!.useProgram(depthProgram); gl!.uniform3fv(u(depthProgram, 'light'), state.light); gl!.uniform1f(u(depthProgram, 'farPlane'), FAR)
-    lightMatrices = DIRECTIONS.map((dir, i) => multiply(lightProjection, lookAt(state.light, add(state.light, dir), UPS[i])))
-    for (let face = 0; face < 6; face++) {
-      gl!.framebufferTexture2D(gl!.FRAMEBUFFER, gl!.COLOR_ATTACHMENT0, gl!.TEXTURE_CUBE_MAP_POSITIVE_X + face, cube, 0); status()
+    const directional=state.lightKind==='directional'
+    gl!.useProgram(depthProgram); gl!.uniform1f(u(depthProgram,'directional'),+directional); gl!.uniform3fv(u(depthProgram, 'light'), state.light); gl!.uniform1f(u(depthProgram, 'farPlane'), FAR)
+    if(directional){sunMatrix=directionalShadowCamera(state).matrix;lightMatrices=[sunMatrix]}
+    else lightMatrices = DIRECTIONS.map((dir, i) => multiply(lightProjection, lookAt(state.light, add(state.light, dir), UPS[i])))
+    for (let face = 0; face < lightMatrices.length; face++) {
+      gl!.framebufferTexture2D(gl!.FRAMEBUFFER, gl!.COLOR_ATTACHMENT0, directional?gl!.TEXTURE_2D:gl!.TEXTURE_CUBE_MAP_POSITIVE_X + face, directional?sunMap:cube, 0); status()
       gl!.clearColor(1, 1, 1, 0); gl!.clearDepth(1); gl!.clear(gl!.COLOR_BUFFER_BIT | gl!.DEPTH_BUFFER_BIT)
-      gl!.uniformMatrix4fv(u(depthProgram, 'matrix'), false, lightMatrices[face]); drawMesh(rooms[state.scene], depthProgram, [0, 0, 0], 1)
+      gl!.uniformMatrix4fv(u(depthProgram, 'matrix'), false, lightMatrices[face]); drawMesh(room!, depthProgram, [0, 0, 0], 1)
       state.items.forEach((item, i) => { const a = assets.get(item.assetId); if (a && item.visible && item.casts) drawMesh(a, depthProgram, [item.x, 0, item.z], i + 2, item.scale) })
     }
     shadowKey = key
   }
   function lighting(p: WebGLProgram, state: SceneState, matrix: Mat4) {
     gl!.useProgram(p); gl!.uniformMatrix4fv(u(p, 'matrix'), false, matrix); gl!.uniform3fv(u(p, 'light'), state.light)
-    for (const [key, value] of Object.entries({ farPlane: FAR, filtered: +state.filtered, shadows: +state.shadows, ambient: state.ambient, power: state.power, visibilityOnly: +(state.mode === 'visibility') })) gl!.uniform1f(u(p, key), value)
+    for (const [key, value] of Object.entries({ farPlane: FAR, filtered: +state.filtered, shadows: +state.shadows, ambient: state.ambient, power: state.lightKind==='directional'?state.sun.intensity:state.power, directional:+(state.lightKind==='directional'), visibilityOnly: +(state.mode === 'visibility') })) gl!.uniform1f(u(p, key), value)
+    gl!.uniform3fv(u(p,'sunDirection'),sunDirection(state));gl!.uniformMatrix4fv(u(p,'sunMatrix'),false,sunMatrix)
+    gl!.activeTexture(gl!.TEXTURE5);gl!.bindTexture(gl!.TEXTURE_2D,sunMap);gl!.uniform1i(u(p,'sunShadowMap'),5)
     gl!.activeTexture(gl!.TEXTURE0); gl!.bindTexture(gl!.TEXTURE_CUBE_MAP, cube); gl!.uniform1i(u(p, 'shadowMap'), 0)
   }
   function render(state: SceneState) {
@@ -182,12 +195,12 @@ export function createSceneRenderer(canvas: HTMLCanvasElement) {
     const rect = canvas.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 1.5)
     const width = Math.max(1, Math.round(rect.width * dpr)), height = Math.max(1, Math.round(rect.height * dpr))
     if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height }
-    updateShadow(state)
+    updateRoom(state); updateShadow(state)
     gl!.bindFramebuffer(gl!.FRAMEBUFFER, null); gl!.viewport(0, 0, width, height); gl!.clearColor(.065, .075, .08, 1)
     gl!.clearDepth(1); gl!.clear(gl!.COLOR_BUFFER_BIT | gl!.DEPTH_BUFFER_BIT); gl!.enable(gl!.DEPTH_TEST); gl!.enable(gl!.DITHER)
     const view = sceneCamera(state, width / height)
     lighting(surfaceProgram, state, view.matrix); gl!.uniform1f(u(surfaceProgram, 'receives'), 1); gl!.uniform1f(u(surfaceProgram, 'room'), 1)
-    drawMesh(rooms[state.scene], surfaceProgram, [0, 0, 0], 1); gl!.uniform1f(u(surfaceProgram, 'room'), 0)
+    drawMesh(room!, surfaceProgram, [0, 0, 0], 1); gl!.uniform1f(u(surfaceProgram, 'room'), 0)
     if (state.mode !== 'sprites') {
       state.items.forEach((item, i) => { const asset = assets.get(item.assetId); if (asset && item.visible) { gl!.uniform1f(u(surfaceProgram, 'receives'), +item.receives); drawMesh(asset, surfaceProgram, [item.x, 0, item.z], i + 2, item.scale) } })
     } else {
@@ -230,8 +243,9 @@ export function createSceneRenderer(canvas: HTMLCanvasElement) {
     render(state)
     const faces: Uint8Array[] = []
     gl!.bindFramebuffer(gl!.FRAMEBUFFER, shadowFbo); gl!.readBuffer(gl!.COLOR_ATTACHMENT0)
-    for (let i = 0; i < 6; i++) {
-      gl!.framebufferTexture2D(gl!.FRAMEBUFFER, gl!.COLOR_ATTACHMENT0, gl!.TEXTURE_CUBE_MAP_POSITIVE_X + i, cube, 0)
+    const directional=state.lightKind==='directional',ROOM=roomBounds(state.room)
+    for (let i = 0; i < (directional?1:6); i++) {
+      gl!.framebufferTexture2D(gl!.FRAMEBUFFER, gl!.COLOR_ATTACHMENT0, directional?gl!.TEXTURE_2D:gl!.TEXTURE_CUBE_MAP_POSITIVE_X + i, directional?sunMap:cube, 0)
       const bytes = new Uint8Array(MAP_SIZE * MAP_SIZE * 4); gl!.readPixels(0, 0, MAP_SIZE, MAP_SIZE, gl!.RGBA, gl!.UNSIGNED_BYTE, bytes); faces.push(bytes)
     }
     const result: ReceiverReport = { ground: 0, walls: 0, objects: [], samples: 0 }
@@ -239,14 +253,15 @@ export function createSceneRenderer(canvas: HTMLCanvasElement) {
       result.samples++
       if (!state.shadows) return false
       const delta = sub(point, state.light), distance = Math.hypot(...delta)
-      const diffuse = dot(normal, normalize(sub(state.light, point)))
+      const diffuse = dot(normal, directional?sunDirection(state):normalize(sub(state.light, point)))
       if (diffuse <= 0) return false // Do not count surfaces that already face away from the light.
       const axis = Math.abs(delta[0]) >= Math.abs(delta[1]) && Math.abs(delta[0]) >= Math.abs(delta[2]) ? 0 : Math.abs(delta[1]) >= Math.abs(delta[2]) ? 1 : 2
-      const face = axis * 2 + +(delta[axis] < 0), clip = transform(lightMatrices[face], point)
+      const face = directional?0:axis * 2 + +(delta[axis] < 0), clip = transform(lightMatrices[face], point)
       const x = Math.min(MAP_SIZE - 1, Math.max(0, Math.floor((clip[0] / clip[3] * .5 + .5) * MAP_SIZE)))
       const y = Math.min(MAP_SIZE - 1, Math.max(0, Math.floor((clip[1] / clip[3] * .5 + .5) * MAP_SIZE)))
       const i = (y * MAP_SIZE + x) * 4, bytes = faces[face], id = bytes[i + 3]
       if (!id || id === ownId) return false
+      if(directional){const q=clip[2]/clip[3]*.5+.5,stored=bytes[i]/255+bytes[i+1]/65025+bytes[i+2]/16581375;const cosine=Math.max(diffuse,.2),slope=Math.sqrt(Math.max(0,1-cosine*cosine))/cosine;return q-Math.max(.0001,(state.filtered?.0013:.0007)*slope)>stored}
       const depth = (bytes[i] / 255 + bytes[i + 1] / 65025 + bytes[i + 2] / 16581375) * FAR
       const cosine = Math.max(diffuse, .2), slope = Math.sqrt(Math.max(0, 1 - cosine * cosine)) / cosine
       return distance - Math.max(.006, distance * 2 / MAP_SIZE * (state.filtered ? 1.8 : .8) * slope) > depth

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ParameterReset from '../../ParameterReset.vue'
+import { parameterValuesEqual } from '../../../utils/parameter-values'
 import { useId } from 'vue'
 const inputId = useId()
 import { computed } from 'vue'
@@ -34,7 +35,7 @@ const displayVal = computed(() =>
 <template>
   <div class="slider-row" :class="{ disabled, resettable: defaultValue !== undefined }">
     <label :for="inputId" class="slider-label">{{ label }}</label>
-    <ParameterReset v-if="defaultValue !== undefined" :model-value="modelValue" :default-value="defaultValue" :label="label" :disabled="disabled" @reset="emit('update:modelValue', defaultValue!); emit('commit', defaultValue!)" />
+    <ParameterReset v-if="defaultValue !== undefined" :changed="!parameterValuesEqual(modelValue, defaultValue)" :default-value="precision === undefined ? defaultValue : Number(defaultValue.toFixed(precision))" :label="label" :disabled="disabled" @reset="emit('update:modelValue', defaultValue!); emit('commit', defaultValue!)" />
     <input :id="inputId"
       type="range"
       class="slider-input"
@@ -94,6 +95,6 @@ const displayVal = computed(() =>
 .slider-input:focus-visible { outline: 2px solid #8ab4f8; outline-offset: 5px; }
 .slider-row { min-height: 28px; }
 .slider-value { min-width: 42px; }
-.slider-row.resettable { grid-template-columns: 64px 22px minmax(0, 1fr) 36px; gap: 5px; }
+.slider-row.resettable { grid-template-columns: 72px 22px minmax(0, 1fr) 36px; gap: 5px; }
 .slider-row.resettable .slider-value { min-width: 36px; }
 </style>

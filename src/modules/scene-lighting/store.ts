@@ -1,10 +1,12 @@
+import { parseScene } from './scene-state'
+export { parseScene } from './scene-state'
 import { createObservedHistory } from '../../shared/history/createObservedHistory'
 import { reactive, ref, watch, type Ref } from 'vue'
 import { useEditorTabs, type UseEditorTabsReturn } from '../../shared/components/editor-shell/useEditorTabs'
 import { translate } from '../../shared/i18n'
 import { partMovementLimits } from './part-geometry'
-import { createScene, type Preset, type SceneState } from './model'
-import { clonePart, MAX_SCENE_ITEMS, validateInstances, type PartAsset } from '../../shared/parts/schema'
+import { createScene, DEFAULT_ROOM, type Preset, type SceneState } from './model'
+import { clonePart, MAX_SCENE_ITEMS, type PartAsset } from '../../shared/parts/schema'
 import { loadPartLibrary, partLibrary } from '../../shared/parts/library'
 
 export interface SceneDocument { id: string; name: string; state: SceneState }
@@ -36,28 +38,15 @@ export const closedScenes: Ref<SavedScene[]> = hot?.closedScenes ?? ref([])
 export const sceneStorageError: Ref<string> = hot?.sceneStorageError ?? ref('')
 let initialized = !!hot?.tabs && !!hot?.initialized
 let initializing: Promise<void> | undefined
-export function useSceneTabs() { return tabs }
+export function useSceneTabs() {
+  for(const doc of tabs.instances.value){if(!doc.state.room)doc.state.room={...DEFAULT_ROOM};if(!doc.state.lightKind)doc.state.lightKind='point';if(!doc.state.sun)doc.state.sun={azimuth:45,elevation:45,intensity:1.2}}
+  return tabs
+}
 export function activeScene() { return tabs.activeInstance.value ?? tabs.createTab() }
 function snapshot(doc: SceneDocument): SavedScene { return { id: doc.id, name: doc.name, state: clonePart(doc.state) } }
 function restore(value: any): SceneDocument {
   if (!value || typeof value.id !== 'string' || !/^[a-zA-Z0-9:_-]{1,160}$/.test(value.id) || typeof value.name !== 'string' || !value.name.trim() || value.name.length > 120) throw new Error('Invalid scene tab')
   return reactive({ id: value.id, name: value.name === 'parts.sceneTab' ? translate('parts.sceneTab', {number: ++number}) : value.name, state: parseScene(value.state) })
-}
-export function parseScene(value: any): SceneState {
-  if (!value || !Array.isArray(value.items)) throw new Error('Invalid scene')
-  const migrated = clonePart(value)
-  migrated.items = migrated.items.map((item: any) => ({ ...item, assetId: item.assetId ?? `example:${item.id}`, scale: item.scale ?? 1 }))
-  validateInstances(migrated.items)
-  if (!['open', 'corner'].includes(migrated.scene) || !['sprites', 'geometry', 'visibility'].includes(migrated.mode)
-    || !['objects', 'light'].includes(migrated.tool) || typeof migrated.shadows !== 'boolean' || typeof migrated.filtered !== 'boolean'
-    || !Array.isArray(migrated.light) || migrated.light.length !== 3 || !migrated.light.every((v: number) => Number.isFinite(v))
-    || Math.abs(migrated.light[0]) > 5 || Math.abs(migrated.light[2]) > 5 || migrated.light[1] < .5 || migrated.light[1] > 8
-    || !Number.isFinite(migrated.zoom) || migrated.zoom < 4 || migrated.zoom > 20
-    || !Number.isFinite(migrated.ambient) || migrated.ambient < 0 || migrated.ambient > 1
-    || !Number.isFinite(migrated.power) || migrated.power < 0 || migrated.power > 60) throw new Error('Invalid scene settings')
-  const selected = migrated.items.some((i: any) => i.id === migrated.selected) ? migrated.selected : migrated.items[0]?.id ?? ''
-  return { showNames: migrated.showNames !== false, scene: migrated.scene, mode: migrated.mode, tool: migrated.tool, shadows: migrated.shadows, filtered: migrated.filtered,
-    light: migrated.light, zoom: migrated.zoom, ambient: migrated.ambient, power: migrated.power, items: migrated.items, selected }
 }
 
 export function initializeScene(): Promise<void> {
@@ -132,7 +121,7 @@ export async function addPartsToScene(parts: PartAsset[], targetId?: string, poi
   const start = state.items.length
   parts.forEach((part, index) => {
     const slot = start + index, id = crypto.randomUUID()
-    const bounds=partMovementLimits(part,1)
+    const bounds=partMovementLimits(part,1,state.room)
     const x=point?.x ?? (slot % 3 - 1)*2.7, z=point?.z ?? -1.5+(Math.floor(slot/3)%3)*2.3
     state.items.push({ id, assetId: part.id, x:Math.max(bounds.minX,Math.min(bounds.maxX,x)), z:Math.max(bounds.minZ,Math.min(bounds.maxZ,z)),
       scale: 1, visible: true, casts: true, receives: true })

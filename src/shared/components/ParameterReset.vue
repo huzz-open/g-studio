@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from '../i18n'
+import { parameterValuesEqual } from '../utils/parameter-values'
 const props = withDefaults(defineProps<{ changed?: boolean; modelValue?: string | number | boolean; label: string; defaultValue: string | number | boolean; disabled?: boolean }>(), { changed: undefined })
-const isChanged = computed(() => props.changed ?? !Object.is(props.modelValue, props.defaultValue))
+const isChanged = computed(() => props.changed ?? !parameterValuesEqual(props.modelValue, props.defaultValue))
 const defaultLabel = computed(() => typeof props.defaultValue === 'boolean' ? t(props.defaultValue ? 'common.on' : 'common.off') : props.defaultValue)
 const emit = defineEmits<{ reset: [] }>()
 const { t } = useI18n()
