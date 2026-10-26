@@ -83,11 +83,13 @@ try {
       );
   }
   const python = await preparePython();
-  if (mode === "download")
-    await run(python, [join(root, "services/generation-python/download.py")], {
-      env: { ...process.env, GEN_HOME: home },
+  if (mode === "download") {
+    console.log("[generation] Preparing model files: download, resume and SHA256 verification");
+    await run(python, ["-u", join(root, "services/generation-python/download.py")], {
+      env: { ...process.env, GEN_HOME: home, PYTHONIOENCODING: "utf-8" },
     });
-  else if (mode === "doctor") {
+    console.log("[generation] Download preparation complete; model files are ready");
+  } else if (mode === "doctor") {
     await run(python, [join(root, "services/generation-python/device.py")]);
     console.log("Generation home:", home);
     try {

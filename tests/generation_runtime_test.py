@@ -91,6 +91,85 @@ class DeviceTests(unittest.TestCase):
 
 
 class DownloadTests(unittest.TestCase):
+    def test_progress_continues_during_blocked_reads_and_preserves_resume(self):
+        with (
+            tempfile.TemporaryDirectory(prefix="generation-progress-") as directory,
+            patch.dict(os.environ, {"GEN_HOME": directory, "GEN_IMPORT_CACHE": ""}),
+        ):
+            import config
+            importlib.reload(config)
+            import download
+            importlib.reload(download)
+            payload = b"progress fixture" * 100
+            offset = 71
+            item = {
+                "path": "weights/progress.bin", "size": len(payload),
+                "sha256": hashlib.sha256(payload).hexdigest(),
+                "urls": ["https://example.invalid/weights"],
+            }
+            target = Path(directory) / item["path"]
+            target.parent.mkdir()
+            target.with_suffix(".bin.part").write_bytes(payload[:offset])
+            connected = threading.Event()
+            receiving = threading.Event()
+            messages = []
+
+            def capture(message, **kwargs):
+                messages.append(message)
+                if "Connecting to" in message and ": running" in message:
+                    connected.set()
+                if "Downloading progress.bin: running" in message:
+                    receiving.set()
+
+            class Response(io.BytesIO):
+                status = 206
+                headers = {"Content-Range": f"bytes {offset}-{len(payload)-1}/{len(payload)}"}
+
+                def read(self, size):
+                    if not receiving.wait(2):
+                        raise AssertionError("No progress while network read is blocked")
+                    return super().read(size)
+
+            def fetch(request, **kwargs):
+                self.assertEqual(request.get_header("Range"), f"bytes={offset}-")
+                self.assertTrue(connected.wait(2), "No progress while connecting")
+                return Response(payload[offset:])
+
+            with (
+                patch.object(download, "PROGRESS_INTERVAL", 0.01),
+                patch("builtins.print", side_effect=capture),
+                patch("download.urllib.request.urlopen", side_effect=fetch) as network,
+            ):
+                download.download(item)
+            self.assertEqual(network.call_count, 1)
+            self.assertEqual(target.read_bytes(), payload)
+            self.assertTrue(any("waiting for data" in m for m in messages))
+            self.assertTrue(any("100.0%" in m and "ETA 0s" in m for m in messages))
+            self.assertTrue(any("SHA256 progress.bin.part: verified" in m for m in messages))
+
+    def test_progress_failure_stops_heartbeat_and_resume_speed_excludes_cached_bytes(self):
+        with (
+            tempfile.TemporaryDirectory(prefix="generation-progress-") as directory,
+            patch.dict(os.environ, {"GEN_HOME": directory}),
+        ):
+            import config
+            importlib.reload(config)
+            import download
+            importlib.reload(download)
+            output = io.StringIO()
+            with patch("sys.stdout", output):
+                with self.assertRaisesRegex(OSError, "read failed"):
+                    with download.Progress("network stage") as progress:
+                        raise OSError("read failed")
+                self.assertFalse(progress.thread.is_alive())
+                with patch.object(download.time, "monotonic", side_effect=[0, 1, 1]):
+                    progress = download.Progress("resume", 10 * 1024**2, 9 * 1024**2)
+                    progress.advance(1024**2)
+                    progress.report()
+            self.assertIn("network stage: failed", output.getvalue())
+            self.assertNotIn("network stage: complete", output.getvalue())
+            self.assertIn("1.00 MiB/s", output.getvalue())
+
     def test_modelscope_priority_and_checksum_fallback(self):
         with (
             tempfile.TemporaryDirectory(prefix="generation-mirror-") as directory,

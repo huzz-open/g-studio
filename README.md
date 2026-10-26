@@ -69,15 +69,28 @@ Open **Settings → Model generation → Connection settings → Direct API → 
 
 | Command | Purpose |
 | --- | --- |
+| `npm run dev` | Start both the local web app and AI generation service; use this for local use |
 | `npm run dev:web` | Web only, without Python/model setup |
-| `npm run generation:start` | Worker only, for an already deployed website |
+| `npm run generation:start` | Start only the AI generation service: prepare Python and models by default, then compute submitted jobs on this machine's GPU or CPU; does not start the web app |
 | `npm run generation:download` | Download and verify models in advance |
 | `npm run generation:doctor` | Check runtime and service connectivity |
-| `npm run relay:start` | Lightweight TS relay, with no inference runtime |
+| `npm run relay:start` | Start only the relay: transfer jobs, images and results between the website and generation service; does not download AI models or perform AI computation |
+
+**How do `generation:start` and `relay:start` differ?**
+
+`generation:start` launches the Python service that actually generates models, using the compute resources of the machine running it. `relay:start` launches a TypeScript (TS) service running on Node.js for device pairing, job forwarding and temporary transfer storage. “No AI on the relay” means that the connected generation service performs the computation. Running only the relay cannot generate AI models.
+
+Choose according to your setup:
+
+- **Web app and AI on your own computer:** run `npm run dev`. The browser connects directly to the local generation service; there is no need to run `relay:start` or a separate `generation:start`.
+- **Website already running or deployed, with only the AI service missing:** run `npm run generation:start` on the machine that will perform the computation, then configure Direct API in the website.
+- **Public website using your computer's compute through a relay:** run `npm run relay:start` on the server, run `npm run generation:start` with `--relay` on your computer, and complete the pairing steps below. Jobs travel from the website through the relay to your local AI service; results return along the same route.
+
+Relay mode requires both services to be online. The relay server needs no GPU, but the machine running the generation service still needs the models and performs the AI computation.
 
 The default cache/configuration directory is `~/.g-studio/generation`; override it with `GEN_HOME`. Failed downloads can resume. Configure `GEN_PORT` / `GEN_WEB_PORT` if ports are occupied. CPU inference takes minutes and needs several GB of available memory; lower extraction resolution, use remote compute, or keep silhouette mode on low-resource machines.
 
-To use local compute through a public relay:
+To use local compute through a public relay, first deploy the website and relay (`npm run relay:start`) on the server with HTTPS/WSS configured as described in the deployment guide below. Then run this on the user's computer that will perform AI computation:
 
 ```sh
 npm run generation:start -- --relay wss://your-domain/generation/worker --pair

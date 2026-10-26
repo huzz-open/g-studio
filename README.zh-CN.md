@@ -72,15 +72,28 @@ npm run dev
 
 | 命令 | 用途 |
 | --- | --- |
+| `npm run dev` | 同时启动本地网页和 AI 生成服务，本机使用选这个 |
 | `npm run dev:web` | 只启动网页，不准备 Python 或下载模型 |
-| `npm run generation:start` | 仅启动生成服务，供已部署的网页使用 |
+| `npm run generation:start` | 单独启动 AI 生成服务：默认准备 Python 和模型，收到生成任务后用这台机器的 GPU 或 CPU 计算；不启动网页 |
 | `npm run generation:download` | 提前下载并校验模型 |
 | `npm run generation:doctor` | 检查运行环境及服务连通性 |
-| `npm run relay:start` | 启动轻量 TS 中转后端，不运行 AI |
+| `npm run relay:start` | 单独启动中转服务：在网页与 AI 生成服务之间传递任务、图片和结果；不下载 AI 模型，也不执行 AI 计算 |
+
+**`generation:start` 和 `relay:start` 有什么区别？**
+
+`generation:start` 启动的是实际生成模型的 Python 服务，在哪台机器运行，就使用哪台机器的算力。`relay:start` 启动的是用 TypeScript（简称 TS）编写、由 Node.js 运行的中转服务，负责设备配对、转发任务和临时保存传输文件。“中转服务不运行 AI”是指 AI 计算由另一端的生成服务完成；只启动中转服务，无法生成 AI 模型。
+
+按使用场景选择：
+
+- **在自己电脑上使用网页和 AI：**运行 `npm run dev`，网页直接连接本机生成服务，无需运行 `relay:start`，也无需再单独运行 `generation:start`。
+- **网页已经启动或部署好了，只缺 AI 服务：**在负责计算的机器上运行 `npm run generation:start`，在网页中配置“直连接口”。
+- **通过公网中转，让在线网页使用自己电脑的算力：**服务器运行 `npm run relay:start`，自己电脑运行带 `--relay` 参数的 `npm run generation:start`，并完成下方的配对步骤。任务经过“网页 → 中转服务器 → 本机 AI 生成服务”，生成结果沿原路返回。
+
+中转模式需要两项服务都在线。中转服务器无需 GPU，但运行生成服务的机器仍需准备模型，并承担 AI 计算。
 
 模型、环境与临时任务默认位于用户目录 `~/.g-studio/generation`，可用 `GEN_HOME` 更改。下载失败可重试并续传。端口占用时，停止自己的旧实例或配置 `GEN_PORT` / `GEN_WEB_PORT`。内存不足时可降低网格分辨率、关闭其它高内存任务，或改用远程算力/轮廓近似。CPU 推理可能需要数分钟，不能保证所有机器相同速度。
 
-公网服务器无 GPU 时，可以只托管网页和 TS 中转；用户本机运行：
+使用公网中转时，先在服务器部署网页和中转服务（`npm run relay:start`，并配置 HTTPS/WSS，详见下方部署文档），再在承担 AI 计算的用户本机运行：
 
 ```bash
 npm run generation:start -- --relay wss://你的域名/generation/worker --pair
