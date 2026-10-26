@@ -11,7 +11,7 @@
     "test:compute": "node --test tests/latest-task.test.cjs",
     "test:shadows": "node --test tests/shadow-geometry.test.cjs",
     "test:scene-lighting": "node --test tests/scene-lighting.test.cjs",
-    "test:parts": "node --test tests/parts.test.cjs tests/sprite-assets.test.cjs",
+    "test:parts": "node --test tests/parts.test.cjs tests/sprite-assets.test.cjs tests/part-preview.test.cjs",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -31,16 +31,17 @@ function draw() {
     } catch (e) { error.value = String(e) }
   })
 }
-const updates = createLatestTask<PartAsset[], void>({
-  interval: 140, acceptIntermediate: true,
+const assetKey=(parts:PartAsset[])=>parts.map(p=>p.id+':'+partRenderKey(p)).join('\n')
+const updates = createLatestTask<PartAsset[], boolean>({
+  interval: 140,
   onBusy: value => { busy.value = value }, onError: e => { error.value = String(e) },
-  async run(parts) { await renderer!.syncAssets(parts) },
-  apply() { ready.value = true; error.value = ''; emit('coverage', renderer!.coverage()); draw() },
+  async run(parts) { const key=assetKey(parts); return renderer!.syncAssets(parts,()=>assetKey(props.assets)===key) },
+  apply(committed) { if(!committed)return; ready.value = true; error.value = ''; emit('coverage', renderer!.coverage()); draw() },
 })
 function refresh() { if (renderer) { error.value = ''; updates.request(props.assets.map(clonePart), true) } }
 // The editor passes a fresh [draft] array on render. Compare content, not array
 // identity, so publishing coverage cannot trigger an endless reload loop.
-watch(() => props.assets.map(p => p.id + ':' + partRenderKey(p)).join('\n'), () => { if (renderer) updates.request(props.assets.map(clonePart)); report.value = null })
+watch(() => assetKey(props.assets), () => { if (renderer) updates.request(props.assets.map(clonePart)); report.value = null })
 watch(() => props.state, () => { report.value = null; draw() }, { deep: true })
 function ground(event: {clientX:number;clientY:number}): Vec3 | null {
   const r = canvas.value!.getBoundingClientRect()
@@ -122,9 +123,9 @@ onUnmounted(() => { updates.dispose(); observer?.disconnect(); cancelAnimationFr
       <SceneViewControls :state="state"/>
       <span class="camera-angle" :title="t('sceneLight.fixed')">20°</span><slot name="actions"/><InfoHint :label="t('parts.previewHelp')" :text="t('parts.previewHelpText')"/>
     </div>
-    <div class="viewport-stage">
+    <div class="viewport-stage" :aria-busy="busy">
       <canvas ref="canvas" tabindex="0" :aria-label="t('sceneLight.canvas')" @pointerdown="start($event)" @pointermove="move" @pointerup="dragging=null" @pointercancel="dragging=null" @lostpointercapture="dragging=null" @dblclick="edit" @keydown="key" @contextmenu.prevent @wheel.prevent="state.zoom=Math.max(4,Math.min(20,state.zoom*($event.deltaY>0?1.06:1/1.06)))" />
-      <div v-if="busy" class="viewport-status" role="status">{{ t('common.updating') }}</div>
+      <div v-if="busy&&!ready" class="viewport-status" role="status">{{ t('common.updating') }}</div>
       <div v-if="error" class="viewport-error" role="alert">{{ error }} <button @click="refresh">{{ t('normal.retry') }}</button></div>
       <template v-if="ready&&!error">
         <svg class="light-guide" aria-hidden="true"><line :x1="lightFoot.x" :y1="lightFoot.y" :x2="lightMarker.x" :y2="lightMarker.y"/><circle :cx="lightFoot.x" :cy="lightFoot.y" r="5"/></svg>

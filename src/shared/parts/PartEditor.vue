@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from '../i18n'
 import { normalSettings, NORMAL_RANGES, DEFAULT_NORMAL_SETTINGS } from '../types/normal-settings'
-import { clonePart, validatePart, TEMPLATE_IDS, type PartAsset, type PartGeometry, type TemplateId } from './schema'
+import { clonePart, validatePart, TEMPLATE_IDS, type PartAsset } from './schema'
 import { partLibrary, savePart } from './library'
 import { partImageUrl, normalImageUrl, portablePart } from './images'
 import { closePartEditor, openPartEditor } from './editor-session'
@@ -11,8 +11,8 @@ import { openPartInSlicer } from './slicer-bridge'
 import { createLatestTask } from '../utils/latest-task'
 import { downloadBlob } from '../utils/download'
 import { confirm } from '../components/confirm'
-import { createScene, buildItem, spriteBounds, type SceneState } from '../../modules/scene-lighting/model'
-import { templateGeometry } from '../../modules/scene-lighting/part-geometry'
+import { createPartPreview, fitPartPreview, changePartGeometry } from './preview-state'
+import SvgIcon from '../icons/SvgIcon.vue'
 import { addPartsToScene } from '../../modules/scene-lighting/store'
 import LightingViewport from '../../modules/scene-lighting/LightingViewport.vue'
 import SidebarSection from '../components/editor-shell/SidebarSection.vue'
@@ -29,21 +29,17 @@ const geometryJson=ref(JSON.stringify(draft.value.geometry,null,2)),panel=ref<HT
 const dirty=computed(()=>JSON.stringify(draft.value)!==JSON.stringify(baseline.value))
 const conflict=computed(()=>partLibrary[props.asset.id]?.revision!==baseline.value.revision)
 const geometryChoice=computed(()=>draft.value.geometry.kind==='template'?'template:'+draft.value.geometry.template:draft.value.geometry.kind)
-const preview=reactive<SceneState>({...createScene(),items:[{id:'preview',assetId:props.asset.id,x:0,z:0,scale:1,visible:true,casts:true,receives:true}],selected:'preview',zoom:5,light:[-2,4,2.5],target:[0,1,0]})
+const preview=reactive(createPartPreview(props.asset))
 function framePreview(){
-  const height=draft.value.geometry.size[1],z=preview.scene==='corner'?Math.max(-3.5,-4+draft.value.geometry.size[2]/2+.25):0
-  preview.items[0].z=z;preview.target=[0,height*.5,z];preview.zoom=Math.max(4,Math.min(12,height*2));preview.light=[-2,Math.min(8,height+1.5),z+2.5]
+  const canvas=panel.value?.querySelector('.part-preview canvas')
+  const rect=canvas?.getBoundingClientRect()
+  fitPartPreview(preview,draft.value,rect&&rect.height>0?rect.width/rect.height:1)
 }
-watch(()=>[preview.scene,draft.value.geometry.size[1],draft.value.geometry.size[2]],framePreview)
 const normals=createLatestTask<PartAsset,string>({interval:160,acceptIntermediate:true,onBusy:v=>{normalBusy.value=v},onError:e=>{error.value=String(e)},run:part=>normalImageUrl(part),apply:url=>{normalUrl.value=url}})
 watch(()=>[view.value,draft.value.normal],()=>{if(view.value==='normal')normals.request(clonePart(draft.value))},{deep:true})
 function chooseGeometry(event:Event){
   const value=(event.target as HTMLSelectElement).value
-  if(value.startsWith('template:')){
-    const id=value.slice(9) as TemplateId;draft.value.geometry=templateGeometry(id)
-    const b=spriteBounds(buildItem(id),draft.value.image.width/draft.value.image.height)
-    draft.value.alignment={anchor:[Math.max(0,Math.min(1,-b.left/b.width)),Math.max(0,Math.min(1,1+b.bottom/b.height))],offset:[0,0],scale:1}
-  }else{draft.value.geometry={kind:value as PartGeometry['kind'],size:[...draft.value.geometry.size]};draft.value.alignment={anchor:[.5,1],offset:[0,0],scale:1}}
+  changePartGeometry(draft.value,value)
   geometryJson.value=JSON.stringify(draft.value.geometry,null,2)
 }
 function applyGeometry(){
@@ -114,7 +110,7 @@ onUnmounted(()=>{normals.dispose();document.removeEventListener('keydown',captur
       </SidebarSection>
     </fieldset></ScrollArea><main class="part-preview"><nav :aria-label="t('parts.previewMode')"><button v-for="v in (['original','normal','preview'] as const)" :key="v" :aria-pressed="view===v" :class="{active:view===v}" @click="view=v">{{t('parts.view.'+v)}}</button></nav>
       <div v-if="view!=='preview'" class="flat-preview"><img v-if="view==='original'" :src="partImageUrl(draft)" :alt="draft.name"/><img v-else-if="normalUrl" :src="normalUrl" :alt="t('normal.map')"/><span v-if="view==='normal'&&normalBusy" role="status">{{t('normal.generating')}}</span></div>
-      <LightingViewport v-else :state="preview" :assets="[draft]" compact :editable="false"/>
+      <LightingViewport v-else :state="preview" :assets="[draft]" compact :editable="false"><template #actions><button :title="t('common.fitView')" :aria-label="t('common.fitView')" @click="framePreview"><SvgIcon name="fit-view" :size="13"/></button></template></LightingViewport>
     </main></div>
     <footer><div class="button-row"><button :disabled="saving" @click="exportAsset">{{t('parts.exportAsset')}}</button><button :disabled="saving" @click="exportPackage">{{t('parts.exportPackage')}}</button><button v-if="origin==='scene'" :disabled="saving" @click="locate">{{t('parts.locateSlicer')}}</button></div><div class="button-row"><button :disabled="saving" @click="addToScene">{{t('parts.addOne')}}</button><button :disabled="saving" @click="leave">{{t(origin==='scene'?'parts.backScene':'parts.backSlicer')}}</button><button class="primary" :disabled="saving||conflict" @click="saveAndClose">{{t(saving?'common.loading':'parts.saveReturn')}}</button></div></footer>
   </section></div></Teleport>

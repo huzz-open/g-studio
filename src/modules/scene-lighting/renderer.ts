@@ -109,27 +109,48 @@ export function createSceneRenderer(canvas: HTMLCanvasElement) {
     for (const tex of [asset.color, asset.normal, asset.depth, asset.surface]) { gl!.deleteTexture(tex); textures.splice(textures.indexOf(tex), 1) }
   }
   let syncEpoch = 0
-  async function syncAssets(parts: PartAsset[]) {
+  async function syncAssets(parts: PartAsset[], isCurrent: () => boolean = () => true): Promise<boolean> {
     const epoch = ++syncEpoch, snapshots = parts.map(clonePart), ids = new Set(parts.map(p => p.id))
-    for (const part of snapshots) {
-      const key = partRenderKey(part), existing = assets.get(part.id)
-      if (existing?.key === key) continue
-      const { image, pixels } = await partPixels(part)
-      const normalImage = await loadImage(await normalImageUrl(part))
-      if (disposed || epoch !== syncEpoch) return
-      const mesh = buildPartGeometry(part, pixels), bounds = alignedBounds(part, mesh)
-      const d = part.image
-      const asset: SpriteAsset = {
-        ...meshBuffer(mesh), id: part.id, key, directx: part.normal.normalFormat === 'directx', bounds,
-        color: texture(d.width, d.height, image), normal: texture(d.width, d.height, normalImage),
-        depth: texture(d.width, d.height), surface: texture(d.width, d.height), width: d.width, height: d.height,
-        alpha: pixels.data, field: new Uint8Array(d.width * d.height * 4), coverage: 0,
+    const staged = new Map<string, SpriteAsset>()
+    const current = () => !disposed && epoch === syncEpoch && isCurrent()
+    try {
+      for (const part of snapshots) {
+        if (!current()) return false
+        const key = partRenderKey(part), existing = assets.get(part.id)
+        if (existing?.key === key) continue
+        const { image, pixels } = await partPixels(part)
+        if (!current()) return false
+        const normalImage = await loadImage(await normalImageUrl(part))
+        if (!current()) return false
+        const mesh = buildPartGeometry(part, pixels), bounds = alignedBounds(part, mesh), d = part.image
+        const asset: SpriteAsset = {
+          ...meshBuffer(mesh), id: part.id, key, directx: part.normal.normalFormat === 'directx', bounds,
+          color: texture(d.width, d.height, image), normal: texture(d.width, d.height, normalImage),
+          depth: texture(d.width, d.height), surface: texture(d.width, d.height), width: d.width, height: d.height,
+          alpha: pixels.data, field: new Uint8Array(d.width * d.height * 4), coverage: 0,
+        }
+        staged.set(part.id, asset)
+        bakeField(asset)
       }
-      try { bakeField(asset) } catch (error) { releaseAsset(asset); throw error }
-      if (existing) releaseAsset(existing)
-      assets.set(part.id, asset); shadowKey = ''
+      if (!current()) return false
+      // Publish the whole update together. The old frame stays usable during
+      // decoding, normal generation and discarded intermediate requests.
+      for (const [id, asset] of staged) {
+        const existing = assets.get(id)
+        assets.set(id, asset)
+        if (existing) releaseAsset(existing)
+      }
+      staged.clear()
+      for (const [id, asset] of assets) if (!ids.has(id)) { releaseAsset(asset); assets.delete(id) }
+      shadowKey = ''
+      return true
+    } finally {
+      // dispose() already freed all GPU resources if the editor was closed.
+      if (!disposed) {
+        staged.forEach(releaseAsset)
+        gl!.bindFramebuffer(gl!.FRAMEBUFFER, null)
+      }
     }
-    for (const [id, asset] of assets) if (!ids.has(id)) { releaseAsset(asset); assets.delete(id); shadowKey = '' }
   }
   function drawMesh(mesh: GpuMesh, p: WebGLProgram, offset: Vec3, id: number, scale = 1) {
     gl!.uniform1f(u(p, 'objectScale'), scale); gl!.uniform3fv(u(p, 'offset'), offset); gl!.uniform1f(u(p, 'objectId'), id); gl!.bindVertexArray(mesh.vao)
