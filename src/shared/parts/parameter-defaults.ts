@@ -1,7 +1,8 @@
 import { createPart, clonePart, type PartAsset } from './schema'
 import { createBuiltinParts } from './builtins'
 import { buildItem, spriteBounds } from '../../modules/scene-lighting/model'
-import { templateGeometry } from '../../modules/scene-lighting/part-geometry'
+import { templateGeometry, meshExtents } from '../../modules/scene-lighting/part-geometry'
+import { decodeMesh } from './mesh'
 
 const builtins = createBuiltinParts()
 
@@ -9,7 +10,9 @@ const builtins = createBuiltinParts()
 export function partParameterDefaults(part: PartAsset) {
   const builtin = builtins.find(p => p.id === part.id)
   const defaults = builtin ? clonePart(builtin) : createPart('Part defaults', part.image, part.id)
-  if (part.geometry.kind === 'template') {
+  if (part.geometry.kind === 'mesh') {
+    defaults.geometry = { ...clonePart(part.geometry), size: meshExtents(decodeMesh(part.geometry.mesh!.uri)).size.map(v=>Math.max(.02,Math.min(8,v))) as [number,number,number] }
+  } else if (part.geometry.kind === 'template') {
     const id = part.geometry.template!
     defaults.geometry = templateGeometry(id)
     const b = spriteBounds(buildItem(id), part.image.width / part.image.height)

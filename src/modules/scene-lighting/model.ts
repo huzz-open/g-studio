@@ -55,11 +55,11 @@ export function createDefaultScene(): SceneState {
 export interface Mesh { vertices: Float32Array; triangles: Vec3[][] }
 export function meshBuilder() {
   const vertices: number[] = [], triangles: Vec3[][] = []
-  function tri(a: Vec3, b: Vec3, c: Vec3, color: Vec3) {
+  function tri(a: Vec3, b: Vec3, c: Vec3, color: Vec3, normals?: Vec3[]) {
     const n = normalize(cross(sub(b, a), sub(c, a)))
     if (Math.hypot(...cross(sub(b, a), sub(c, a))) < 1e-8) return
     triangles.push([a, b, c])
-    for (const p of [a, b, c]) vertices.push(...p, ...n, ...color.map(v => v ** 2.2))
+    for (const [i, p] of [a, b, c].entries()) vertices.push(...p, ...(normals?.[i] && Math.hypot(...normals[i]) > 1e-8 ? normalize(normals[i]) : n), ...color.map(v => v ** 2.2))
   }
   function quad(a: Vec3, b: Vec3, c: Vec3, d: Vec3, color: Vec3) { tri(a, b, c, color); tri(a, c, d, color) }
   function box(x: number, y: number, z: number, w: number, h: number, depth: number, color: Vec3) {

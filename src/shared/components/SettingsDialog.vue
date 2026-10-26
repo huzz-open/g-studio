@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import GenerationSettings from '../generation/GenerationSettings.vue'
+import { resetGenerationPreferences } from '../generation/settings'
 import { useI18n } from '../i18n'
 import { useSettings } from '../settings'
 import SvgIcon from '../icons/SvgIcon.vue'
@@ -253,6 +255,10 @@ const categories: Category[] = [
       },
     ],
   },
+  { id:'generation',labelKey:'generation.title',icon:'wand',children:[
+    {id:'generation.connection',labelKey:'generation.connectionSettings',icon:'settings'},
+    {id:'generation.defaults',labelKey:'generation.defaults',icon:'wand'},
+  ]},
 ]
 
 function flatCategories(cats: Category[], depth = 0): (Category & { depth: number })[] {
@@ -275,6 +281,8 @@ const activeItems = computed(() => {
 })
 
 function selectCat(id: string) {
+  if(id==='generation'){activeCatId.value='generation.connection';return}
+  if(id.startsWith('generation.')){activeCatId.value=id;return}
   const cat = flatCats.value.find(c => c.id === id)
   if (cat?.items && cat.items.length > 0) {
     activeCatId.value = id
@@ -286,6 +294,7 @@ function selectCat(id: string) {
 
 function onResetAll() {
   resetSettings()
+  resetGenerationPreferences()
 }
 
 function isModified(item: SettingItem): boolean {
@@ -325,7 +334,7 @@ function resetItem(item: SettingItem) {
               v-for="cat in flatCats"
               :key="cat.id"
               class="sd-cat"
-              :class="{ active: activeCatId === cat.id, leaf: !!cat.items?.length }"
+              :class="{ active: activeCatId === cat.id, leaf: !!cat.items?.length || cat.id.startsWith('generation.') }"
               :style="{ paddingLeft: (12 + cat.depth * 16) + 'px' }"
               @click="selectCat(cat.id)"
             >
@@ -336,6 +345,7 @@ function resetItem(item: SettingItem) {
 
           <!-- Content -->
           <div class="sd-content">
+            <GenerationSettings v-if="activeCatId.startsWith('generation.')" :key="activeCatId" :section="activeCatId==='generation.defaults'?'defaults':'connection'"/>
             <div v-for="item in activeItems" :key="item.key" class="sd-item">
               <div class="sd-item-head">
                 <label v-if="item.type !== 'segmented'" class="sd-label">{{ t(item.labelKey) }}</label>
@@ -429,7 +439,7 @@ function resetItem(item: SettingItem) {
               />
             </div>
 
-            <div v-if="activeItems.length === 0" class="sd-empty">
+            <div v-if="activeItems.length === 0 && !activeCatId.startsWith('generation.')" class="sd-empty">
               {{ t('settings.selectCategory') }}
             </div>
           </div>

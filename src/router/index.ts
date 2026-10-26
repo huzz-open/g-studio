@@ -3,6 +3,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
+    {path:'/model-generation',name:'model-generation',component:()=>import('../modules/model-generation/ModelGenerationView.vue')},
     {
       path: '/scene-lighting',
       name: 'scene-lighting',

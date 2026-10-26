@@ -12,7 +12,7 @@
 
 ---
 
-G-Studio 是一个运行在浏览器中的游戏开发辅助工具集，专为 2D 游戏（特别是 Godot 引擎项目）设计。所有数据保存在本地，无需服务器，无需登录。
+G-Studio 是一个运行在浏览器中的游戏开发辅助工具集，专为 2D 游戏（特别是 Godot 引擎项目）设计。基础编辑功能和资产保存在本地，无需登录。可选模型生成支持本地服务或公网中转；中转任务的图片与模型会经过所配置的服务器。
 
 ## 试一试
 
@@ -26,6 +26,7 @@ G-Studio 是一个运行在浏览器中的游戏开发辅助工具集，专为 2
 
 | 模块 | 说明 |
 |------|------|
+| **模型生成** | 轮廓近似或调用本地 AI，预览后保存为部件；支持 HTTP 直连和 WSS 中转 |
 | **资源管理器** | 浏览本地工作区目录，管理图片和数据文件，查看元数据 |
 | **切图工具** | 从 Sprite Sheet 中自动/手动切割动画帧、图标和物件 |
 | **地图编辑器** | 编辑世界地图，放置地点、绘制道路和区域 |
@@ -33,6 +34,58 @@ G-Studio 是一个运行在浏览器中的游戏开发辅助工具集，专为 2
 | **场景区域编辑器** | 在场景背景图上绘制碰撞/遮挡区域，导出 Godot `.tscn` |
 
 ## 快速开始
+
+### 环境要求
+
+- [Node.js](https://nodejs.org/) >= 22.12（当前 Vite 8 的兼容要求为 `^20.19.0 || >=22.12.0`）
+- npm（随 Node.js 安装）；也可使用 pnpm
+
+### 安装与运行
+
+```bash
+git clone https://github.com/huzz-open/g-studio.git
+cd g-studio
+npm install
+npm run dev
+```
+
+浏览器打开 `http://localhost:5173` 即可使用。
+
+`npm run dev` 默认同时启动网页和 Python 生成服务。首次自动准备隔离 Python 3.12 环境、推理依赖及约 **4.2GB** 的 Hunyuan3D-2mini-Turbo 权重，并校验文件；无需手动安装 Python、执行 pip 或逐个下载模型。依赖安装另需空间与时间，网页会先启动，模型准备期间仍可使用基础功能。再次启动复用缓存；按 Ctrl+C 退出本次启动的进程。Windows 用户也可双击根目录 `start-generation.cmd`，其它平台可运行 `sh start-generation.sh`。
+
+默认优先检测并使用兼容 NVIDIA GPU，无法使用时回退 CPU；启动日志明确打印检测到的显卡类别、运行时结果及最终 CPU/GPU。本机 Windows CPU 路径已实测，NVIDIA 和 Linux 路径需在对应硬件上进一步验证，不把 Intel 核显当作 CUDA GPU。
+
+在 **设置 → 模型生成 → 连接服务** 中选择“直连接口”，点击“测试连接”。本地开发自动取得连接凭证，并显示 **计算设备：CPU / GPU**。初始生成方式仍为“轮廓近似”；启动服务不会自动上传图片。进入“模型生成”菜单选择图片，或在部件编辑器点击“生成几何”，完成后先预览再应用。保存的模型部件可离线使用，不依赖服务永久在线。
+
+| 命令 | 用途 |
+| --- | --- |
+| `npm run dev:web` | 只启动网页，不准备 Python 或下载模型 |
+| `npm run generation:start` | 仅启动生成服务，供已部署的网页使用 |
+| `npm run generation:download` | 提前下载并校验模型 |
+| `npm run generation:doctor` | 检查运行环境及服务连通性 |
+| `npm run relay:start` | 启动轻量 TS 中转后端，不运行 AI |
+
+模型、环境与临时任务默认位于用户目录 `~/.g-studio/generation`，可用 `GEN_HOME` 更改。下载失败可重试并续传。端口占用时，停止自己的旧实例或配置 `GEN_PORT` / `GEN_WEB_PORT`。内存不足时可降低网格分辨率、关闭其它高内存任务，或改用远程算力/轮廓近似。CPU 推理可能需要数分钟，不能保证所有机器相同速度。
+
+公网服务器无 GPU 时，可以只托管网页和 TS 中转；用户本机运行：
+
+```bash
+npm run generation:start -- --relay wss://你的域名/generation/worker --pair
+```
+
+在网页“公网中转”模式填写中转 HTTPS 地址和终端显示的 8 位码，再在本地终端核对请求编号并输入 `y`。短码有效 5 分钟、一次使用；长期设备凭证自动保存在本机配置中。下次启动可省略 `--pair`，沿用相同缓存目录和中转地址。图片及模型会经中转服务器临时保存，默认 24 小时；绑定浏览器可以撤销授权。直连模式无需公网中转，但公网网页访问 localhost 可能需要浏览器本地网络权限。
+
+详见[本地服务启动与配置](./services/generation-python/README.md)、[公网中转部署](./services/generation-relay/README.md)、[生成协议](./packages/generation-protocol/README.md)和[完整方案](./docs/model-generation-service-plan.md)。模型下载遵循[上游代码](https://github.com/Tencent-Hunyuan/Hunyuan3D-2)与[模型条款](https://huggingface.co/tencent/Hunyuan3D-2mini)，不自动继承本项目许可证。
+
+### 构建
+
+```bash
+npm run build
+```
+
+产物输出到 `dist/` 目录，可部署为纯静态站点；构建不启动 Python、不下载模型。WSS 中转需要另外运行 TS 服务，纯静态托管不能承载长连接后端。
+
+## 光照与编辑功能
 
 ### 精灵法线与光照
 
@@ -60,31 +113,9 @@ G-Studio 是一个运行在浏览器中的游戏开发辅助工具集，专为 2
 
 调度回归测试：`pnpm test:compute`。`tests/processing-workers.e2e.cjs` 使用与侧栏浏览器测试相同的 Playwright 环境，检查后台结果与原算法一致、连续拖动最终值和计算期间的主线程响应。
 
-### 环境要求
-
-- [Node.js](https://nodejs.org/) >= 18
-- [pnpm](https://pnpm.io/) >= 8
-
-### 安装与运行
-
-```bash
-git clone https://github.com/huzz-open/g-studio.git
-cd g-studio
-pnpm install
-pnpm dev
-```
-
-浏览器打开 `http://localhost:5173` 即可使用。
-
-### 构建
-
-```bash
-pnpm build
-```
-
-产物输出到 `dist/` 目录，可部署为纯静态站点。
-
 ## 浏览器兼容性
+
+模型生成的实现范围、真实 CPU 推理耗时、TLS 中转与离线部件验证见[验证记录](./docs/model-generation-validation.md)。
 
 G-Studio 使用 [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API) 读写本地目录。推荐使用：
 

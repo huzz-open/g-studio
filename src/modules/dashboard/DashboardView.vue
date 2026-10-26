@@ -7,6 +7,7 @@ const router = useRouter()
 const { t } = useI18n()
 
 const modules = [
+  {route:'/model-generation',icon:'wand',titleKey:'generation.title',descKey:'generation.subtitle',color:'#5577aa'},
   {
     route: '/scene-lighting',
     icon: 'layers',
