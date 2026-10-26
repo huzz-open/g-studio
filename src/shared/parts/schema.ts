@@ -80,6 +80,8 @@ export function sameSource(part: PartAsset, source: NonNullable<PartAsset['sourc
   return part.source?.sheetHash === source.sheetHash && part.source.pixelHash === source.pixelHash && part.source.rect.every((n, i) => n === source.rect[i])
 }
 export function partRenderKey(part: PartAsset) { return JSON.stringify([part.image, part.normal, part.geometry, part.alignment]) }
+/** Inputs that affect the mesh, color texture and projected surface fields. */
+export function partSurfaceKey(part: PartAsset) { return JSON.stringify([part.image, part.geometry, part.alignment]) }
 
 export interface PartInstance { id: string; assetId: string; x: number; z: number; scale: number; visible: boolean; casts: boolean; receives: boolean }
 export const MAX_SCENE_ITEMS = 24

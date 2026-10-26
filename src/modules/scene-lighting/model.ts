@@ -15,7 +15,7 @@ export interface SceneState {
   room: RoomSize; lightKind:'point'|'directional'; sun: SunLight
   scene: SceneKind; mode: DisplayMode; selected: string; tool: 'objects' | 'light'
   items: SceneItem[]; light: Vec3; ambient: number; power: number
-  showNames: boolean; shadows: boolean; filtered: boolean; zoom: number
+  showNames: boolean; showSelectionRing: boolean; shadows: boolean; filtered: boolean; zoom: number
   target?: Vec3
 }
 export const PITCH = 20, YAW = 25, ROOM = { minX: -5.5, maxX: 5.5, minZ: -4, maxZ: 5, height: 4.8 }
@@ -43,7 +43,7 @@ export function createScene(preset: Preset = 'spread'): SceneState {
     scene: preset === 'wall' ? 'corner' : 'open', mode: 'sprites', selected: preset === 'mutual' ? 'vase' : 'umbrella', tool: 'objects',
     items: DEFINITIONS.map((d, i) => ({ id: d.id, assetId: `example:${d.id}`, scale: 1, x: positions[preset][i][0], z: positions[preset][i][1], visible: true, casts: true, receives: true })),
     light: preset === 'wall' ? [1.5, 3.5, 3.6] : preset === 'mutual' ? [-2.2, 5.5, 2.4] : [-2.8, 5, 2.5],
-    showNames: true, ambient: 0.32, power: 26, shadows: true, filtered: true, zoom: 14,
+    showNames: true, showSelectionRing: true, ambient: 0.32, power: 26, shadows: true, filtered: true, zoom: 14,
   }
 }
 

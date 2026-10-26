@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import SvgIcon from '../icons/SvgIcon.vue'
-import { useI18n } from '../i18n'
+import CanvasControls from './CanvasControls.vue'
 
-const { t } = useI18n()
 
 type ControlsPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
 
@@ -328,7 +326,8 @@ defineExpose({
     />
 
     <!-- Zoom controls -->
-    <div v-if="showControls" class="pzv-controls" :class="[`pos-${controlsPosition}`, controlsDirection === 'vertical' ? 'dir-vertical' : '']" @mousedown.stop @mousemove.stop @wheel.stop @mouseenter="emit('canvas-mouseleave', $event)">
+    <CanvasControls v-if="showControls" :position="controlsPosition" :direction="controlsDirection" :fullscreen-toggle="fullscreenToggle"
+      @actual-size="setScaleCentered(1)" @fit="handleFitToView" @zoom-in="zoomIn" @zoom-out="zoomOut" @fullscreen="emit('fullscreen-toggle')" @mouseenter="emit('canvas-mouseleave', $event)">
       <span v-if="showZoomLabel && !isEditingZoom" class="pzv-ctrl-zoom" @click="startEditZoom">{{ zoomPercent }}%</span>
       <input
         v-if="showZoomLabel && isEditingZoom"
@@ -338,17 +337,8 @@ defineExpose({
         @keydown="onEditZoomKeyDown"
         @blur="applyEditZoom"
       />
-      <button class="pzv-ctrl-btn" @click="setScaleCentered(1)" :title="t('common.zoom100')">1:1</button>
-      <button class="pzv-ctrl-btn" @click="handleFitToView" :title="t('common.fitView')">
-        <SvgIcon name="fit-view" :size="12" />
-      </button>
-      <button class="pzv-ctrl-btn" @click="zoomIn" :title="t('common.zoomIn')">+</button>
-      <button class="pzv-ctrl-btn" @click="zoomOut" :title="t('common.zoomOut')">−</button>
-      <button v-if="fullscreenToggle" class="pzv-ctrl-btn" @click="emit('fullscreen-toggle')" :title="t('common.fullscreen')">
-        <SvgIcon name="maximize" :size="12" />
-      </button>
-      <slot name="controls-extra" />
-    </div>
+      <template #extra><slot name="controls-extra" /></template>
+    </CanvasControls>
 
     <slot name="toolbar-left" />
     <slot name="toolbar-right" />
@@ -381,23 +371,6 @@ defineExpose({
 .pzv-transform.pixelated {
   image-rendering: pixelated;
 }
-
-.pzv-controls {
-  position: absolute;
-  display: flex;
-  gap: 3px;
-  padding: 4px;
-  background: rgba(30, 30, 30, 0.75);
-  border-radius: 6px;
-  backdrop-filter: blur(6px);
-  z-index: 10;
-  pointer-events: auto;
-}
-.pzv-controls.pos-bottom-left { bottom: 10px; left: 10px; }
-.pzv-controls.pos-bottom-right { bottom: 10px; right: 10px; }
-.pzv-controls.pos-top-left { top: 10px; left: 10px; }
-.pzv-controls.pos-top-right { top: 10px; right: 10px; }
-.pzv-controls.dir-vertical { flex-direction: column; }
 
 .pzv-ctrl-zoom {
   font-size: 10px;
@@ -434,25 +407,5 @@ defineExpose({
 .pzv-ctrl-zoom-input::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
-}
-.pzv-ctrl-btn {
-  background: rgba(60, 60, 60, 0.6);
-  color: #bbb;
-  border: 1px solid rgba(100, 100, 100, 0.4);
-  border-radius: 4px;
-  padding: 0;
-  font-size: 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 22px;
-  transition: all 0.15s;
-}
-.pzv-ctrl-btn:hover {
-  background: rgba(80, 80, 80, 0.8);
-  color: #fff;
-  border-color: rgba(140, 140, 140, 0.5);
 }
 </style>

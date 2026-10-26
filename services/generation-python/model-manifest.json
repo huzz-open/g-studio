@@ -287,8 +287,7 @@
       "size": 1664,
       "sha256": "be28205844da01bd5d3c5ba5160f5886fb9765d542483f9d12bda8f17324db5e",
       "urls": [
-        "https://huggingface.co/tencent/Hunyuan3D-2mini/resolve/f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6/hunyuan3d-dit-v2-mini-turbo/config.yaml",
-        "https://modelscope.cn/models/Tencent-Hunyuan/Hunyuan3D-2mini/resolve/0d1901d5f6300a268615cff3aff885c4fd494ff5/hunyuan3d-dit-v2-mini-turbo/config.yaml"
+        "https://huggingface.co/tencent/Hunyuan3D-2mini/resolve/f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6/hunyuan3d-dit-v2-mini-turbo/config.yaml"
       ]
     },
     {

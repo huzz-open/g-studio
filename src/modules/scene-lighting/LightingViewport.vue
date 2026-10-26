@@ -2,18 +2,19 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from '../../shared/i18n'
 import SceneViewControls from './SceneViewControls.vue'
+import CanvasControls from '../../shared/components/CanvasControls.vue'
 import { sunSphereFrame, sunSphereGrid, spherePoint, pickSunSphere, pickSunAzimuth, wrapAzimuth, type SunSphere, type SunSpherePath } from './direction-control'
 import InfoHint from '../../shared/components/InfoHint.vue'
 import { createLatestTask } from '../../shared/utils/latest-task'
-import { clonePart, partRenderKey, type PartAsset } from '../../shared/parts/schema'
+import { clonePart, partRenderKey, partSurfaceKey, type PartAsset } from '../../shared/parts/schema'
 import { partMovementLimits } from './part-geometry'
 import { createSceneRenderer, sceneCamera } from './renderer'
 import { PITCH, roomBounds, type SceneState } from './model'
 import { sunAnchor, sunDirection } from './lighting-math'
 import type { Vec3 } from '../experiments/umbrella/math'
 
-const props = withDefaults(defineProps<{ state: SceneState; assets: PartAsset[]; compact?: boolean; editable?: boolean; controls?: boolean; showShadowPoints?: boolean }>(), { compact: false, editable: true, controls: true, showShadowPoints: false })
-const emit = defineEmits<{ edit: [assetId: string]; coverage: [value: Record<string, number>] }>()
+const props = withDefaults(defineProps<{ state: SceneState; assets: PartAsset[]; compact?: boolean; editable?: boolean; controls?: boolean; showShadowPoints?: boolean; fitView?: () => void; autoFit?: boolean }>(), { compact: false, editable: true, controls: true, showShadowPoints: false })
+const emit = defineEmits<{ edit: [assetId: string]; coverage: [value: Record<string, number>]; zoom: [] }>()
 const { t } = useI18n(), canvas = ref<HTMLCanvasElement>(), ready = ref(false), busy = ref(false), error = ref('')
 const assetsById = computed(() => Object.fromEntries(props.assets.map(a => [a.id, a])))
 const markers = ref<{ id: string; x: number; y: number }[]>([]), lightMarker = ref({ x: -100, y: -100 }), lightFoot = ref({ x: -100, y: -100 })
@@ -35,7 +36,7 @@ function draw() {
       const anchor=directional.value?sunAnchor(props.state):[props.state.light[0],0,props.state.light[2]] as Vec3
       lightFoot.value=renderer!.project(anchor,props.state)
       if(directional.value){
-        const frame=sunSphereFrame(canvas.value.clientWidth,canvas.value.clientHeight)
+        const frame=sunSphereFrame(canvas.value.clientWidth,Math.max(1,canvas.value.clientHeight-(props.fitView?42:0)))
         sunFrame.value=frame;lightFoot.value={x:frame.x,y:frame.y};lightMarker.value=spherePoint(sunDirection(props.state),frame)
         const az=props.state.sun.azimuth*Math.PI/180
         azimuthMarker.value=spherePoint([Math.sin(az),0,Math.cos(az)],frame)
@@ -48,10 +49,13 @@ function draw() {
   })
 }
 const assetKey=(parts:PartAsset[])=>parts.map(p=>p.id+':'+partRenderKey(p)).join('\n')
+const surfaceKey=(parts:PartAsset[])=>parts.map(p=>p.id+':'+partSurfaceKey(p)).join('\n')
 const updates = createLatestTask<PartAsset[], boolean>({
-  interval: 140,
+  interval: 140, acceptIntermediate: true,
   onBusy: value => { busy.value = value }, onError: e => { error.value = String(e) },
-  async run(parts) { const key=assetKey(parts); return renderer!.syncAssets(parts,()=>assetKey(props.assets)===key) },
+  // Publish finished normal-map frames while the next slider value computes.
+  // Changes to images, geometry or membership still invalidate an old snapshot.
+  async run(parts) { const key=surfaceKey(parts); return renderer!.syncAssets(parts,()=>surfaceKey(props.assets)===key) },
   apply(committed) { if(!committed)return; ready.value = true; error.value = ''; emit('coverage', renderer!.coverage()); draw() },
 })
 function refresh() { if (renderer) { error.value = ''; updates.request(props.assets.map(clonePart), true) } }
@@ -171,7 +175,16 @@ function key(event: KeyboardEvent, light = false) {
   if (light) {const b=roomBounds(props.state.room); props.state.light[0] = Math.max(b.minX, Math.min(b.maxX, props.state.light[0] + dx)); props.state.light[2] = Math.max(b.minZ, Math.min(b.maxZ, props.state.light[2] + dz)) }
   else { const item = props.state.items.find(i => i.id === props.state.selected); if (item) { const b = partMovementLimits(assetsById.value[item.assetId], item.scale,props.state.room); item.x = Math.max(b.minX, Math.min(b.maxX, item.x + dx)); item.z = Math.max(b.minZ, Math.min(b.maxZ, item.z + dz)) } }
 }
-onMounted(() => { try { renderer = createSceneRenderer(canvas.value!); observer = new ResizeObserver(draw); observer.observe(canvas.value!); refresh() } catch (e) { error.value = String(e) } })
+function zoomBy(factor: number) {
+  if (dragging) return
+  emit('zoom')
+  props.state.zoom = Math.max(4, Math.min(40, props.state.zoom * factor))
+}
+function resizeViewport() {
+  if (props.autoFit) props.fitView?.()
+  draw()
+}
+onMounted(() => { try { renderer = createSceneRenderer(canvas.value!); observer = new ResizeObserver(resizeViewport); observer.observe(canvas.value!); refresh() } catch (e) { error.value = String(e) } })
 onUnmounted(() => { updates.dispose(); observer?.disconnect(); cancelAnimationFrame(frame); renderer?.dispose(); renderer = undefined })
 </script>
 
@@ -182,8 +195,9 @@ onUnmounted(() => { updates.dispose(); observer?.disconnect(); cancelAnimationFr
       <span class="camera-angle" :title="t('sceneLight.fixed')">20°</span><slot name="actions"/><InfoHint :label="t('parts.previewHelp')" :text="t('parts.previewHelpText')"/>
     </div>
     <div class="viewport-stage" :aria-busy="busy">
-      <canvas ref="canvas" tabindex="0" :aria-label="t('sceneLight.canvas')" @pointerdown="start($event)" @pointermove="move" @pointerup="dragging=null" @pointercancel="dragging=null" @lostpointercapture="dragging=null" @dblclick="edit" @keydown="key" @contextmenu.prevent @wheel.prevent="!dragging && (state.zoom=Math.max(4,Math.min(40,state.zoom*($event.deltaY>0?1.06:1/1.06))))" />
-      <div v-if="busy&&!ready" class="viewport-status" role="status">{{ t('common.updating') }}</div>
+      <canvas ref="canvas" tabindex="0" :aria-label="t('sceneLight.canvas')" @pointerdown="start($event)" @pointermove="move" @pointerup="dragging=null" @pointercancel="dragging=null" @lostpointercapture="dragging=null" @dblclick="edit" @keydown="key" @contextmenu.prevent @wheel.prevent="zoomBy($event.deltaY>0?1.06:1/1.06)" />
+      <CanvasControls v-if="fitView" :show-actual-size="false" @fit="fitView" @zoom-in="zoomBy(1/1.2)" @zoom-out="zoomBy(1.2)"/>
+      <div v-if="busy" class="viewport-status" role="status">{{ t('common.updating') }}</div>
       <div v-if="error" class="viewport-error" role="alert">{{ error }} <button @click="refresh">{{ t('normal.retry') }}</button></div>
       <template v-if="ready&&!error">
         <svg class="light-guide" aria-hidden="true"><line :x1="lightFoot.x" :y1="lightFoot.y" :x2="lightMarker.x" :y2="lightMarker.y"/><template v-if="directional"><line v-for="offset in [-6,6]" :key="offset" :x1="lightFoot.x+offset" :y1="lightFoot.y" :x2="lightMarker.x+offset" :y2="lightMarker.y" class="parallel-ray"/></template><circle v-else :cx="lightFoot.x" :cy="lightFoot.y" r="5"/></svg>
@@ -197,7 +211,7 @@ onUnmounted(() => { updates.dispose(); observer?.disconnect(); cancelAnimationFr
           <span class="origin-marker" :style="{left:originMarker.x+'px',top:originMarker.y+'px'}" :title="t('sceneLight.cornerOrigin')">0, 0, 0</span>
           <button v-for="handle in roomHandles" :key="handle.axis" class="room-handle" :style="{left:handle.x+'px',top:handle.y+'px'}" :title="t('sceneLight.resizeRoom')" :aria-label="t(handle.axis==='width'?'sceneLight.roomWidth':handle.axis==='depth'?'sceneLight.roomDepth':'sceneLight.wallHeight')" @pointerdown.stop="resizeRoom($event,handle.axis)" @keydown="roomKey($event,handle.axis)">{{handle.axis==='width'?'X':handle.axis==='depth'?'Z':'Y'}}</button>
         </template>
-        <span v-for="m in markers.filter(m=>m.id===state.selected)" :key="'ring'+m.id" class="selection-ring" :style="{left:m.x+'px',top:m.y+'px'}"/>
+        <span v-for="m in state.showSelectionRing===false?[]:markers.filter(m=>m.id===state.selected)" :key="'ring'+m.id" class="selection-ring" aria-hidden="true" :style="{left:m.x+'px',top:m.y+'px'}"/>
         <button v-for="m in state.showNames===false?[]:markers" :key="m.id" class="object-marker" :data-instance-id="m.id" :data-asset-id="state.items.find(i=>i.id===m.id)?.assetId" :class="{active:m.id===state.selected}" :style="{left:m.x+'px',top:m.y+'px'}" @pointerdown.stop="start($event,m.id)" @dblclick.stop="editable&&emit('edit',state.items.find(i=>i.id===m.id)!.assetId)">{{ name(m.id) }}</button>
       </template>
     </div>

@@ -42,9 +42,22 @@ G-Studio 是一个运行在浏览器中的游戏开发辅助工具集，专为 2
 
 ### 安装与运行
 
+**国内开发者：克隆并进入项目后，在 `npm install` 前执行一行配置命令：**
+
+```powershell
+npm run setup:cn
+```
+
+不需要先安装 npm 依赖。它会为当前项目配置 **阿里 npmmirror、清华 Python 包镜像、ModelScope 权重优先**，关闭终端后仍生效，不修改全局配置。之后照常执行下面的安装和启动命令。也可执行 `npm run setup:default` 撤销预设、恢复原有项目 npm 设置，已下载的模型缓存会保留。
+
+ModelScope 的仓库、固定版本、两份权重、下载方式和 SHA256 都由项目内置，**无需用户挑选文件、填写哈希、安装 ModelScope SDK 或配置账号 Token**。下载自动续传、校验，失败或校验不符时尝试备用源。配置文件和许可证使用项目随附的已验证版本，换源不会改变模型参数。
+
+该预设加速上述三类下载；uv、Python 运行时、PyTorch CPU/CUDA 包和上游推理源码目前仍使用各自官方源。npm 中直接引用 GitHub 的依赖也不受 npm registry 设置影响，不宣称所有下载都已切为国内源。
+
 ```bash
 git clone https://github.com/huzz-open/g-studio.git
 cd g-studio
+# 国内用户可在此执行：npm run setup:cn
 npm install
 npm run dev
 ```

@@ -13,8 +13,14 @@ import { homedir } from "node:os";
 import { resolve, join } from "node:path";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { applyMirrorProfile } from "./mirrors.mjs";
 
 export const root = resolve(fileURLToPath(new URL("../..", import.meta.url)));
+const mirrorProfile = applyMirrorProfile(root);
+if (mirrorProfile === "cn")
+  console.log(
+    "[generation] 国内预设：清华 Python 包镜像，ModelScope 权重优先；其他下载保留各自官方源。",
+  );
 export const home = resolve(
   process.env.GEN_HOME || join(homedir(), ".g-studio/generation"),
 );
@@ -128,8 +134,18 @@ export async function preparePython() {
         process.platform === "win32" ? "Scripts/python.exe" : "bin/python",
       );
     process.env.UV_LINK_MODE ||= "copy";
-    const uvRun = (args) =>
-      run(uv, args, { env: { ...process.env, RUST_LOG: "error" } });
+    const uvRun = (args, officialTorchIndex = false) => {
+      const env = { ...process.env, RUST_LOG: "error" };
+      if (officialTorchIndex)
+        for (const key of [
+          "UV_DEFAULT_INDEX",
+          "UV_INDEX_URL",
+          "UV_INDEX",
+          "UV_EXTRA_INDEX_URL",
+        ])
+          delete env[key];
+      return run(uv, args, { env });
+    };
     const hasNvidia =
       spawnSync("nvidia-smi", ["--query-gpu=name", "--format=csv,noheader"], {
         encoding: "utf8",
@@ -163,21 +179,25 @@ export async function preparePython() {
       );
       const prior = existsSync(marker) ? JSON.parse(readFileSync(marker)) : {};
       if (process.env.GEN_SKIP_MODEL !== "1" && prior.index !== index)
-        await uvRun([
-          "--quiet",
-          "pip",
-          "install",
-          "--python",
-          python,
-          "torch==2.6.0",
-          "torchvision==0.21.0",
-          "--index-url",
-          index,
-          "--reinstall-package",
-          "torch",
-          "--reinstall-package",
-          "torchvision",
-        ]);
+        await uvRun(
+          [
+            "--quiet",
+            "--no-config",
+            "pip",
+            "install",
+            "--python",
+            python,
+            "torch==2.6.0",
+            "torchvision==0.21.0",
+            "--default-index",
+            index,
+            "--reinstall-package",
+            "torch",
+            "--reinstall-package",
+            "torchvision",
+          ],
+          true,
+        );
       await uvRun([
         "--quiet",
         "pip",

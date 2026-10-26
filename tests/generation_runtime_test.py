@@ -1,6 +1,8 @@
 """Device selection and downloader tests; mocked GPU is not a hardware benchmark."""
 
 import hashlib
+import io
+import json
 import importlib
 import os
 from pathlib import Path
@@ -89,6 +91,95 @@ class DeviceTests(unittest.TestCase):
 
 
 class DownloadTests(unittest.TestCase):
+    def test_modelscope_priority_and_checksum_fallback(self):
+        with (
+            tempfile.TemporaryDirectory(prefix="generation-mirror-") as directory,
+            patch.dict(
+                os.environ,
+                {
+                    "GEN_HOME": directory,
+                    "GEN_MODEL_SOURCE": "modelscope",
+                    "GEN_IMPORT_CACHE": "",
+                },
+            ),
+        ):
+            import config
+
+            importlib.reload(config)
+            import download
+
+            importlib.reload(download)
+            payload = b"verified-model-data"
+            item = {
+                "path": "models/test.bin",
+                "size": len(payload),
+                "sha256": hashlib.sha256(payload).hexdigest(),
+                "urls": ["https://huggingface.co/test", "https://modelscope.cn/test"],
+            }
+            self.assertEqual(download.ordered_urls(item), list(reversed(item["urls"])))
+
+            class Response(io.BytesIO):
+                status = 200
+                headers = {}
+
+            with patch(
+                "download.urllib.request.urlopen",
+                side_effect=[Response(b"x" * len(payload)), Response(payload)],
+            ) as fetch:
+                download.download(item)
+                self.assertEqual(
+                    fetch.call_args_list[0].args[0].full_url,
+                    "https://modelscope.cn/test",
+                )
+                self.assertEqual(
+                    fetch.call_args_list[1].args[0].full_url,
+                    "https://huggingface.co/test",
+                )
+            self.assertEqual((Path(directory) / item["path"]).read_bytes(), payload)
+
+    def test_pinned_configuration_and_licenses_are_available_without_network(self):
+        with (
+            tempfile.TemporaryDirectory(prefix="generation-bundle-") as directory,
+            patch.dict(
+                os.environ,
+                {
+                    "GEN_HOME": directory,
+                    "GEN_MODEL_SOURCE": "modelscope",
+                    "GEN_IMPORT_CACHE": "",
+                },
+            ),
+        ):
+            import config
+
+            importlib.reload(config)
+            import download
+
+            importlib.reload(download)
+            selected = [
+                i
+                for i in download.MANIFEST["files"]
+                if i["path"].startswith("models/")
+                and not i["path"].endswith(".safetensors")
+            ]
+            self.assertEqual(len(selected), 4)
+            with patch(
+                "download.urllib.request.urlopen",
+                side_effect=AssertionError(
+                    "Bundled files must not need a network request"
+                ),
+            ):
+                for item in selected:
+                    download.download(item)
+                    self.assertTrue(
+                        download.valid(Path(directory) / item["path"], item)
+                    )
+            config_item = next(
+                i
+                for i in selected
+                if i["path"] == "models/hunyuan3d-dit-v2-mini-turbo/config.yaml"
+            )
+            self.assertFalse(any("modelscope.cn" in u for u in config_item["urls"]))
+
     def test_resume_and_digest_validation(self):
         with (
             tempfile.TemporaryDirectory(prefix="generation-download-") as directory,

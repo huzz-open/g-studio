@@ -8,6 +8,10 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+/.npmrc
+/.npmrc.tmp
+/.generation-mirrors.local.json
+/.generation-mirrors.local.json.tmp
 /.generation-test/
 **/__pycache__/
 *.pyc

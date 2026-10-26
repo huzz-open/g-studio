@@ -2,7 +2,7 @@ import { directionalShadowCamera, sunDirection } from './lighting-math'
 import { add, camera, dot, lookAt, multiply, normalize, perspective, sub, transform, type Mat4, type Vec3 } from '../experiments/umbrella/math'
 import { buildRoom, FORWARD, PITCH, RIGHT, roomBounds, UP, YAW, type Mesh, type SceneState, type SpriteBounds } from './model'
 import { buildPartGeometry, alignedBounds } from './part-geometry'
-import { clonePart, partRenderKey, type PartAsset } from '../../shared/parts/schema'
+import { clonePart, partRenderKey, partSurfaceKey, type PartAsset } from '../../shared/parts/schema'
 import { partPixels, normalImageUrl, loadImage } from '../../shared/parts/images'
 import { depthFragment, fieldFragment, fieldVertex, meshVertex, spriteFragment, spriteVertex, surfaceFragment, shadowPointVertex, shadowPointFragment } from './shaders'
 import { meshShadowSamples, roomShadowSamples } from './shadow-samples'
@@ -16,7 +16,7 @@ export function sceneCamera(state: SceneState, aspect: number) {
 interface GpuPoints { vao: WebGLVertexArrayObject; buffer: WebGLBuffer; count: number }
 interface GpuMesh extends GpuPoints { mesh: Mesh; points?: GpuPoints }
 interface SpriteAsset extends GpuMesh {
-  id: string; key: string; directx: boolean; bounds: SpriteBounds; color: WebGLTexture; normal: WebGLTexture
+  id: string; key: string; surfaceKey: string; directx: boolean; bounds: SpriteBounds; color: WebGLTexture; normal: WebGLTexture
   depth: WebGLTexture; surface: WebGLTexture; alpha: Uint8ClampedArray; width: number; height: number
   field: Uint8Array; coverage: number
 }
@@ -135,19 +135,27 @@ export function createSceneRenderer(canvas: HTMLCanvasElement) {
   async function syncAssets(parts: PartAsset[], isCurrent: () => boolean = () => true): Promise<boolean> {
     const epoch = ++syncEpoch, snapshots = parts.map(clonePart), ids = new Set(parts.map(p => p.id))
     const staged = new Map<string, SpriteAsset>()
+    const normalUpdates = new Map<string, { normal: WebGLTexture; key: string; directx: boolean }>()
     const current = () => !disposed && epoch === syncEpoch && isCurrent()
     try {
       for (const part of snapshots) {
         if (!current()) return false
         const key = partRenderKey(part), existing = assets.get(part.id)
         if (existing?.key === key) continue
+        const surfaceKey = partSurfaceKey(part)
+        if (existing?.surfaceKey === surfaceKey) {
+          const image = await loadImage(await normalImageUrl(part))
+          if (!current()) return false
+          normalUpdates.set(part.id, { normal: texture(part.image.width, part.image.height, image), key, directx: part.normal.normalFormat === 'directx' })
+          continue
+        }
         const { image, pixels } = await partPixels(part)
         if (!current()) return false
         const normalImage = await loadImage(await normalImageUrl(part))
         if (!current()) return false
         const mesh = buildPartGeometry(part, pixels), bounds = alignedBounds(part, mesh), d = part.image
         const asset: SpriteAsset = {
-          ...meshBuffer(mesh), id: part.id, key, directx: part.normal.normalFormat === 'directx', bounds,
+          ...meshBuffer(mesh), id: part.id, key, surfaceKey, directx: part.normal.normalFormat === 'directx', bounds,
           color: texture(d.width, d.height, image), normal: texture(d.width, d.height, normalImage),
           depth: texture(d.width, d.height), surface: texture(d.width, d.height), width: d.width, height: d.height,
           alpha: pixels.data, field: new Uint8Array(d.width * d.height * 4), coverage: 0,
@@ -158,19 +166,27 @@ export function createSceneRenderer(canvas: HTMLCanvasElement) {
       if (!current()) return false
       // Publish the whole update together. The old frame stays usable during
       // decoding, normal generation and discarded intermediate requests.
+      let geometryChanged = staged.size > 0
       for (const [id, asset] of staged) {
         const existing = assets.get(id)
         assets.set(id, asset)
         if (existing) releaseAsset(existing)
       }
       staged.clear()
-      for (const [id, asset] of assets) if (!ids.has(id)) { releaseAsset(asset); assets.delete(id) }
-      shadowKey = ''
+      for (const [id, update] of normalUpdates) {
+        const existing = assets.get(id)!
+        gl!.deleteTexture(existing.normal); textures.splice(textures.indexOf(existing.normal), 1)
+        Object.assign(existing, update)
+      }
+      normalUpdates.clear()
+      for (const [id, asset] of assets) if (!ids.has(id)) { releaseAsset(asset); assets.delete(id); geometryChanged = true }
+      if (geometryChanged) shadowKey = ''
       return true
     } finally {
       // dispose() already freed all GPU resources if the editor was closed.
       if (!disposed) {
         staged.forEach(releaseAsset)
+        normalUpdates.forEach(({ normal }) => { gl!.deleteTexture(normal); textures.splice(textures.indexOf(normal), 1) })
         gl!.bindFramebuffer(gl!.FRAMEBUFFER, null)
       }
     }

@@ -153,7 +153,13 @@ void main(){
   vec3 n=field.a>0.5?normalize(texture(fieldNormal,uv).xyz*2.0-1.0):-forward;
   vec3 detail=texture(normalMap,uv).xyz*2.0-1.0;
   if(directx>0.5)detail.y=-detail.y;
-  n=normalize(n+(right*detail.x+up*detail.y)*0.28);
+  // Reorient the complete normal map onto the geometric surface. A flat map
+  // preserves n; increasing map strength can now tilt it without a fixed cap.
+  vec3 tangent=right-n*dot(right,n);
+  if(dot(tangent,tangent)<0.0001)tangent=cross(up,n);
+  tangent=normalize(tangent);
+  vec3 bitangent=normalize(cross(n,tangent));
+  n=normalize(tangent*detail.x+bitangent*detail.y+n*detail.z);
   vec4 clip=matrix*vec4(p,1.0);gl_FragDepth=clip.z/clip.w*0.5+0.5;
   color=vec4(shade(pow(texel.rgb,vec3(2.2)),p,n,field.a>0.5?0.0:objectId),1.0);
 }

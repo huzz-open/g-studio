@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "setup:cn": "node scripts/generation/setup.mjs cn",
+    "setup:default": "node scripts/generation/setup.mjs default",
+    "test:mirrors": "node --test tests/generation-mirrors.test.mjs",
     "dev": "node scripts/generation/start.mjs dev",
     "build": "vue-tsc --noEmit -p tsconfig.app.json && vite build",
     "test:normals": "node --test tests/normal-generator.test.cjs",

@@ -1,0 +1,9 @@
+.venv/
+vendor/
+models/
+results/
+__pycache__/
+*.log
+*.zip
+*-reference.*
+environment-lock.txt

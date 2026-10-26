@@ -18,6 +18,10 @@ The tested machine is Windows x64, i5-10500, 32GB RAM, Intel UHD 630. UHD is log
 
 ## Paths and configuration
 
+For the China preset, run `npm run setup:cn` at the repository root before installing npm dependencies. The local `.generation-mirrors.local.json` selects ModelScope-first weights, and the launcher supplies the Tsinghua package index to uv for ordinary packages. PyTorch installation stays on its explicit CPU/CUDA index. The preset and project npm override are excluded from Git and do not alter global configuration; `npm run setup:default` reverses the preset.
+
+The downloader ships verified model configuration and license files in `bundled/`. ModelScope's main configuration differs from the already tested upstream revision, so it is deliberately not used as a substitute. Matching ModelScope weight URLs, fixed revisions, byte lengths and SHA256 checks are built in; users do not select them. Details are recorded in [bundled file provenance](./bundled/README.md).
+
 Default home: `~/.g-studio/generation`. `config.json` contains separate direct-access and worker credentials. It is device-private and must not be committed or exported with a workspace. Configuration is generated on first service start. Model files live in `models/`, pinned upstream code in `vendor/`, temporary jobs in `jobs/`, and the isolated environment in `venv/`.
 
 | Variable | Purpose |
@@ -29,6 +33,7 @@ Default home: `~/.g-studio/generation`. `config.json` contains separate direct-a
 | `GEN_DEVICE` | `cpu` to override GPU preference |
 | `GEN_PYTHON` | Use an explicitly managed Python executable; dependencies must already be installed |
 | `GEN_IMPORT_CACHE` | Import matching source/model files from an existing cache, with SHA256 verification |
+| `GEN_MODEL_SOURCE` | Optional explicit source priority: `modelscope` or `huggingface`; normally set automatically by the project preset |
 | `GEN_SKIP_MODEL` | `1` prepares only the lightweight algorithm provider; no Hunyuan download |
 | `GEN_RELAY_URL` | Outbound `wss://.../generation/worker` endpoint |
 | `GEN_PAIR` | `1` enables a new five-minute pairing session at this launch |

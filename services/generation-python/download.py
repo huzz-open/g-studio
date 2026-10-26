@@ -7,11 +7,38 @@ from pathlib import Path
 import shutil
 import time
 import urllib.request
+from urllib.parse import urlparse
 from config import HOME
 
 MANIFEST = json.loads(
     Path(__file__).with_name("model-manifest.json").read_text("utf-8")
 )
+
+
+def preferred_source():
+    source = os.environ.get("GEN_MODEL_SOURCE")
+    if source is None:
+        profile = Path(__file__).resolve().parents[2] / ".generation-mirrors.local.json"
+        if profile.exists():
+            value = json.loads(profile.read_text("utf-8"))
+            if value.get("version") != 1 or value.get("profile") not in (
+                "cn",
+                "default",
+            ):
+                raise RuntimeError("Invalid project mirror profile")
+            source = "modelscope" if value["profile"] == "cn" else "huggingface"
+        else:
+            source = "huggingface"
+    if source not in ("modelscope", "huggingface"):
+        raise RuntimeError("GEN_MODEL_SOURCE must be modelscope or huggingface")
+    return source
+
+
+def ordered_urls(item):
+    host = "modelscope.cn" if preferred_source() == "modelscope" else "huggingface.co"
+    return sorted(
+        item["urls"], key=lambda url: 0 if urlparse(url).hostname == host else 1
+    )
 
 
 def valid(path, item):
@@ -25,6 +52,16 @@ def download(item):
     dest = HOME / item["path"]
     dest.parent.mkdir(parents=True, exist_ok=True)
     if valid(dest, item):
+        return
+    bundled = Path(__file__).with_name("bundled") / item["path"]
+    if valid(bundled, item):
+        staging = dest.with_suffix(dest.suffix + ".bundled")
+        shutil.copyfile(bundled, staging)
+        staging.replace(dest)
+        print(
+            "[generation] Bundled configuration/license verified: " + item["path"],
+            flush=True,
+        )
         return
     import_source = os.environ.get("GEN_IMPORT_CACHE")
     if import_source:
@@ -41,8 +78,15 @@ def download(item):
         flush=True,
     )
     error = None
-    for url in item["urls"] * 2:
+    for url in ordered_urls(item) * 2:
         try:
+            print(
+                "[generation] Source: "
+                + str(urlparse(url).hostname)
+                + " / "
+                + item["path"],
+                flush=True,
+            )
             offset = part.stat().st_size if part.exists() else 0
             if offset >= item["size"]:
                 part.unlink()

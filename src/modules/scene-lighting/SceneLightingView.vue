@@ -95,7 +95,7 @@ onMounted(async()=>{try{await initializeScene()}catch(e){error.value=String(e)}}
 
       </SidebarSection>
       <SidebarSection title="" :collapsible="false">
-        <div class="view-controls"><SceneViewControls :state="state"/><InlineSwitch v-model="state.showNames" :label="t('sceneLight.showNames')" block/></div>
+        <div class="view-controls"><SceneViewControls :state="state"/><InlineSwitch v-model="state.showNames" :label="t('sceneLight.showNames')" block/><InlineSwitch v-model="state.showSelectionRing" :label="t('sceneLight.showSelectionRing')" block/></div>
         <button v-if="state.items.some(item=>!item.visible)" class="wide" @click="revealItems">{{t('parts.revealItems')}}</button>
       </SidebarSection>
       <SidebarSection :title="t('parts.library')" :collapsible="false">

@@ -42,6 +42,16 @@ Open the Sprite Slicer module, drag and drop this image in, and try the auto-det
 
 ### Install & Run
 
+For developers in mainland China, run this once inside the cloned project **before `npm install`**:
+
+```sh
+npm run setup:cn
+```
+
+This dependency-free command persistently configures the current project to use Alibaba npmmirror, the Tsinghua Python package index, and ModelScope-first model weights. It does not change global settings, install packages, or download models. `npm run setup:default` removes the preset and restores the previous project npm configuration while keeping cached models.
+
+Repository revisions, required weights, resumable downloads and SHA256 checks are managed by the project; no manual hashes, ModelScope SDK or account token are required for these public files. Verified configuration and license files ship with the project, so switching mirrors does not change inference settings. uv, the Python runtime, CPU/CUDA PyTorch packages and upstream inference source still use their respective official sources; GitHub-based npm dependencies are also unaffected by npm registry settings.
+
 ```bash
 git clone https://github.com/huzz-open/g-studio.git
 cd g-studio
