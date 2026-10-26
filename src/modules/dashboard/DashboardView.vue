@@ -8,6 +8,13 @@ const { t } = useI18n()
 
 const modules = [
   {
+    route: '/scene-lighting',
+    icon: 'layers',
+    titleKey: 'sceneLight.title',
+    descKey: 'sceneLight.subtitle',
+    color: '#708c70',
+  },
+  {
     route: '/resource-manager',
     icon: 'folder-open',
     titleKey: 'dashboard.resourceManager.title',

@@ -32,6 +32,15 @@ useTabRouteSync({
 })
 
 const terrainState = useTilesetTerrain()
+const historyTarget = ref<'atlas'|'terrain'>('atlas')
+const activeHistory = computed(()=>historyTarget.value==='terrain'?terrainState.history:activeInstance.value?.history)
+function chooseHistory(event:Event){
+  const target=event.target as HTMLElement
+  if(target.closest('.shell-tab-bar'))return activeHistory.value
+  historyTarget.value=target.closest('.split-bottom')?'terrain':'atlas'
+  return activeHistory.value
+}
+watch(activeTabId,()=>{historyTarget.value='atlas'})
 
 const sidebarInstance = shallowRef<TilesetInstance | null>(null)
 watch(activeInstance, (inst) => {
@@ -216,6 +225,8 @@ onUnmounted(() => {
 
 <template>
   <EditorShell
+    :history="activeHistory"
+    :resolve-history="chooseHistory" @focusin="chooseHistory"
     :tabs="tabs"
     :active-tab-id="activeTabId"
     tab-accept="image/png,image/jpeg,image/webp"
@@ -236,8 +247,8 @@ onUnmounted(() => {
     <!-- Left sidebar -->
     <template #left>
       <template v-if="sidebarInstance">
-        <SidebarSection :title="t('tileset.mode.title')" :collapsible="false">
-          <SegmentedControl
+        <SidebarSection title="" :collapsible="false">
+          <SegmentedControl :label="t('tileset.mode.title')"
             :model-value="sidebarInstance.state.mode"
             :options="[
               { value: 'sdf', label: t('tileset.mode.sdf') },

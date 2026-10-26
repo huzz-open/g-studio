@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import ScrollArea from '../../../shared/components/ScrollArea.vue'
 import { useI18n } from '../../../shared/i18n'
 import { useSettings } from '../../../shared/settings'
 import { useWorkspace } from '../../../shared/workspace'
@@ -159,22 +160,22 @@ const gridRows = [
 </script>
 
 <template>
-  <div class="sidebar-content">
+  <ScrollArea :label="t('parts.slicerSettings')"><div class="sidebar-content">
     <SidebarSection :title="t('slicer.source')" :collapsible="false">
       <FileDropZone compact accept="image/png,image/jpeg,image/webp" :hint="hasImage ? t('slicer.reselect') : t('slicer.upload.hint')"
         :file-name="hasImage ? `${store.state.imgSize.w} × ${store.state.imgSize.h} px` : ''" :loading="store.state.loading" loading-text="..." icon="image" @file="(f: File) => emit('file', f)" />
     </SidebarSection>
-    <SidebarSection :title="t('slicer.bgRemoval')" :collapsible="false">
-      <SegmentedControl :model-value="store.state.bgRemoverId" :default-value="settings.spriteSlicer.defaults.bgRemoval" :options="bgRemoverOptions" :disabled="!hasImage" :aria-label="t('slicer.bgRemoval')" role="group" @update:model-value="store.state.bgRemoverId = $event" />
+    <SidebarSection title="" :collapsible="false">
+      <SegmentedControl :label="t('slicer.bgRemoval')" :model-value="store.state.bgRemoverId" :default-value="settings.spriteSlicer.defaults.bgRemoval" :options="bgRemoverOptions" :disabled="!hasImage" :aria-label="t('slicer.bgRemoval')" role="group" @update:model-value="store.state.bgRemoverId = $event" />
       <template v-if="store.state.bgRemoverId === 'auto'">
         <ColorRow @commit="store.flushProcessing" :label="t('slicer.bgRemoval.bgColor')" :model-value="rgbToHex(store.state.bgColor)" :default-value="rgbToHex(SLICER_PARAMETER_DEFAULTS.bgColor)" :disabled="!hasImage" @update:model-value="onBgColorChange" />
         <SliderRow @commit="store.flushProcessing" v-model="store.state.bgTolerance" :default-value="SLICER_PARAMETER_DEFAULTS.bgTolerance" :label="t('slicer.bgRemoval.tolerance')" :min="0" :max="100" :disabled="!hasImage" />
         <SliderRow @commit="store.flushProcessing" v-model="store.state.bgSpillStrength" :default-value="SLICER_PARAMETER_DEFAULTS.bgSpillStrength" :label="t('slicer.bgRemoval.spillCorrection')" :min="0" :max="100" :disabled="!hasImage" />
       </template>
     </SidebarSection>
-    <SidebarSection :title="t('slicer.detection')" :collapsible="false">
-      <template #header-extra><span v-if="store.state.processing || store.state.processingError" class="processing-status" role="status" :title="store.state.processingError">{{ store.state.processingError || t('slicer.processing') }}</span></template>
-      <SegmentedControl :model-value="store.state.detectionMode" :default-value="settings.spriteSlicer.defaults.detectionMode" :aria-label="t('slicer.detection')" role="group"
+    <SidebarSection title="" :collapsible="false">
+      <span v-if="store.state.processing || store.state.processingError" class="processing-status" role="status" :title="store.state.processingError">{{ store.state.processingError || t('slicer.processing') }}</span>
+      <SegmentedControl :label="t('slicer.detection')" :model-value="store.state.detectionMode" :default-value="settings.spriteSlicer.defaults.detectionMode" :aria-label="t('slicer.detection')" role="group"
         :options="[{ value: 'auto', labelKey: 'slicer.detection.auto' }, { value: 'grid', labelKey: 'slicer.detection.grid' }]"
         :disabled="!hasImage" @update:model-value="store.state.detectionMode = $event as 'auto' | 'grid'; store.runDetection()" />
     </SidebarSection>
@@ -188,8 +189,8 @@ const gridRows = [
           :label="'axis' in field ? t(field.label) + ' ' + field.axis : index === 1 ? t('slicer.grid.gap') + ' ' + (field.key === 'gapH' ? 'H' : 'V') : t(field.label)" :min="field.min" :max="field.max" :disabled="!hasImage" />
       </div>
     </SidebarSection>
-    <SidebarSection :title="t('slicer.arrangeMode')" :collapsible="false">
-      <SegmentedControl :model-value="store.state.arrangeMode" :default-value="settings.spriteSlicer.defaults.arrangeMode" :options="arrangeModeOptions" :disabled="!hasImage" :aria-label="t('slicer.arrangeMode')" role="group" @update:model-value="store.state.arrangeMode = $event as 'none' | 'standardize' | 'bin-pack'" />
+    <SidebarSection title="" :collapsible="false">
+      <SegmentedControl :label="t('slicer.arrangeMode')" :model-value="store.state.arrangeMode" :default-value="settings.spriteSlicer.defaults.arrangeMode" :options="arrangeModeOptions" :disabled="!hasImage" :aria-label="t('slicer.arrangeMode')" role="group" @update:model-value="store.state.arrangeMode = $event as 'none' | 'standardize' | 'bin-pack'" />
     </SidebarSection>
     <div class="standalone-field"><TextRow v-model="store.state.namePrefix" :default-value="settings.spriteSlicer.defaults.namePrefix" :label="t('slicer.naming.prefix')" stacked live :disabled="!hasImage" /></div>
     <SidebarSection v-if="hasImage && store.selectedSprites.value.length >= 2" :title="t('slicer.anim.title')" :collapsible="false">
@@ -212,11 +213,11 @@ const gridRows = [
       <p v-if="outputBusy" class="output-progress" role="status">{{ outputProgress || t('normal.exporting') }}</p>
       <ActionButtons :buttons="outputButtons" @click="onOutputAction" />
     </SidebarSection>
-  </div>
+  </div></ScrollArea>
 </template>
 
 <style scoped>
-.sidebar-content { height: 100%; overflow-y: auto; }
+.sidebar-content { min-height: 100%; }
 .processing-status { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #8ab4f8; font-size: 10px; }
 .grid-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr)); gap: 10px; }
 .standalone-field { padding: 10px; border-bottom: 1px solid #333; }

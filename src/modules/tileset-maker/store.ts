@@ -1,3 +1,4 @@
+import { createObservedHistory } from '../../shared/history/createObservedHistory'
 import { reactive, computed } from 'vue'
 import type { CustomSplits, EdgeProfile, GenerationMode, LayoutName, TileSize, TilesetLayout } from './core/types'
 import { getProfile } from './core/sdf/profiles'
@@ -83,6 +84,16 @@ export function createTilesetInstance(id: string) {
   })
 
 
+  const history = createObservedHistory({
+    capture: () => ({mode:state.mode,tileSize:state.tileSize,profile:{...state.profile},layout:state.layout,
+      useMagenta:state.useMagenta,magentaTolerance:state.magentaTolerance,
+      nineGridSplitsX:[...state.nineGridSplitsX],nineGridSplitsY:[...state.nineGridSplitsY]}),
+    restore: snapshot => {
+      Object.assign(state, snapshot, {profile:{...snapshot.profile},nineGridSplitsX:[...snapshot.nineGridSplitsX],nineGridSplitsY:[...snapshot.nineGridSplitsY]})
+      setTileSize(snapshot.tileSize)
+    },
+  })
+
   const currentLayout = computed<TilesetLayout>(() => getLayout(state.layout))
   const hasSource = computed(() => {
     if (state.mode === 'sdf') return state.texturePixels !== null
@@ -121,7 +132,7 @@ export function createTilesetInstance(id: string) {
     }
   }
   function flushGeneration() { generation.flush() }
-  function dispose() { generation.dispose(); worker.dispose(); state.texture?.close(); state.nineGridImage?.close() }
+  function dispose() { history.dispose(); generation.dispose(); worker.dispose(); state.texture?.close(); state.nineGridImage?.close() }
 
   async function loadTexture(file: File) {
     const bitmap = await createImageBitmap(file)
@@ -135,6 +146,7 @@ export function createTilesetInstance(id: string) {
     state.isGenerating = true
     regenerate(true)
     await generation.whenIdle()
+    history.clear()
   }
 
   function setTextureFromPixels(pixels: Uint8ClampedArray, size: number, name: string, uid?: string) {
@@ -142,6 +154,7 @@ export function createTilesetInstance(id: string) {
     state.tileSize = size as TileSize
     state.textureFileName = name
     state.textureUid = uid || null
+    history.clear()
     state.isGenerating = true
     regenerate(true)
   }
@@ -168,6 +181,7 @@ export function createTilesetInstance(id: string) {
     state.isGenerating = true
     regenerate(true)
     await generation.whenIdle()
+    history.clear()
   }
 
   function setMode(mode: GenerationMode) {
@@ -340,6 +354,7 @@ export function createTilesetInstance(id: string) {
 
   return {
     id,
+    history,
     state,
     currentLayout,
     hasSource,

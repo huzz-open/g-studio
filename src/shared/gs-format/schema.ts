@@ -1,5 +1,6 @@
 import { GsType, RegionType, type GsFile, type SceneRegionData, type SceneRegion, type SpriteData, type TilesetData } from './types'
 import { normalSettings, type NormalSettings } from '../types/normal-settings'
+import { validatePart } from '../parts/schema'
 
 export class GsValidationError extends Error {
   constructor(message: string) {
@@ -169,6 +170,9 @@ export function validateSpriteData(data: unknown): asserts data is SpriteData {
       if (!s.normalSettings || typeof s.normalSettings !== 'object' || Array.isArray(s.normalSettings)) throw new GsValidationError(`data.sprites[${i}].normalSettings is invalid`)
       try { normalSettings(s.normalSettings as Partial<NormalSettings>) }
       catch (error) { throw new GsValidationError(`data.sprites[${i}]: ${String(error)}`) }
+    }
+    if (s.partAsset !== undefined) {
+      try { validatePart(s.partAsset) } catch(error) { throw new GsValidationError(`data.sprites[${i}].partAsset: ${String(error)}`) }
     }
     if (!Array.isArray(s.rect) || s.rect.length !== 4 || !s.rect.every((v: unknown) => typeof v === 'number')) {
       throw new GsValidationError(`data.sprites[${i}].rect 必须为 [x, y, w, h]`)

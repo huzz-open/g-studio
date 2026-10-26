@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import HistoryControls from './HistoryControls.vue'
+import { useHistoryInteraction } from './useHistoryInteraction'
+import type { HistoryController } from '../../history/interaction'
 import ShellTabBar from './ShellTabBar.vue'
 import SidePanel from './SidePanel.vue'
 import ViewportArea from './ViewportArea.vue'
@@ -7,9 +10,13 @@ import { useEditorShell } from './useEditorShell'
 import type { TabItem, PanelConfig, ViewportConfig, DropModifiers } from './types'
 
 const props = withDefaults(defineProps<{
+  history?: HistoryController | null
+  resolveHistory?: (event: Event) => HistoryController | null | undefined
   tabs: TabItem[]
   activeTabId: string | null
   tabAccept?: string
+  tabAddMode?: 'file' | 'empty'
+  tabAddLabel?: string
   leftPanel?: PanelConfig
   rightPanel?: PanelConfig
   leftCollapsed?: boolean
@@ -33,11 +40,14 @@ const emit = defineEmits<{
   'tab-add-empty': []
   'tab-add-file': [file: File]
   'tab-load-file': [file: File]
+  'tab-rename': [id: string]
   'viewport-drop': [files: File[], modifiers: DropModifiers]
   'update:leftCollapsed': [val: boolean]
   'update:rightCollapsed': [val: boolean]
 }>()
 
+const root = ref<HTMLElement>()
+const historyInteraction = useHistoryInteraction(root, () => props.history, event => props.resolveHistory?.(event))
 const shell = useEditorShell()
 shell.leftCollapsed.value = props.leftCollapsed
 shell.rightCollapsed.value = props.rightCollapsed
@@ -68,7 +78,7 @@ function onViewportDrop(files: File[], modifiers: DropModifiers) {
 </script>
 
 <template>
-  <div class="editor-shell">
+  <div ref="root" class="editor-shell" @pointerdown.capture="historyInteraction.begin" @keydown.capture="historyInteraction.begin">
     <!-- Left sidebar -->
     <SidePanel
       v-if="leftPanel"
@@ -89,11 +99,14 @@ function onViewportDrop(files: File[], modifiers: DropModifiers) {
         :tabs="mergedTabs"
         :active-id="activeTabId"
         :accept="tabAccept"
+        :add-mode="tabAddMode"
+        :add-label="tabAddLabel"
         @switch="emit('tab-switch', $event)"
         @close="emit('tab-close', $event)"
         @add-empty="emit('tab-add-empty')"
         @add-file="emit('tab-add-file', $event)"
-      />
+        @rename="emit('tab-rename', $event)"
+      ><template #actions><slot name="tab-actions" /></template><template #toolbar><HistoryControls :history="history"/></template></ShellTabBar>
 
       <ViewportArea
         :key="activeTabId ?? ''"

@@ -3,11 +3,14 @@ import { ref } from 'vue'
 import SvgIcon from '../../icons/SvgIcon.vue'
 import { matchesAccept } from '../../utils/file-accept'
 import type { TabItem } from './types'
+import { useI18n } from '../../i18n'
 
 const props = defineProps<{
   tabs: TabItem[]
   activeId: string | null
   accept?: string
+  addMode?: 'file' | 'empty'
+  addLabel?: string
 }>()
 
 const emit = defineEmits<{
@@ -15,12 +18,15 @@ const emit = defineEmits<{
   close: [id: string]
   addEmpty: []
   addFile: [file: File]
+  rename: [id: string]
 }>()
+const { t } = useI18n()
 
 const dragging = ref(false)
 const fileInputEl = ref<HTMLInputElement>()
 
 function onClickAdd() {
+  if (props.addMode === 'empty') { emit('addEmpty'); return }
   fileInputEl.value?.click()
 }
 
@@ -61,6 +67,7 @@ function onMiddleClick(id: string, e: MouseEvent) {
 <template>
   <div
     class="shell-tab-bar"
+    role="tablist"
     :class="{ 'drag-over': dragging }"
     @dragover="onDragOver"
     @dragleave="onDragLeave"
@@ -73,20 +80,28 @@ function onMiddleClick(id: string, e: MouseEvent) {
         class="tab-item"
         :class="{ active: tab.id === activeId }"
         :title="tab.label"
+        role="tab"
+        :aria-selected="tab.id === activeId"
+        :tabindex="tab.id === activeId ? 0 : -1"
         @click="emit('switch', tab.id)"
+        @keydown.enter.prevent="emit('switch', tab.id)"
+        @keydown.space.prevent="emit('switch', tab.id)"
+        @dblclick="emit('rename', tab.id)"
         @mousedown="onMiddleClick(tab.id, $event)"
       >
         <SvgIcon v-if="tab.icon" :name="tab.icon" :size="11" />
         <span class="tab-name">{{ tab.label }}</span>
-        <button v-if="!tab.dirty" class="tab-close" @click.stop="emit('close', tab.id)">
+        <button v-if="!tab.dirty" class="tab-close" :aria-label="t('common.closeTab', {name:tab.label})" @click.stop="emit('close', tab.id)">
           <SvgIcon name="close" :size="10" />
         </button>
         <span v-else class="tab-dirty" @click.stop="emit('close', tab.id)">●</span>
       </div>
-      <button class="tab-add" @click="onClickAdd">
+      <button class="tab-add" :title="addLabel || t('common.newTab')" :aria-label="addLabel || t('common.newTab')" @click="onClickAdd">
         <SvgIcon name="plus" :size="12" />
       </button>
+      <slot name="actions" />
     </div>
+    <slot name="toolbar" />
     <input
       ref="fileInputEl"
       type="file"
@@ -113,6 +128,7 @@ function onMiddleClick(id: string, e: MouseEvent) {
 .tab-scroll {
   display: flex;
   flex: 1;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
 }

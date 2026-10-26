@@ -1,3 +1,4 @@
+import { ensureSpritePart } from '../../shared/parts/sprite-assets'
 import { reactive, computed, watch, nextTick, effectScope, type EffectScope } from 'vue'
 import type { DetectedSprite } from './interfaces/sprite-detector'
 import type { BgRemovalOptions } from './interfaces/background-remover'
@@ -21,6 +22,9 @@ import { SLICER_PARAMETER_DEFAULTS } from './defaults'
 import { createLatestTask } from '../../shared/utils/latest-task'
 import { createWorkerClient } from '../../shared/utils/worker-client'
 import type { SliceTask, SliceResult } from './core/processing/types'
+import { clonePart, type PartAsset } from '../../shared/parts/schema'
+import { hydrateParts, partLibrary, savePart } from '../../shared/parts/library'
+import { showToast } from '../../shared/components/toast'
 
 function sortByReadingOrder(arr: DetectedSprite[], threshold = 20) {
   arr.sort((a, b) => {
@@ -134,6 +138,7 @@ function createSlicerInstance(id: string) {
     rect: Rect
     name: string
     normalSettings?: NormalSettings
+    partAsset?: PartAsset
     mergedFrom?: number[]
     mergedFromRects?: Rect[]
     splitFrom?: number
@@ -151,6 +156,7 @@ function createSlicerInstance(id: string) {
           rect: { ...(s._origRect ?? s.rect) },
           name: s.name,
           normalSettings: s.normalSettings ? { ...s.normalSettings } : undefined,
+          partAsset: s.partAsset ? clonePart(s.partAsset) : undefined,
           mergedFrom: s.mergedFrom ? [...s.mergedFrom] : undefined,
           mergedFromRects: s.mergedFromRects ? s.mergedFromRects.map(r => ({ ...r })) : undefined,
           splitFrom: s.splitFrom,
@@ -167,6 +173,7 @@ function createSlicerInstance(id: string) {
           rect: { ...entry.rect },
           name: entry.name,
           normalSettings: entry.normalSettings ? { ...entry.normalSettings } : undefined,
+          partAsset: entry.partAsset ? clonePart(partLibrary[entry.partAsset.id] ?? entry.partAsset) : undefined,
           imageData: cached.imageData,
           dataUrl: cached.dataUrl,
           mergedFrom: entry.mergedFrom,
@@ -239,7 +246,12 @@ function createSlicerInstance(id: string) {
       _origCleanImageUrl = input.arrange === 'none' ? null : result.cleanUrl
       _origImgSize = input.arrange === 'none' ? null : { w: result.clean.width, h: result.clean.height }
       const prefix = state.namePrefix || 'sprite'
-      result.sprites.forEach((sprite, i) => { sprite.name = prefix + '-' + String(i + 1).padStart(2, '0') })
+      result.sprites.forEach((sprite, i) => {
+        sprite.name = prefix + '-' + String(i + 1).padStart(2, '0')
+        const r = sprite._origRect ?? sprite.rect
+        const previous = state.sprites.find(s => { const p=s._origRect??s.rect; return p.x===r.x&&p.y===r.y&&p.w===r.w&&p.h===r.h&&(s._origDataUrl??s.dataUrl)===(sprite._origDataUrl??sprite.dataUrl) })
+        if(previous?.partAsset){sprite.partAsset=clonePart(partLibrary[previous.partAsset.id]??previous.partAsset);sprite.name=sprite.partAsset.name;sprite.normalSettings={...sprite.partAsset.normal}}
+      })
       state.sprites = result.sprites
       state.selected = new Set(result.sprites.map(sprite => sprite.id))
       cacheAllSprites(); history.clear()
@@ -413,6 +425,7 @@ function createSlicerInstance(id: string) {
           dataUrl: imageDataToDataUrl(cellData, rw, rh),
           name: s.name,
           normalSettings: s.normalSettings ? normalSettings(s.normalSettings) : undefined,
+          partAsset: s.partAsset ? clonePart(partLibrary[s.partAsset.id] ?? s.partAsset) : undefined,
         }
         if (s.originalRect) {
           const [ox, oy, ow, oh] = s.originalRect
@@ -606,6 +619,7 @@ function createSlicerInstance(id: string) {
 
     const result = await readSpriteGsFile(path)
     const data = result.file.data
+    await hydrateParts(data.sprites.flatMap(s => s.partAsset ? [s.partAsset] : []))
 
     state.gsPath = path
     state.gsLastKnownVersion = result.file.version
@@ -639,7 +653,7 @@ function createSlicerInstance(id: string) {
       reader.readAsDataURL(file)
     })
 
-    state.dirty = false
+    state.dirty = data.sprites.some(s => s.partAsset && partLibrary[s.partAsset.id]?.revision !== s.partAsset.revision)
     setTimeout(() => { _loadingFromGs = false }, 0)
   }
 
@@ -717,6 +731,7 @@ function createSlicerInstance(id: string) {
     return state.sprites.map(s => ({
       name: s.name,
       normalSettings: s.normalSettings ? { ...s.normalSettings } : undefined,
+      partAsset: s.partAsset ? clonePart(partLibrary[s.partAsset.id] ?? s.partAsset) : undefined,
       rect: [
         (s._origRect ?? s.rect).x, (s._origRect ?? s.rect).y,
         (s._origRect ?? s.rect).w, (s._origRect ?? s.rect).h,
@@ -724,13 +739,18 @@ function createSlicerInstance(id: string) {
     }))
   }
 
-  function renameSprite(id: number, newName: string): boolean {
+  async function renameSprite(id: number, newName: string): Promise<boolean> {
     const trimmed = newName.trim()
     if (!trimmed) return false
     const duplicate = state.sprites.some(s => s.id !== id && s.name === trimmed)
     if (duplicate) return false
     const sprite = state.sprites.find(s => s.id === id)
     if (!sprite) return false
+    if (sprite.partAsset) {
+      const current = partLibrary[sprite.partAsset.id] ?? sprite.partAsset
+      const saved = await savePart({ ...clonePart(current), name: trimmed }, current.revision)
+      attachPartAsset(id, saved); return true
+    }
     history.record()
     sprite.name = trimmed
     state.sprites = [...state.sprites]
@@ -748,6 +768,12 @@ function createSlicerInstance(id: string) {
     state.dirty = true
   }
 
+  function attachPartAsset(spriteId: number, part: PartAsset) {
+    const sprite = state.sprites.find(s => s.id === spriteId)
+    if(!sprite)return
+    sprite.partAsset=clonePart(part);sprite.name=part.name;sprite.normalSettings={...part.normal};state.dirty=true
+  }
+
   function isSpriteNameTaken(name: string, excludeId?: number): boolean {
     const trimmed = name.trim()
     return state.sprites.some(s => s.id !== excludeId && s.name === trimmed)
@@ -757,6 +783,25 @@ function createSlicerInstance(id: string) {
   const _scope: EffectScope = effectScope()
 
   _scope.run(() => {
+    watch(() => [state.sourceImage, state.processing, state.loading, state.sprites.map(s=>s._origDataUrl??s.dataUrl).join('|')], (_, __, cleanup) => {
+      let cancelled=false
+      const timer=setTimeout(async()=>{
+        if(state.processing||state.loading||!state.sourceImage||_loadingFromGs)return
+        for(const sprite of [...state.sprites]){
+          if(cancelled)return
+          if(sprite.partAsset)continue
+          try{await ensureSpritePart({state,attachPartAsset},sprite,()=>!cancelled)}
+          catch(error){if(!cancelled){showToast(String(error),'error');break}}
+        }
+      },500)
+      cleanup(()=>{cancelled=true;clearTimeout(timer)})
+    },{immediate:true})
+    watch(() => state.sprites.map(s => s.partAsset ? partLibrary[s.partAsset.id] : undefined), () => {
+      for(const sprite of state.sprites){
+        const current=sprite.partAsset&&partLibrary[sprite.partAsset.id]
+        if(current&&(current.revision!==sprite.partAsset!.revision||sprite.name!==current.name||JSON.stringify(sprite.normalSettings)!==JSON.stringify(current.normal))) attachPartAsset(sprite.id,current)
+      }
+    })
     watch(() => state.bgRemoverId, () => {
       if (_loadingFromGs || !state.sourceImage) return
       requestProcessing()
@@ -792,7 +837,9 @@ function createSlicerInstance(id: string) {
       if (_loadingFromGs || !state.sourceImage) return
       const prefix = state.namePrefix || 'sprite'
       state.sprites.forEach((s, i) => {
-        s.name = `${prefix}-${String(i + 1).padStart(2, '0')}`
+        const name = `${prefix}-${String(i + 1).padStart(2, '0')}`
+        if(s.partAsset){const part=partLibrary[s.partAsset.id]??s.partAsset;void savePart({...clonePart(part),name},part.revision).catch(e=>showToast(String(e),'error'))}
+        else s.name=name
       })
     })
   })
@@ -832,6 +879,7 @@ function createSlicerInstance(id: string) {
     restoreArrange,
     renameSprite,
     setNormalSettings,
+    attachPartAsset,
     isSpriteNameTaken,
     getSliceConfig,
     applySliceConfig,

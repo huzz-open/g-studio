@@ -196,7 +196,7 @@ defineExpose({
   <!-- Overlay mode -->
   <Teleport v-if="overlay" to="body">
     <div class="ic-overlay" @click="emit('close')">
-      <div class="ic-overlay-card" :class="{ fullscreen: isFullscreen }" @click.stop>
+      <div class="ic-overlay-card" role="dialog" aria-modal="true" :aria-label="overlayTitle" :class="{ fullscreen: isFullscreen }" @click.stop>
         <div class="ic-overlay-header">
           <span v-if="overlayTitle" class="ic-overlay-title">{{ overlayTitle }}</span>
           <span v-if="overlaySubtitle" class="ic-overlay-subtitle">{{ overlaySubtitle }}</span>

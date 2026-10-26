@@ -51,7 +51,6 @@ const layoutOptions: SegmentOption[] = [
     </div>
 
     <div class="section">
-      <label class="section-title">{{ t('tileset.tileSize') }}</label>
       <SegmentedControl
         :model-value="String(props.store.state.tileSize)"
         :default-value="String(settings.tilesetMaker.defaults.tileSize)" :label="t('tileset.tileSize')"
@@ -62,7 +61,6 @@ const layoutOptions: SegmentOption[] = [
     </div>
 
     <div class="section">
-      <label class="section-title">{{ t('tileset.layout') }}</label>
       <SegmentedControl
         :model-value="props.store.state.layout"
         :default-value="settings.tilesetMaker.defaults.layout" :label="t('tileset.layout')"

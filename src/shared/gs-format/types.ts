@@ -1,4 +1,5 @@
 import type { NormalSettings } from '../types/normal-settings'
+import type { PartAsset } from '../parts/schema'
 
 export const GsType = {
   SceneRegion: 1,
@@ -33,6 +34,7 @@ export interface SceneRegionData {
 
 export interface SpriteEntry {
   name: string
+  partAsset?: PartAsset
   normalSettings?: NormalSettings
   rect: [number, number, number, number]
   originalRect?: [number, number, number, number]

@@ -43,6 +43,7 @@ function onKeydown(event: KeyboardEvent, index: number) {
 
 <template>
   <div class="seg-control">
+    <span v-if="label" class="seg-label">{{ label }}</span>
   <div class="seg-ctrl" :class="{ disabled, 'no-indicator': !indicator }">
     <button
       v-for="(opt, index) in options"
@@ -62,6 +63,7 @@ function onKeydown(event: KeyboardEvent, index: number) {
 </template>
 
 <style scoped>
+.seg-label { flex: 0 0 auto; font-size: 11px; color: #aaa; margin-right: 5px; }
 .seg-control { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .seg-ctrl {
   flex: 1;

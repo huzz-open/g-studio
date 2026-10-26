@@ -7,8 +7,11 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit -p tsconfig.app.json && vite build",
     "test:normals": "node --test tests/normal-generator.test.cjs",
+    "test:history": "node --test tests/history.test.cjs",
     "test:compute": "node --test tests/latest-task.test.cjs",
     "test:shadows": "node --test tests/shadow-geometry.test.cjs",
+    "test:scene-lighting": "node --test tests/scene-lighting.test.cjs",
+    "test:parts": "node --test tests/parts.test.cjs tests/sprite-assets.test.cjs",
     "preview": "vite preview"
   },
   "dependencies": {

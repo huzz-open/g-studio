@@ -4,6 +4,11 @@ const router = createRouter({
   history: createWebHashHistory(),
   routes: [
     {
+      path: '/scene-lighting',
+      name: 'scene-lighting',
+      component: () => import('../modules/scene-lighting/SceneLightingView.vue'),
+    },
+    {
       path: '/experiments/umbrella-shadow',
       name: 'umbrella-shadow-experiment',
       component: () => import('../modules/experiments/UmbrellaShadowDemo.vue'),

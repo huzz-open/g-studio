@@ -133,7 +133,7 @@ defineExpose({ open, openExtended })
 <template>
   <Teleport to="body">
     <div v-if="visible" class="prompt-overlay" @click.self="handleCancel">
-      <div class="prompt-card">
+      <div class="prompt-card" role="dialog" aria-modal="true" :aria-label="opts.title">
         <h3 class="prompt-title">{{ opts.title }}</h3>
         <p v-if="opts.message" class="prompt-msg">{{ opts.message }}</p>
         <div class="prompt-input-wrap">
@@ -159,8 +159,7 @@ defineExpose({ open, openExtended })
         </div>
         <div v-if="opts.inlineChoices?.length" class="prompt-choices">
           <div v-for="choice in opts.inlineChoices" :key="choice.id" class="prompt-choice-group">
-            <label class="prompt-choice-label">{{ choice.label }}</label>
-            <SegmentedControl
+            <SegmentedControl :label="choice.label"
               :model-value="choiceValues[choice.id]"
               :options="choice.options.map(o => ({ value: o.value, label: o.label }))"
               @update:model-value="choiceValues[choice.id] = $event"

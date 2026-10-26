@@ -167,9 +167,9 @@ async function onDeleteAction() {
     </SidebarSection>
 
     <!-- Purpose -->
-    <SidebarSection :title="t('sceneEditor.property.purpose')" :collapsible="false">
+    <SidebarSection title="" :collapsible="false">
       <SegmentedControl
-        :model-value="region.type"
+        :label="t('sceneEditor.property.purpose')" :model-value="region.type"
         :options="typeOptions"
         @update:model-value="onTypeChange"
       />
@@ -181,7 +181,7 @@ async function onDeleteAction() {
       :title="t('sceneEditor.property.godotGroups')"
     >
       <SegmentedControl
-        :model-value="depthMode"
+        :label="t('sceneEditor.preset.depthMode')" :model-value="depthMode"
         :options="depthOptions"
         :indicator="false"
         @update:model-value="setDepthMode"

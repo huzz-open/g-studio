@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import HistoryControls from '../../../shared/components/editor-shell/HistoryControls.vue'
+import { historyShortcut, isTextInput } from '../../../shared/history/interaction'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from '../../../shared/i18n'
 import { useSettings } from '../../../shared/settings'
@@ -80,10 +82,6 @@ const splitHistory = createHistoryStack<SplitSnapshot>({
 function recordBefore() {
   splitHistory.record()
 }
-function undo() { splitHistory.undo() }
-function redo() { splitHistory.redo() }
-const canUndo = splitHistory.canUndo
-const canRedo = splitHistory.canRedo
 
 // --- Image data ---
 const { x: ox, y: oy, w: sw, h: sh } = props.sprite.rect
@@ -461,9 +459,9 @@ function onContextMenu(e: MouseEvent) {
 // --- Keyboard ---
 function onKeyDown(e: KeyboardEvent) {
   if (e.key === 'Enter') { e.preventDefault(); if (currentPoints.value.length >= 2) finishLine() }
-  if (e.key === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey) { e.preventDefault(); undo() }
-  if ((e.key === 'y' && (e.ctrlKey || e.metaKey)) ||
-      (e.key === 'z' && (e.ctrlKey || e.metaKey) && e.shiftKey)) { e.preventDefault(); redo() }
+  const command=historyShortcut(e)
+  if(command&&!isTextInput(e.target)){e.preventDefault();splitHistory[command]();return}
+
 }
 onMounted(() => {
   document.addEventListener('keydown', onKeyDown)
@@ -632,12 +630,7 @@ const hintKey = computed(() => mode.value === 'edit' ? 'slicer.split.editHint' :
           <span v-if="lineCount > 0" class="split-count">
             {{ t('slicer.split.lines', { count: lineCount }) }}
           </span>
-          <button class="split-btn" @click="undo" :disabled="!canUndo" :title="t('common.undo') + ' (Ctrl+Z)'">
-            <SvgIcon name="undo" :size="12" />
-          </button>
-          <button class="split-btn" @click="redo" :disabled="!canRedo" :title="t('common.redo') + ' (Ctrl+Y)'">
-            <SvgIcon name="redo" :size="12" />
-          </button>
+          <HistoryControls :history="splitHistory"/>
           <button class="split-btn" @click="clearAll" :disabled="completedLines.length === 0 && currentPoints.length === 0">
             {{ t('slicer.split.clear') }}
           </button>

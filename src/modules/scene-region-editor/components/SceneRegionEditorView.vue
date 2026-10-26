@@ -80,7 +80,6 @@ const { handleSave } = useSaveFlow({
 
 useEditorKeyboard(() => activeInstance.value ? {
   save: handleSave,
-  history: activeInstance.value.history,
 } : null)
 
 useExternalChangeWatch({
@@ -166,6 +165,7 @@ function onImportJson() {
 
 <template>
   <EditorShell
+    :history="activeInstance?.history"
     :tabs="tabs"
     :active-tab-id="activeTabId"
     tab-accept="image/*"

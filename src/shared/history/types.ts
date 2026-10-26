@@ -18,13 +18,14 @@ export interface Transaction {
   cancel(): void
 }
 
-export interface HistoryStack<_T = unknown> {
+export interface HistoryStack<T = unknown> {
   readonly canUndo: ComputedRef<boolean>
   readonly canRedo: ComputedRef<boolean>
   /** 正在恢复快照中（模块可据此跳过 watcher 副作用） */
   readonly isRestoring: Ref<boolean>
 
   /** 记录当前状态后执行修改（用于确定会产生变更的单步操作） */
+  recordSnapshot(snapshot: T): void
   record(): void
   /** 同步批量操作：自动 capture before → 执行 fn → 比较 → 入栈 */
   batch(fn: () => void): void

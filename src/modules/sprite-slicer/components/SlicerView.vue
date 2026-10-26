@@ -74,7 +74,6 @@ const { handleSave, saveWithResult } = useSaveFlow({
 
 useEditorKeyboard(() => activeInstance.value ? {
   save: async () => { await activeInstance.value?.waitForProcessing(); await handleSave() },
-  history: activeInstance.value.history,
 } : null)
 
 const leftPanelConfig = definePanelConfig('slicer-sidebar-width', 300)
@@ -163,6 +162,7 @@ function onExportLocal(payload: OutputPayload) { void output(payload, false) }
 
 <template>
   <EditorShell
+    :history="activeInstance?.history"
     :tabs="tabs"
     :active-tab-id="activeTabId"
     tab-accept="image/png,image/jpeg,image/webp"

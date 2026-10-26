@@ -30,9 +30,8 @@ export function orthographic(halfHeight: number, aspect: number, near: number, f
 }
 
 export interface CameraSettings { yaw: number; pitch: number; distance: number; projection: 'orthographic' | 'perspective' }
-export function camera(settings: CameraSettings, aspect: number) {
+export function camera(settings: CameraSettings, aspect: number, target: Vec3 = [0, 1.15, 0]) {
   const yaw = settings.yaw * Math.PI / 180, pitch = settings.pitch * Math.PI / 180
-  const target: Vec3 = [0, 1.15, 0]
   const eye = add(target, scale([Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)], settings.distance))
   const forward = normalize(sub(target, eye)), right = normalize(cross(forward, [0, 1, 0])), up = cross(right, forward)
   const half = settings.distance * 0.4, fov = 45 * Math.PI / 180

@@ -80,7 +80,7 @@ defineExpose({ open, openChoice })
       class="confirm-overlay"
       @click.self="handleCancel"
     >
-      <div class="confirm-card">
+      <div class="confirm-card" role="dialog" aria-modal="true" :aria-label="imperativeVisible ? imperativeOpts.title : title">
         <h3 class="confirm-title">
           {{ imperativeVisible ? imperativeOpts.title : title }}
         </h3>
@@ -107,7 +107,7 @@ defineExpose({ open, openChoice })
       class="confirm-overlay"
       @click.self="handleCancel"
     >
-      <div class="confirm-card">
+      <div class="confirm-card" role="dialog" aria-modal="true" :aria-label="imperativeVisible ? imperativeOpts.title : title">
         <h3 class="confirm-title">{{ choiceOpts.title }}</h3>
         <p class="confirm-msg">{{ choiceOpts.message }}</p>
         <div class="confirm-actions choice-actions">

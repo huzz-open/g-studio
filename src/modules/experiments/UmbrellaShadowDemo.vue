@@ -91,7 +91,7 @@ defineExpose({
         <SliderRow v-model="light.radius" :default-value="lightDefaults.radius" :label="t('umbrella.distance')" :min="0" :max="4.8" :step="0.01" :precision="2" />
       </SidebarSection>
       <SidebarSection :title="t('umbrella.camera')" :collapsible="false">
-        <SegmentedControl :model-value="view.projection" :options="[{ value: 'orthographic', label: t('umbrella.orthographic') }, { value: 'perspective', label: t('umbrella.perspective') }]" role="group" :aria-label="t('umbrella.projection')" @update:model-value="setProjection" />
+        <SegmentedControl :label="t('umbrella.projection')" :model-value="view.projection" :options="[{ value: 'orthographic', label: t('umbrella.orthographic') }, { value: 'perspective', label: t('umbrella.perspective') }]" role="group" :aria-label="t('umbrella.projection')" @update:model-value="setProjection" />
         <SliderRow v-model="view.pitch" :default-value="cameraDefaults.pitch" :label="t('umbrella.pitch')" :min="10" :max="80" :step="1" :precision="0" suffix="°" />
         <SliderRow v-model="view.yaw" :default-value="cameraDefaults.yaw" :label="t('umbrella.yaw')" :min="-180" :max="180" :step="1" :precision="0" suffix="°" />
         <SliderRow v-model="view.distance" :default-value="cameraDefaults.distance" :label="t('umbrella.cameraDistance')" :min="4" :max="12" :step="0.1" :precision="1" />

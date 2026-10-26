@@ -156,7 +156,7 @@ function useTexture() {
 
 <template>
   <div class="texture-painter-overlay" @click.self="emit('close')">
-    <div class="painter-dialog">
+    <div class="painter-dialog" role="dialog" aria-modal="true" :aria-label="t('tileset.painter.title')">
       <header class="painter-header">
         <h3>{{ t('tileset.painter.title') }}</h3>
         <button class="close-btn" @click="emit('close')">×</button>

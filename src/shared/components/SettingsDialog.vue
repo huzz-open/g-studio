@@ -305,7 +305,7 @@ function resetItem(item: SettingItem) {
 <template>
   <Teleport to="body">
     <div v-if="visible" class="sd-overlay" @click="emit('close')">
-      <div class="sd-dialog" @click.stop @keydown.escape="emit('close')">
+      <div class="sd-dialog" role="dialog" aria-modal="true" :aria-label="t('settings.title')" @click.stop @keydown.escape="emit('close')">
         <!-- Header -->
         <div class="sd-header">
           <SvgIcon name="settings" :size="16" />
@@ -338,7 +338,17 @@ function resetItem(item: SettingItem) {
           <div class="sd-content">
             <div v-for="item in activeItems" :key="item.key" class="sd-item">
               <div class="sd-item-head">
-                <label class="sd-label">{{ t(item.labelKey) }}</label>
+                <label v-if="item.type !== 'segmented'" class="sd-label">{{ t(item.labelKey) }}</label>
+              <!-- Segmented -->
+              <SegmentedControl
+                v-if="item.type === 'segmented' && item.options"
+                :label="t(item.labelKey)"
+                :model-value="item.get()"
+                :options="item.options"
+                @update:model-value="item.set($event)"
+              />
+
+
                 <button
                   v-if="isModified(item)"
                   class="sd-item-reset"
@@ -395,14 +405,6 @@ function resetItem(item: SettingItem) {
                   >{{ t(opt.labelKey) }}</option>
                 </select>
               </div>
-
-              <!-- Segmented -->
-              <SegmentedControl
-                v-if="item.type === 'segmented' && item.options"
-                :model-value="item.get()"
-                :options="item.options"
-                @update:model-value="item.set($event)"
-              />
 
               <!-- Inline Switch -->
               <InlineSwitch
@@ -553,6 +555,7 @@ function resetItem(item: SettingItem) {
   border-bottom: 1px solid #2f2f2f;
 }
 .sd-item:last-child { border-bottom: none; }
+.sd-item-head > .seg-control { flex: 1; }
 .sd-item-head {
   display: flex;
   align-items: center;

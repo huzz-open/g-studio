@@ -1,4 +1,5 @@
 import { onMounted, onUnmounted } from 'vue'
+import { isTextInput, modalBlocksEditor, historyShortcut } from '../../history/interaction'
 
 export interface EditorKeyboardConfig {
   save: () => Promise<void> | void
@@ -19,19 +20,12 @@ export function useEditorKeyboard(getConfig: () => EditorKeyboardConfig | null):
     const cfg = getConfig()
     if (!cfg) return
 
-    if (e.key === 's') {
-      e.preventDefault()
-      void cfg.save()
-    } else if (e.key === 'z' && !e.shiftKey) {
-      if (cfg.history) {
-        e.preventDefault()
-        cfg.history.undo()
-      }
-    } else if ((e.key === 'z' && e.shiftKey) || e.key === 'y') {
-      if (cfg.history) {
-        e.preventDefault()
-        cfg.history.redo()
-      }
+    if (e.defaultPrevented || modalBlocksEditor()) return
+    if (e.key.toLowerCase() === 's') {
+      e.preventDefault(); void cfg.save()
+    } else {
+      const command=historyShortcut(e)
+      if(command && cfg.history && !isTextInput(e.target)){e.preventDefault();cfg.history[command]()}
     }
   }
 

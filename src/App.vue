@@ -13,6 +13,7 @@ import { registerToast, showToast } from './shared/components/toast'
 import { registerConfirm } from './shared/components/confirm'
 import { registerPrompt } from './shared/components/prompt'
 import { loadSettings } from './shared/settings'
+import PartEditorHost from './shared/parts/PartEditorHost.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -33,6 +34,7 @@ const promptDialogRef = ref<InstanceType<typeof PromptDialog> | null>(null)
 const navItems = [
   { route: '/resource-manager', labelKey: 'nav.resourceManager', icon: 'folder-open' },
   { route: '/sprite-slicer', labelKey: 'nav.spriteSlicer', icon: 'scissors' },
+  { route: '/scene-lighting', labelKey: 'sceneLight.title', icon: 'layers' },
   { route: '/tileset-maker', labelKey: 'nav.tilesetMaker', icon: 'grid' },
   { route: '/scene-region-editor', labelKey: 'nav.sceneRegionEditor', icon: 'layers' },
 ]
@@ -140,6 +142,7 @@ async function handleRemoveRecent(e: Event, ws: SavedWorkspace) {
 
 <template>
   <div class="app" @contextmenu.prevent>
+    <PartEditorHost />
     <header class="top-bar">
       <div class="top-left">
         <button class="brand" @click="router.push('/')">

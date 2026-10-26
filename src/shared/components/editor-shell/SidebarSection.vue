@@ -26,7 +26,7 @@ function onHeaderKey(event: KeyboardEvent) {
 
 <template>
   <div class="sidebar-section" :class="{ closed: !open }">
-    <div class="section-header" :class="{ static: !collapsible }" :role="collapsible ? 'button' : undefined" :tabindex="collapsible ? 0 : undefined" :aria-expanded="collapsible ? open : undefined" @click="toggle" @keydown="onHeaderKey">
+    <div v-if="title" class="section-header" :class="{ static: !collapsible }" :role="collapsible ? 'button' : undefined" :tabindex="collapsible ? 0 : undefined" :aria-expanded="collapsible ? open : undefined" @click="toggle" @keydown="onHeaderKey">
       <SvgIcon
         v-if="collapsible"
         name="chevron-right"

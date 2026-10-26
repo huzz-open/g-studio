@@ -127,14 +127,14 @@ function onExportAction(id: string) {
     />
 
     <SegmentedControl
-      :model-value="store.state.creationConfig.type"
+      :label="t('sceneEditor.preset.type')" :model-value="store.state.creationConfig.type"
       :options="typeOptions"
       @update:model-value="store.state.creationConfig.type = $event as any"
     />
 
     <template v-if="store.state.creationConfig.type === 'occlude'">
       <SegmentedControl
-        :model-value="presetDepthMode"
+        :label="t('sceneEditor.preset.depthMode')" :model-value="presetDepthMode"
         :options="depthOptions"
         :indicator="false"
         @update:model-value="setPresetDepthMode"

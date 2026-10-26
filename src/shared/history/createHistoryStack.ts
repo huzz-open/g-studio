@@ -3,116 +3,47 @@ import type { HistoryOptions, HistoryStack, Transaction } from './types'
 
 export function createHistoryStack<T>(options: HistoryOptions<T>): HistoryStack<T> {
   const { capture, restore, maxSize = 50 } = options
-  const isEqual = options.isEqual ?? ((a, b) => JSON.stringify(a) === JSON.stringify(b))
-
-  const undoStack: T[] = []
-  const redoStack: T[] = []
-  const isRestoring = ref(false)
-  let activeTransaction: T | null = null
-
-  const _undoLen = ref(0)
-  const _redoLen = ref(0)
-  const canUndo = computed(() => _undoLen.value > 0)
-  const canRedo = computed(() => _redoLen.value > 0)
-
-  function pushUndo(snapshot: T) {
-    undoStack.push(snapshot)
-    if (undoStack.length > maxSize) undoStack.shift()
-    redoStack.length = 0
-    _undoLen.value = undoStack.length
-    _redoLen.value = 0
-  }
-
-  function record() {
-    if (isRestoring.value) return
-    pushUndo(capture())
-  }
-
+  const equal = options.isEqual ?? ((a, b) => JSON.stringify(a) === JSON.stringify(b))
+  const past: T[] = [], future: T[] = []
+  const isRestoring = ref(false), undoLength = ref(0), redoLength = ref(0)
+  let active: { snapshot: T } | null = null
+  const canUndo = computed(() => undoLength.value > 0), canRedo = computed(() => redoLength.value > 0)
+  function lengths() { undoLength.value = past.length; redoLength.value = future.length }
+  function apply(snapshot: T) { isRestoring.value = true; try { restore(snapshot) } finally { isRestoring.value = false } }
+  function push(snapshot: T) { past.push(snapshot); if (past.length > maxSize) past.shift(); future.length = 0; lengths() }
+  function recordSnapshot(snapshot: T) { if (!isRestoring.value && !active) push(snapshot) }
+  function record() { recordSnapshot(capture()) }
   function batch(fn: () => void) {
     if (isRestoring.value) return
-    const before = capture()
-    fn()
-    const after = capture()
-    if (!isEqual(before, after)) {
-      undoStack.push(before)
-      if (undoStack.length > maxSize) undoStack.shift()
-      redoStack.length = 0
-      _undoLen.value = undoStack.length
-      _redoLen.value = 0
-    }
+    if (active) { fn(); return }
+    const tx=transaction()
+    try { fn(); tx.commit() } catch(error) { tx.cancel(); throw error }
   }
-
+  function finish() {
+    if (!active) return
+    const before = active.snapshot; active = null
+    if (!equal(before, capture())) push(before)
+  }
   function transaction(): Transaction {
-    const startSnapshot = capture()
-    activeTransaction = startSnapshot
-    let settled = false
-
+    // Settle a previous owner before starting another gesture. Its late commit
+    // must never overwrite the new transaction or duplicate an undo entry.
+    finish()
+    const token = { snapshot: capture() }; active = token
     return {
-      commit() {
-        if (settled) return
-        settled = true
-        activeTransaction = null
-        const current = capture()
-        if (!isEqual(startSnapshot, current)) {
-          undoStack.push(startSnapshot)
-          if (undoStack.length > maxSize) undoStack.shift()
-          redoStack.length = 0
-          _undoLen.value = undoStack.length
-          _redoLen.value = 0
-        }
-      },
-      cancel() {
-        if (settled) return
-        settled = true
-        activeTransaction = null
-        isRestoring.value = true
-        restore(startSnapshot)
-        isRestoring.value = false
-      },
+      commit() { if (active === token) finish() },
+      cancel() { if (active === token) { active = null; apply(token.snapshot) } },
     }
   }
-
   function undo() {
-    if (activeTransaction) {
-      isRestoring.value = true
-      restore(activeTransaction)
-      isRestoring.value = false
-      activeTransaction = null
-      return
-    }
-    if (undoStack.length === 0) return
-    const current = capture()
-    const prev = undoStack.pop()!
-    redoStack.push(current)
-    _undoLen.value = undoStack.length
-    _redoLen.value = redoStack.length
-    isRestoring.value = true
-    restore(prev)
-    isRestoring.value = false
+    finish()
+    if (!past.length) return
+    future.push(capture()); const previous = past.pop()!; lengths(); apply(previous)
   }
-
   function redo() {
-    if (activeTransaction) {
-      activeTransaction = null
-    }
-    if (redoStack.length === 0) return
-    const current = capture()
-    const next = redoStack.pop()!
-    undoStack.push(current)
-    _undoLen.value = undoStack.length
-    _redoLen.value = redoStack.length
-    isRestoring.value = true
-    restore(next)
-    isRestoring.value = false
+    finish()
+    if (!future.length) return
+    past.push(capture()); const next = future.pop()!; lengths(); apply(next)
   }
-
-  function clear() {
-    undoStack.length = 0
-    redoStack.length = 0
-    activeTransaction = null
-    _undoLen.value = 0
-    _redoLen.value = 0
-  }
-
-  return { canUndo, canRedo, isRestoring, record, batch, transaction, undo, redo, clear }
+  function clear() { active = null; past.length = 0; future.length = 0; lengths() }
+  return { canUndo, canRedo, isRestoring, record, recordSnapshot, batch, transaction, undo, redo, clear }
 }

@@ -1,25 +1,31 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from '../../../shared/i18n'
+import { useRouter } from 'vue-router'
 import ImageCanvas from '../../../shared/components/ImageCanvas.vue'
 import ActionMenu, { type ActionItem } from '../../../shared/components/ActionMenu.vue'
 import SplitEditor from './SplitEditor.vue'
-import SpriteNormalPreview from './SpriteNormalPreview.vue'
+import { ensureSpritePart } from '../../../shared/parts/slicer-bridge'
+import { openPartEditor } from '../../../shared/parts/editor-session'
+import { addPartsToScene } from '../../scene-lighting/store'
+import { showToast } from '../../../shared/components/toast'
 import type { Point } from '../core/split/line-splitter'
 import type { SlicerInstance } from '../store'
 
 const { t } = useI18n()
+const router = useRouter(), preparingParts = ref(false)
 
 const props = defineProps<{ store: SlicerInstance }>()
 
 // --- Unified actions: showOnHover controls what appears in hover bar ---
 const cellActions = computed<ActionItem[]>(() => ([
-  { key: 'zoom', icon: 'zoom-in', label: t('slicer.ctx.zoom'), showOnHover: true, disabled: pendingCells.value.size > 1 },
+  { key: 'zoom', icon: 'zoom-in', label: t('parts.edit'), showOnHover: true, disabled: pendingCells.value.size > 1 },
+  { key: 'scene', icon: 'layers', label: t('parts.addOne'), showOnHover: true },
   { key: 'rename', icon: 'edit', label: t('slicer.ctx.rename'), showOnHover: true, disabled: pendingCells.value.size > 1 },
   { key: 'merge', icon: 'layers', label: t('slicer.ctx.merge'), disabled: pendingCells.value.size < 2 },
   { key: 'split', icon: 'scissors', label: t('slicer.ctx.split'), disabled: pendingCells.value.size !== 1 },
   { key: 'toggle-export', icon: 'check', label: ctxIsExported.value ? t('slicer.ctx.excludeExport') : t('slicer.ctx.includeExport'), separator: true },
-] as ActionItem[]).map(action => ({ ...action, disabled: props.store.state.processing || action.disabled })))
+] as ActionItem[]).map(action => ({ ...action, disabled: props.store.state.processing || preparingParts.value || action.disabled })))
 
 const gridRects = computed(() =>
   props.store.state.sprites.map(s => ({
@@ -76,8 +82,6 @@ const hoveredIdx = ref<number | null>(null)
 const hoverAnchor = ref<{ top: number; left: number; width: number; height: number } | null>(null)
 let hoverLeaveTimer: ReturnType<typeof setTimeout> | null = null
 
-const zoomedId = ref<number | null>(null)
-const zoomedSprite = computed(() => props.store.state.sprites.find(s => s.id === zoomedId.value))
 const renameTarget = ref<{ id: number; name: string } | null>(null)
 const renameValue = ref('')
 const renameDuplicate = ref(false)
@@ -285,7 +289,10 @@ function resolveTarget(): number | undefined {
 }
 
 function onAction(key: string) {
-  if (key === 'zoom') {
+  if (key === 'scene') {
+    const ids = pendingCells.value.size ? [...pendingCells.value] : [resolveTarget()].filter((v): v is number => v != null)
+    void addToScene(ids); clearPending(); closeCtxMenu()
+  } else if (key === 'zoom') {
     const target = resolveTarget()
     if (target != null) showZoomed(target)
     clearPending()
@@ -360,11 +367,21 @@ function onPanelLeave() {
   scheduleHoverClose()
 }
 
-function showZoomed(idx: number) {
+async function showZoomed(idx: number) {
   const sprite = props.store.state.sprites.find(s => s.id === idx)
-  if (!sprite) return
-  zoomedId.value = sprite.id
+  if (!sprite || preparingParts.value) return
   clearHover()
+  preparingParts.value = true
+  try { const part = await ensureSpritePart(props.store, sprite); openPartEditor({ assetId: part.id, origin: 'slicer', sourceTabId: props.store.id, spriteId: sprite.id }) }
+  catch(error) { showToast(String(error), 'error') } finally { preparingParts.value = false }
+}
+
+async function addToScene(ids: number[]) {
+  if(preparingParts.value||props.store.state.processing)return
+  const sprites=props.store.state.sprites.filter(s=>ids.includes(s.id));if(!sprites.length)return
+  preparingParts.value=true;clearHover()
+  try { const parts=[];for(const sprite of sprites)parts.push(await ensureSpritePart(props.store,sprite));await addPartsToScene(parts);await router.push('/scene-lighting') }
+  catch(error){showToast(String(error),'error')}finally{preparingParts.value=false}
 }
 
 function startRename(idx: number) {
@@ -385,10 +402,10 @@ function onRenameInput() {
   renameDuplicate.value = props.store.isSpriteNameTaken(renameValue.value, renameTarget.value.id)
 }
 
-function confirmRename() {
+async function confirmRename() {
   if (!renameTarget.value || renameDuplicate.value) return
-  props.store.renameSprite(renameTarget.value.id, renameValue.value)
-  renameTarget.value = null
+  try { if(await props.store.renameSprite(renameTarget.value.id, renameValue.value))renameTarget.value = null }
+  catch(error){showToast(String(error),'error')}
 }
 
 function cancelRename() {
@@ -428,6 +445,7 @@ function clearHover() {
       ) }}</span>
     </template>
     <template #toolbar-right>
+      <button class="scene-add-btn" :disabled="store.state.processing||preparingParts||!store.selectedSprites.value.length" @click="addToScene([...store.state.selected])">{{ preparingParts?t('parts.preparing'):t('parts.addSelected',{count:store.selectedSprites.value.length}) }}</button>
       <span class="hint">{{ t('slicer.hint.select2') }}</span>
     </template>
 
@@ -549,15 +567,6 @@ function clearHover() {
     </div>
   </Teleport>
 
-  <!-- Zoomed single sprite -->
-  <SpriteNormalPreview
-    v-if="zoomedSprite"
-    :key="`${store.id}-${zoomedSprite.id}`"
-    :sprite="zoomedSprite"
-    @settings="store.setNormalSettings(zoomedSprite.id, $event)"
-    @close="zoomedId = null"
-  />
-
   <!-- Split Editor -->
   <SplitEditor
     v-if="splitTarget"
@@ -568,6 +577,7 @@ function clearHover() {
 </template>
 
 <style scoped>
+.scene-add-btn{background:#355344;border:1px solid #648570;border-radius:4px;color:#d9e8dc;padding:5px 8px;font-size:11px;cursor:pointer;white-space:nowrap;margin-right:8px}.scene-add-btn:disabled{opacity:.45;cursor:default}
 .stats { font-size: 12px; color: #aaa; }
 .hint { font-size: 12px; color: #666; }
 .grid-overlay {

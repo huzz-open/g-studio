@@ -143,14 +143,6 @@ function onClear() {
   gridRef.value?.requestRender()
 }
 
-function onKeydown(e: KeyboardEvent) {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-    e.preventDefault()
-    if (e.shiftKey) props.terrain.terrainRedo()
-    else props.terrain.terrainUndo()
-    gridRef.value?.requestRender()
-  }
-}
 </script>
 
 <template>
@@ -166,7 +158,6 @@ function onKeydown(e: KeyboardEvent) {
     @cell-move="onCellMove"
     @cell-up="onCellUp"
     @rect-fill="onRectFill"
-    @keydown="onKeydown"
     @contextmenu.prevent
   >
     <template #toolbar>
