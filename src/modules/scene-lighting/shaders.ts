@@ -142,9 +142,16 @@ precision highp float;
 in vec2 uv;out vec4 color;
 uniform sampler2D colorMap;uniform sampler2D normalMap;uniform sampler2D fieldDepth;uniform sampler2D fieldNormal;
 uniform vec3 offset;uniform vec3 right;uniform vec3 up;uniform vec3 forward;uniform vec4 bounds;uniform mat4 matrix;uniform float objectId;
-uniform float objectScale;uniform float directx;
+uniform float objectScale;uniform float directx;uniform float selected;uniform float outlinePixelRatio;
 ${lighting}
+float spriteAlpha(vec2 sampleUv){
+  if(any(lessThan(sampleUv,vec2(0)))||any(greaterThanEqual(sampleUv,vec2(1))))return 0.0;
+  return texture(colorMap,sampleUv).a;
+}
 void main(){
+  // Evaluate derivatives before alpha discard. The stroke stays two CSS pixels
+  // wide at every zoom and follows the same aligned UVs and depth as the image.
+  vec2 outlineStep=fwidth(uv)*outlinePixelRatio;
   vec4 texel=texture(colorMap,uv);if(texel.a<0.08)discard;
   vec4 field=texture(fieldDepth,uv);
   float d=field.a>0.5?dot(field.rgb,vec3(1.0,1.0/255.0,1.0/65025.0))*32.0-16.0:0.0;
@@ -162,5 +169,15 @@ void main(){
   n=normalize(tangent*detail.x+bitangent*detail.y+n*detail.z);
   vec4 clip=matrix*vec4(p,1.0);gl_FragDepth=clip.z/clip.w*0.5+0.5;
   color=vec4(shade(pow(texel.rgb,vec3(2.2)),p,n,field.a>0.5?0.0:objectId),1.0);
+  if(selected>0.5){
+    float edge=0.0;
+    for(int y=-2;y<=2;y++)for(int x=-2;x<=2;x++){
+      if(x*x+y*y>4)continue;
+      edge=max(edge,1.0-step(0.08,spriteAlpha(uv+vec2(float(x),float(y))*outlineStep)));
+    }
+    // An inner alpha-contour stroke also marks holes without expanding the
+    // sprite quad or painting over foreground occluders and ground shadows.
+    color.rgb=mix(color.rgb,vec3(0.72,0.94,0.83),edge);
+  }
 }
 `

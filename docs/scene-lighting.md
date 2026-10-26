@@ -6,9 +6,13 @@ The orthographic camera stays at 20° elevation and 25° azimuth. Wheel zoom doe
 
 Use the three presets to compare open ground, a wall corner, and cross-object shadows. Drag sprites or their labels to move them on the ground; use the light tool to place the point light, drag its handle, or use the position and height sliders. Focus the canvas and use arrow keys for 0.1-unit movements (Shift: 0.5). Movement is constrained by each proxy's footprint to keep it inside the room.
 
+Left-drag empty canvas space (including the floor, walls and background) to pan the view. Objects, labels, light handles and room-size handles retain priority over panning. This also works in the single-part editor; manual panning disables automatic framing until **Fit view** is used again. Panning changes only the camera target, follows the pointer at the current zoom, and does not enter object-edit undo history. Scene camera targets are saved and exported with the scene.
+
 Each prop has independent visibility, cast-shadow and receive-shadow switches. The shadow toggle is global. Geometry and shadows-only modes help inspect receivers separately from the original artwork. Settings are saved in browser local storage and can be exported as JSON. Presets reset the scene.
 
-Object names and the selected object's ground ring have independent display switches. Both are hidden in the single-part editor, which has no additional switches for these annotations. Hiding either annotation does not disable canvas picking or object movement.
+Object names have a display switch. Selected sprites automatically receive a two-CSS-pixel inner stroke along the image's alpha contour, including transparent holes, with the same alignment and depth testing as the sprite. Selection feedback has no display switch or saved preference; obsolete selection display settings are ignored when loading scenes. Names and selection outlines are hidden in the single-part editor. Canvas picking and object movement remain available.
+
+The former pale ground ellipse was only a selection indicator and has been removed. The yellow circle with four arrows is a separate light-position handle: it moves the point light on the ground plane, or changes the sun's azimuth for directional lighting.
 
 ## Rendering assumptions
 

@@ -124,7 +124,7 @@ onUnmounted(()=>{normals.dispose();document.removeEventListener('keydown',captur
         <ImageCanvas :src="view==='original'?partImageUrl(draft):normalUrl" :fullscreen-toggle="false" keep-view-on-src-change controls-position="bottom-left"/>
         <span v-if="view==='normal'&&normalBusy" class="preview-status" role="status">{{t('normal.generating')}}</span>
       </div>
-      <LightingViewport v-else :state="preview" :assets="[draft]" compact :editable="false" :controls="false" :fit-view="framePreview" :auto-fit="previewAutoFit" @zoom="previewAutoFit=false"/>
+      <LightingViewport v-else :state="preview" :assets="[draft]" compact :editable="false" :controls="false" :fit-view="framePreview" :auto-fit="previewAutoFit" @zoom="previewAutoFit=false" @pan="previewAutoFit=false"/>
     </main></div>
     <footer><div class="button-row"><button :disabled="saving" @click="exportAsset">{{t('parts.exportAsset')}}</button><button :disabled="saving" @click="exportPackage">{{t('parts.exportPackage')}}</button><button v-if="origin==='scene'" :disabled="saving" @click="locate">{{t('parts.locateSlicer')}}</button></div><div class="button-row"><button :disabled="saving" @click="addToScene">{{t('parts.addOne')}}</button><button :disabled="saving" @click="leave">{{t(origin==='scene'?'parts.backScene':'parts.backSlicer')}}</button><button class="primary" :disabled="saving||conflict" @click="saveAndClose">{{t(saving?'common.loading':'parts.saveReturn')}}</button></div></footer>
   </section></div><div v-if="showGeneration" class="generation-overlay"><GenerationPanel :part="draft" @apply="applyGenerated" @close="showGeneration=false"/></div></Teleport>

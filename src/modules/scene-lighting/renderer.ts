@@ -1,6 +1,8 @@
 import { directionalShadowCamera, sunDirection } from './lighting-math'
-import { add, camera, dot, lookAt, multiply, normalize, perspective, sub, transform, type Mat4, type Vec3 } from '../experiments/umbrella/math'
-import { buildRoom, FORWARD, PITCH, RIGHT, roomBounds, UP, YAW, type Mesh, type SceneState, type SpriteBounds } from './model'
+import { add, dot, lookAt, multiply, normalize, perspective, sub, transform, type Mat4, type Vec3 } from '../experiments/umbrella/math'
+import { buildRoom, FORWARD, RIGHT, roomBounds, UP, type Mesh, type SceneState, type SpriteBounds } from './model'
+import { sceneCamera } from './scene-camera'
+export { sceneCamera } from './scene-camera'
 import { buildPartGeometry, alignedBounds } from './part-geometry'
 import { clonePart, partRenderKey, partSurfaceKey, type PartAsset } from '../../shared/parts/schema'
 import { partPixels, normalImageUrl, loadImage } from '../../shared/parts/images'
@@ -10,9 +12,6 @@ import { meshShadowSamples, roomShadowSamples } from './shadow-samples'
 const FAR = 64, MAP_SIZE = 1024
 const DIRECTIONS: Vec3[] = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]
 const UPS: Vec3[] = [[0, -1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1], [0, -1, 0], [0, -1, 0]]
-export function sceneCamera(state: SceneState, aspect: number) {
-  return camera({ yaw: YAW, pitch: PITCH, distance: state.zoom, projection: 'orthographic' }, aspect, state.target)
-}
 interface GpuPoints { vao: WebGLVertexArrayObject; buffer: WebGLBuffer; count: number }
 interface GpuMesh extends GpuPoints { mesh: Mesh; points?: GpuPoints }
 interface SpriteAsset extends GpuMesh {
@@ -22,7 +21,7 @@ interface SpriteAsset extends GpuMesh {
 }
 export interface ReceiverReport { ground: number; walls: number; objects: { id: string; shadows: number }[]; samples: number }
 
-export function createSceneRenderer(canvas: HTMLCanvasElement) {
+export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutline = true } = {}) {
   const gl = canvas.getContext('webgl2', { antialias: true, alpha: false, preserveDrawingBuffer: true })
   if (!gl) throw new Error('WebGL 2 is required for scene lighting.')
   const shaders: WebGLShader[] = [], programs: WebGLProgram[] = [], buffers: WebGLBuffer[] = [], textures: WebGLTexture[] = [], vaos: WebGLVertexArrayObject[] = []
@@ -262,10 +261,12 @@ export function createSceneRenderer(canvas: HTMLCanvasElement) {
       state.items.forEach((item, i) => { const asset = assets.get(item.assetId); if (asset && item.visible) { gl!.uniform1f(u(surfaceProgram, 'receives'), +item.receives); drawMesh(asset, surfaceProgram, [item.x, 0, item.z], i + 2, item.scale) } })
     } else {
       lighting(spriteProgram, state, view.matrix); gl!.bindVertexArray(quadVao)
+      gl!.uniform1f(u(spriteProgram, 'outlinePixelRatio'), dpr)
       state.items.forEach((item, i) => {
         const asset = assets.get(item.assetId); if (!asset || !item.visible) return
         basis(spriteProgram, asset.bounds); gl!.uniform1f(u(spriteProgram, 'objectScale'), item.scale); gl!.uniform1f(u(spriteProgram, 'directx'), +asset.directx); gl!.uniform3f(u(spriteProgram, 'offset'), item.x, 0, item.z)
         gl!.uniform1f(u(spriteProgram, 'objectId'), i + 2); gl!.uniform1f(u(spriteProgram, 'receives'), +item.receives)
+        gl!.uniform1f(u(spriteProgram, 'selected'), +(selectionOutline && item.id === state.selected))
         for (const [j, [name, tex]] of [['colorMap', asset.color], ['normalMap', asset.normal], ['fieldDepth', asset.depth], ['fieldNormal', asset.surface]].entries()) {
           gl!.activeTexture(gl!.TEXTURE1 + j); gl!.bindTexture(gl!.TEXTURE_2D, tex as WebGLTexture); gl!.uniform1i(u(spriteProgram, name as string), j + 1)
         }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from '../../shared/i18n'
 import SceneViewControls from './SceneViewControls.vue'
 import CanvasControls from '../../shared/components/CanvasControls.vue'
@@ -9,12 +9,13 @@ import { createLatestTask } from '../../shared/utils/latest-task'
 import { clonePart, partRenderKey, partSurfaceKey, type PartAsset } from '../../shared/parts/schema'
 import { partMovementLimits } from './part-geometry'
 import { createSceneRenderer, sceneCamera } from './renderer'
+import { DEFAULT_SCENE_TARGET, panCameraTarget } from './scene-camera'
 import { PITCH, roomBounds, type SceneState } from './model'
 import { sunAnchor, sunDirection } from './lighting-math'
 import type { Vec3 } from '../experiments/umbrella/math'
 
 const props = withDefaults(defineProps<{ state: SceneState; assets: PartAsset[]; compact?: boolean; editable?: boolean; controls?: boolean; showShadowPoints?: boolean; fitView?: () => void; autoFit?: boolean }>(), { compact: false, editable: true, controls: true, showShadowPoints: false })
-const emit = defineEmits<{ edit: [assetId: string]; coverage: [value: Record<string, number>]; zoom: [] }>()
+const emit = defineEmits<{ edit: [assetId: string]; coverage: [value: Record<string, number>]; zoom: []; pan: [] }>()
 const { t } = useI18n(), canvas = ref<HTMLCanvasElement>(), ready = ref(false), busy = ref(false), error = ref('')
 const assetsById = computed(() => Object.fromEntries(props.assets.map(a => [a.id, a])))
 const markers = ref<{ id: string; x: number; y: number }[]>([]), lightMarker = ref({ x: -100, y: -100 }), lightFoot = ref({ x: -100, y: -100 })
@@ -22,6 +23,7 @@ const roomHandles=ref<{axis:'width'|'depth'|'height';x:number;y:number}[]>([]),o
 const directional=computed(()=>props.state.lightKind==='directional')
 const sunFrame=ref<SunSphere>({x:0,y:0,radius:1}),sunPaths=ref<SunSpherePath[]>([]),azimuthMarker=ref({x:0,y:0})
 const activePower=computed(()=>directional.value?props.state.sun.intensity:props.state.power)
+const panDrag = shallowRef<{ pointerId: number; x: number; y: number; target: Vec3; zoom: number; height: number; moved: boolean } | null>(null)
 let renderer: ReturnType<typeof createSceneRenderer> | undefined, observer: ResizeObserver | undefined, frame = 0
 let dragging: { id: string; light: boolean; dx: number; dz: number; height?: {y:number;value:number};sphere?:{frame:SunSphere;offsetX:number;offsetY:number;orbit:boolean};resize?:{axis:'width'|'depth'|'height';x:number;y:number;value:number;vx:number;vy:number} } | null = null
 function name(id: string) { const item = props.state.items.find(i => i.id === id); return item ? assetsById.value[item.assetId]?.name ?? t('parts.missing') : '' }
@@ -125,11 +127,16 @@ function roomKey(event:KeyboardEvent,axis:'width'|'depth'|'height'){
   props.state.room[axis]=Math.round(Math.max(axis==='height'?.5:2,Math.min(axis==='height'?12:24,props.state.room[axis]+d))*10)/10
 }
 function start(event: PointerEvent, explicit?: string, isLight = false) {
-  if (event.button !== 0 || !ready.value) return
+  if (event.button !== 0 || !event.isPrimary || !ready.value || dragging || panDrag.value) return
   event.preventDefault()
   const r = canvas.value!.getBoundingClientRect(), light = isLight
   const id = light ? '' : explicit ?? renderer!.pick(event.clientX - r.left, event.clientY - r.top, props.state)
-  if (!light && !id) return
+  if (!light && !id) {
+    panDrag.value = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, target: [...(props.state.target ?? DEFAULT_SCENE_TARGET)], zoom: props.state.zoom, height: r.height, moved: false }
+    canvas.value!.setPointerCapture(event.pointerId)
+    canvas.value!.focus({ preventScroll: true })
+    return
+  }
   const point = ground(event); if (!point) return
   const item = props.state.items.find(i => i.id === id)
   if (item) props.state.selected = item.id
@@ -141,6 +148,15 @@ function start(event: PointerEvent, explicit?: string, isLight = false) {
   else (event.currentTarget as HTMLElement).focus({preventScroll:true})
 }
 function move(event: PointerEvent) {
+  const pan = panDrag.value
+  if (pan) {
+    if (event.pointerId !== pan.pointerId) return
+    const dx = event.clientX - pan.x, dy = event.clientY - pan.y
+    if (!pan.moved && dx === 0 && dy === 0) return
+    if (!pan.moved) { pan.moved = true; emit('pan') }
+    props.state.target = panCameraTarget(pan.target, pan.zoom, pan.height, dx, dy)
+    return
+  }
   if (!dragging) return
   if(dragging.sphere){
     const r=canvas.value!.getBoundingClientRect(),g=dragging.sphere,x=event.clientX-r.left-g.offsetX,y=event.clientY-r.top-g.offsetY
@@ -163,6 +179,12 @@ function move(event: PointerEvent) {
     item.x = Math.max(b.minX, Math.min(b.maxX, round(point[0] + dragging.dx))); item.z = Math.max(b.minZ, Math.min(b.maxZ, round(point[2] + dragging.dz)))
   }
 }
+function endDrag(event: PointerEvent) {
+  if (panDrag.value && panDrag.value.pointerId !== event.pointerId) return
+  panDrag.value = null
+  dragging = null
+  if (canvas.value?.hasPointerCapture(event.pointerId)) canvas.value.releasePointerCapture(event.pointerId)
+}
 function edit(event: MouseEvent) {
   if (!props.editable || !ready.value) return
   const r = canvas.value!.getBoundingClientRect(), id = renderer!.pick(event.clientX - r.left, event.clientY - r.top, props.state)
@@ -176,7 +198,7 @@ function key(event: KeyboardEvent, light = false) {
   else { const item = props.state.items.find(i => i.id === props.state.selected); if (item) { const b = partMovementLimits(assetsById.value[item.assetId], item.scale,props.state.room); item.x = Math.max(b.minX, Math.min(b.maxX, item.x + dx)); item.z = Math.max(b.minZ, Math.min(b.maxZ, item.z + dz)) } }
 }
 function zoomBy(factor: number) {
-  if (dragging) return
+  if (dragging || panDrag.value) return
   emit('zoom')
   props.state.zoom = Math.max(4, Math.min(40, props.state.zoom * factor))
 }
@@ -184,7 +206,7 @@ function resizeViewport() {
   if (props.autoFit) props.fitView?.()
   draw()
 }
-onMounted(() => { try { renderer = createSceneRenderer(canvas.value!); observer = new ResizeObserver(resizeViewport); observer.observe(canvas.value!); refresh() } catch (e) { error.value = String(e) } })
+onMounted(() => { try { renderer = createSceneRenderer(canvas.value!, { selectionOutline: !props.compact }); observer = new ResizeObserver(resizeViewport); observer.observe(canvas.value!); refresh() } catch (e) { error.value = String(e) } })
 onUnmounted(() => { updates.dispose(); observer?.disconnect(); cancelAnimationFrame(frame); renderer?.dispose(); renderer = undefined })
 </script>
 
@@ -195,7 +217,7 @@ onUnmounted(() => { updates.dispose(); observer?.disconnect(); cancelAnimationFr
       <span class="camera-angle" :title="t('sceneLight.fixed')">20°</span><slot name="actions"/><InfoHint :label="t('parts.previewHelp')" :text="t('parts.previewHelpText')"/>
     </div>
     <div class="viewport-stage" :aria-busy="busy">
-      <canvas ref="canvas" tabindex="0" :aria-label="t('sceneLight.canvas')" @pointerdown="start($event)" @pointermove="move" @pointerup="dragging=null" @pointercancel="dragging=null" @lostpointercapture="dragging=null" @dblclick="edit" @keydown="key" @contextmenu.prevent @wheel.prevent="zoomBy($event.deltaY>0?1.06:1/1.06)" />
+      <canvas ref="canvas" tabindex="0" :class="{panning:panDrag}" :aria-label="t('sceneLight.canvas')" @pointerdown="start($event)" @pointermove="move" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag" @dblclick="edit" @keydown="key" @contextmenu.prevent @wheel.prevent="zoomBy($event.deltaY>0?1.06:1/1.06)" />
       <CanvasControls v-if="fitView" :show-actual-size="false" @fit="fitView" @zoom-in="zoomBy(1/1.2)" @zoom-out="zoomBy(1.2)"/>
       <div v-if="busy" class="viewport-status" role="status">{{ t('common.updating') }}</div>
       <div v-if="error" class="viewport-error" role="alert">{{ error }} <button @click="refresh">{{ t('normal.retry') }}</button></div>
@@ -211,7 +233,6 @@ onUnmounted(() => { updates.dispose(); observer?.disconnect(); cancelAnimationFr
           <span class="origin-marker" :style="{left:originMarker.x+'px',top:originMarker.y+'px'}" :title="t('sceneLight.cornerOrigin')">0, 0, 0</span>
           <button v-for="handle in roomHandles" :key="handle.axis" class="room-handle" :style="{left:handle.x+'px',top:handle.y+'px'}" :title="t('sceneLight.resizeRoom')" :aria-label="t(handle.axis==='width'?'sceneLight.roomWidth':handle.axis==='depth'?'sceneLight.roomDepth':'sceneLight.wallHeight')" @pointerdown.stop="resizeRoom($event,handle.axis)" @keydown="roomKey($event,handle.axis)">{{handle.axis==='width'?'X':handle.axis==='depth'?'Z':'Y'}}</button>
         </template>
-        <span v-for="m in state.showSelectionRing===false?[]:markers.filter(m=>m.id===state.selected)" :key="'ring'+m.id" class="selection-ring" aria-hidden="true" :style="{left:m.x+'px',top:m.y+'px'}"/>
         <button v-for="m in state.showNames===false?[]:markers" :key="m.id" class="object-marker" :data-instance-id="m.id" :data-asset-id="state.items.find(i=>i.id===m.id)?.assetId" :class="{active:m.id===state.selected}" :style="{left:m.x+'px',top:m.y+'px'}" @pointerdown.stop="start($event,m.id)" @dblclick.stop="editable&&emit('edit',state.items.find(i=>i.id===m.id)!.assetId)">{{ name(m.id) }}</button>
       </template>
     </div>
@@ -219,6 +240,7 @@ onUnmounted(() => { updates.dispose(); observer?.disconnect(); cancelAnimationFr
 </template>
 
 <style scoped>
+.viewport-stage canvas.panning{cursor:grabbing}
 .sun-sphere{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.sun-sphere path{fill:none;stroke:#d0d9df;stroke-width:1.5;opacity:.72;filter:drop-shadow(0 1px 1px #000b)}.sun-sphere .meridian{stroke-dasharray:4 3}.sun-sphere .latitude{stroke-width:1.6}.sun-sphere .equator{stroke:#edcd86;stroke-width:2.2;opacity:.95}.sun-sphere .direction{stroke:#ffda85;stroke-width:2.4;stroke-dasharray:none;opacity:1}.viewport-stage .light-handle.directional{cursor:grab}.viewport-stage .light-handle.directional:active{cursor:grabbing}.viewport-stage .light-handle,.viewport-stage .light-position{display:grid;place-items:center;box-sizing:border-box;padding:0}.light-handle svg,.light-position svg{display:block;pointer-events:none}.power-hint{display:none;position:absolute;top:36px;left:50%;transform:translateX(-50%);font-size:10px;line-height:1.4;white-space:nowrap;background:#2e2b20e8;border:1px solid #8c7443;border-radius:3px;padding:3px 5px;pointer-events:none}.light-handle:hover .power-hint,.light-handle:focus-visible .power-hint{display:block}.viewport-stage .room-handle{position:absolute;transform:translate(-50%,-50%);width:23px;height:23px;display:grid;place-items:center;padding:0;border:1px solid #9ab8c3;border-radius:4px;background:#24343ddd;color:#cce8f2;font-size:10px;cursor:move;touch-action:none}.origin-marker{position:absolute;transform:translate(5px,5px);font-size:9px;color:#adc1c7;pointer-events:none}.camera-angle{font-size:10px;color:#89958e;margin-left:auto}
-.lighting-viewport{display:flex;flex-direction:column;flex:1;min-width:0;min-height:0;background:#171a1c;color:#d4d8d8}.viewport-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid #383d3d;background:#252a2a}.viewport-toolbar strong{margin-right:auto;color:#d5e7d9;font-size:16px}.viewport-toolbar small{font-size:10px;font-weight:400;color:#a0aaa7}.viewport-stage{position:relative;flex:1;min-height:220px;overflow:hidden}.viewport-stage canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab;outline:none}.viewport-stage canvas:focus-visible{outline:2px solid #93b2a1;outline-offset:-2px}button{font:inherit;color:inherit;cursor:pointer}.viewport-status,.viewport-error{position:absolute;top:10px;left:10px;padding:7px 10px;background:#25342de8;border-radius:5px;font-size:12px}.viewport-error{right:10px;color:#ffd1c6;background:#422a29}.light-guide{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.light-guide line{stroke:#d4b35c;stroke-width:2;stroke-dasharray:6 5;opacity:.9}.light-guide .parallel-ray{stroke-width:1;opacity:.4}.light-guide circle{fill:none;stroke:#e1bd64;stroke-width:1.5}.light-position{position:absolute;transform:translate(-50%,-50%);width:26px;height:26px;border:1px solid #dfbb6c;border-radius:50%;background:#3c3322;color:#ffe4a1;touch-action:none;cursor:move;font-size:21px;line-height:1;padding:0}.selection-ring{position:absolute;transform:translate(-50%,-50%);width:42px;height:14px;border:1px solid #bfd4ad;border-radius:50%;pointer-events:none;box-shadow:0 0 4px #a8cfa355}.light-handle{position:absolute;transform:translate(-50%,-50%);width:31px;height:31px;border:1px solid #dfbb6c;border-radius:50%;background:#3c3322;color:#ffe4a1;font-size:23px;line-height:1;touch-action:none;cursor:ns-resize}.object-marker{position:absolute;transform:translate(-50%,8px);padding:3px 7px;border:1px solid #6b78715e;border-radius:4px;background:#17201dcc;color:#bdc7bf;font-size:10px;white-space:nowrap;touch-action:none;cursor:grab}.object-marker.active{color:#e4efce;border-color:#b8ce92;background:#384735e6}.viewport-caption{position:absolute;bottom:10px;left:12px;font-size:10px;color:#a2afa7;background:#17201dd9;padding:5px 8px;pointer-events:none}.viewport-error button{border:1px solid #48514e;border-radius:4px;padding:6px;background:#2a3230}.compact .viewport-toolbar strong small{display:none}.compact .viewport-caption{font-size:9px;max-width:80%}
+.lighting-viewport{display:flex;flex-direction:column;flex:1;min-width:0;min-height:0;background:#171a1c;color:#d4d8d8}.viewport-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid #383d3d;background:#252a2a}.viewport-toolbar strong{margin-right:auto;color:#d5e7d9;font-size:16px}.viewport-toolbar small{font-size:10px;font-weight:400;color:#a0aaa7}.viewport-stage{position:relative;flex:1;min-height:220px;overflow:hidden}.viewport-stage canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab;outline:none}.viewport-stage canvas:focus-visible{outline:2px solid #93b2a1;outline-offset:-2px}button{font:inherit;color:inherit;cursor:pointer}.viewport-status,.viewport-error{position:absolute;top:10px;left:10px;padding:7px 10px;background:#25342de8;border-radius:5px;font-size:12px}.viewport-error{right:10px;color:#ffd1c6;background:#422a29}.light-guide{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.light-guide line{stroke:#d4b35c;stroke-width:2;stroke-dasharray:6 5;opacity:.9}.light-guide .parallel-ray{stroke-width:1;opacity:.4}.light-guide circle{fill:none;stroke:#e1bd64;stroke-width:1.5}.light-position{position:absolute;transform:translate(-50%,-50%);width:26px;height:26px;border:1px solid #dfbb6c;border-radius:50%;background:#3c3322;color:#ffe4a1;touch-action:none;cursor:move;font-size:21px;line-height:1;padding:0}.light-handle{position:absolute;transform:translate(-50%,-50%);width:31px;height:31px;border:1px solid #dfbb6c;border-radius:50%;background:#3c3322;color:#ffe4a1;font-size:23px;line-height:1;touch-action:none;cursor:ns-resize}.object-marker{position:absolute;transform:translate(-50%,8px);padding:3px 7px;border:1px solid #6b78715e;border-radius:4px;background:#17201dcc;color:#bdc7bf;font-size:10px;white-space:nowrap;touch-action:none;cursor:grab}.object-marker.active{color:#e4efce;border-color:#b8ce92;background:#384735e6}.viewport-caption{position:absolute;bottom:10px;left:12px;font-size:10px;color:#a2afa7;background:#17201dd9;padding:5px 8px;pointer-events:none}.viewport-error button{border:1px solid #48514e;border-radius:4px;padding:6px;background:#2a3230}.compact .viewport-toolbar strong small{display:none}.compact .viewport-caption{font-size:9px;max-width:80%}
 </style>

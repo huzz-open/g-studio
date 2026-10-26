@@ -15,7 +15,7 @@ export function changePartGeometry(part: PartAsset, choice: string) {
 }
 
 export function createPartPreview(part: PartAsset): SceneState {
-  return { ...createScene(), showNames: false, showSelectionRing: false,
+  return { ...createScene(), showNames: false,
     items: [{ id: 'preview', assetId: part.id, x: 0, z: 0, scale: 1, visible: true, casts: true, receives: true }],
     selected: 'preview', zoom: 5, light: [-2, Math.min(8, part.geometry.size[1] + 1.5), 2.5], target: [0, 1, 0],
   }
