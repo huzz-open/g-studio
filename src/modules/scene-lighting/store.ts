@@ -10,7 +10,7 @@ import { clonePart, MAX_SCENE_ITEMS, type PartAsset } from '../../shared/parts/s
 import { loadPartLibrary, partLibrary } from '../../shared/parts/library'
 
 export interface SceneDocument { id: string; name: string; state: SceneState }
-type SavedScene = Pick<SceneDocument, 'id' | 'name' | 'state'>
+type SavedScene = Pick<SceneDocument, 'id' | 'name' | 'state'> & { pinned?: boolean }
 const hot = import.meta.hot?.data
 const KEY = 'g-studio-scene-tabs-v3'
 let number: number = hot?.number ?? 0
@@ -33,7 +33,8 @@ export function emptyScene(): SceneState { return { ...createDefaultScene(), ite
 function makeDocument(id: string): SceneDocument {
   return reactive({ id, name: translate('parts.sceneTab', { number: ++number }), state: emptyScene() })
 }
-const tabs: UseEditorTabsReturn<SceneDocument> = hot?.tabs ?? useEditorTabs({ prefix: 'lighting', factory: makeDocument, autoEmptyTab: false })
+const tabs: UseEditorTabsReturn<SceneDocument> = hot?.tabs?.setPinned ? hot.tabs : useEditorTabs({ prefix: 'lighting', factory: makeDocument, autoEmptyTab: false })
+if (hot?.tabs && hot.tabs !== tabs) { tabs.instances.value = hot.tabs.instances.value; tabs.activeTabId.value = hot.tabs.activeTabId.value }
 export const closedScenes: Ref<SavedScene[]> = hot?.closedScenes ?? ref([])
 export const sceneStorageError: Ref<string> = hot?.sceneStorageError ?? ref('')
 let initialized = !!hot?.tabs && !!hot?.initialized
@@ -43,7 +44,7 @@ export function useSceneTabs() {
   return tabs
 }
 export function activeScene() { return tabs.activeInstance.value ?? tabs.createTab() }
-function snapshot(doc: SceneDocument): SavedScene { return { id: doc.id, name: doc.name, state: clonePart(doc.state) } }
+function snapshot(doc: SceneDocument): SavedScene { return { id: doc.id, name: doc.name, state: clonePart(doc.state), pinned: tabs.pinnedIds.value.has(doc.id) } }
 function restore(value: any): SceneDocument {
   if (!value || typeof value.id !== 'string' || !/^[a-zA-Z0-9:_-]{1,160}$/.test(value.id) || typeof value.name !== 'string' || !value.name.trim() || value.name.length > 120) throw new Error('Invalid scene tab')
   return reactive({ id: value.id, name: value.name === 'parts.sceneTab' ? translate('parts.sceneTab', {number: ++number}) : value.name, state: parseScene(value.state) })
@@ -69,7 +70,9 @@ export function initializeScene(): Promise<void> {
         if (saved.version !== 3 || !Array.isArray(saved.tabs) || !Array.isArray(saved.closed)) throw new Error('Invalid scene session')
         const open = saved.tabs.map(restore) as SceneDocument[], closed = saved.closed.map(restore) as SceneDocument[]
         if (new Set([...open, ...closed].map(d => d.id)).size !== open.length + closed.length) throw new Error('Duplicate scene tabs')
-        tabs.instances.value = open; closedScenes.value = closed.map(snapshot)
+        tabs.instances.value = open
+        tabs.pinnedIds.value = new Set(saved.tabs.filter((doc: SavedScene) => doc.pinned === true).map((doc: SavedScene) => doc.id))
+        closedScenes.value = closed.map((doc, i) => ({ ...snapshot(doc), pinned: saved.closed[i].pinned === true }))
         number = Math.max(saved.number || 0, open.length + closed.length)
         tabs.activeTabId.value = open.some(d => d.id === saved.activeId) ? saved.activeId : open[0]?.id ?? null
       } else {
@@ -89,7 +92,7 @@ function persist() {
     localStorage.setItem(KEY, JSON.stringify({ version: 3, number, tabs: tabs.instances.value.map(snapshot), activeId: tabs.activeTabId.value, closed: closedScenes.value }))
   } catch (error) { sceneStorageError.value = String(error) }
 }
-const stopPersistence = watch(() => [tabs.instances.value, tabs.activeTabId.value, closedScenes.value], persist, { deep: true })
+const stopPersistence = watch(() => [tabs.instances.value, tabs.activeTabId.value, tabs.pinnedIds.value, closedScenes.value], persist, { deep: true })
 if (import.meta.hot) import.meta.hot.dispose(data => {
   histories.forEach(history=>history.dispose()); histories.clear();
   persist(); stopPersistence(); Object.assign(data, { tabs, closedScenes, sceneStorageError, initialized, number })
@@ -113,6 +116,7 @@ export function closeSceneTab(id: string) {
 export function reopenSceneTab() {
   const saved = closedScenes.value.pop(); if (!saved) return
   const doc = restore(saved); tabs.instances.value = [...tabs.instances.value, doc]; tabs.switchTab(doc.id)
+  if (saved.pinned) tabs.setPinned(doc.id, true)
 }
 export function renameSceneTab(id: string, name: string) {
   if (id === DEFAULT_SCENE_ID) return

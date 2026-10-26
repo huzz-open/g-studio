@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import ContextMenu from '../ContextMenu.vue'
+import { tabCloseTargets, type TabCloseAction } from './tab-actions'
 import SvgIcon from '../../icons/SvgIcon.vue'
 import { matchesAccept } from '../../utils/file-accept'
 import type { TabItem } from './types'
@@ -16,6 +18,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   switch: [id: string]
   close: [id: string]
+  pin: [id: string, pinned: boolean]
   addEmpty: []
   addFile: [file: File]
   rename: [id: string]
@@ -24,6 +27,43 @@ const { t } = useI18n()
 
 const dragging = ref(false)
 const fileInputEl = ref<HTMLInputElement>()
+const tabScroll = ref<HTMLElement>()
+const context = ref<{ id: string; x: number; y: number } | null>(null)
+const closeActions: TabCloseAction[] = ['current', 'others', 'left', 'right']
+const contextItems = computed(() => {
+  const target = props.tabs.find(tab => tab.id === context.value?.id)
+  return [
+    ...closeActions.map(action => ({ id: action, label: t('tabs.close.' + action), disabled: !target || !tabCloseTargets(props.tabs, target.id, action).length })),
+    { id: 'separator', label: '', separator: true },
+    { id: 'pin', label: t(target?.pinned ? 'tabs.unpin' : 'tabs.pin'), disabled: !target },
+  ]
+})
+function openContext(id: string, event: MouseEvent | KeyboardEvent) {
+  event.preventDefault(); event.stopPropagation()
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  context.value = { id, x: event instanceof MouseEvent ? event.clientX : rect.left, y: event instanceof MouseEvent ? event.clientY : rect.bottom }
+}
+function closeContext() {
+  const id = context.value?.id
+  context.value = null
+  void nextTick(() => {
+    const elements = [...tabScroll.value?.querySelectorAll<HTMLElement>('[data-tab-id]') ?? []]
+    const target = elements.find(el => el.dataset.tabId === id) ?? elements.find(el => el.dataset.tabId === props.activeId)
+    target?.focus({ preventScroll: true })
+  })
+}
+function contextAction(action: string) {
+  const target = props.tabs.find(tab => tab.id === context.value?.id)
+  if (!target) return
+  if (action === 'pin') {
+    emit('pin', target.id, !target.pinned)
+    if (!target.pinned) void nextTick(() => tabScroll.value?.scrollTo({ left: 0 }))
+  }
+  else if (closeActions.includes(action as TabCloseAction)) {
+    for (const id of tabCloseTargets(props.tabs, target.id, action as TabCloseAction)) emit('close', id)
+  }
+}
+watch(() => props.tabs, () => { if (context.value && !props.tabs.some(tab => tab.id === context.value!.id)) context.value = null })
 
 function onClickAdd() {
   if (props.addMode === 'empty') { emit('addEmpty'); return }
@@ -57,9 +97,9 @@ function onDrop(e: DragEvent) {
 }
 
 function onMiddleClick(id: string, e: MouseEvent) {
-  if (e.button === 1 && props.tabs.find(tab => tab.id === id)?.closable !== false) {
+  if (e.button === 1) {
     e.preventDefault()
-    emit('close', id)
+    if (props.tabs.find(tab => tab.id === id)?.closable !== false) emit('close', id)
   }
 }
 </script>
@@ -73,13 +113,14 @@ function onMiddleClick(id: string, e: MouseEvent) {
     @dragleave="onDragLeave"
     @drop="onDrop"
   >
-    <div class="tab-scroll">
+    <div ref="tabScroll" class="tab-scroll" @scroll="context = null">
       <div
         v-for="tab in tabs"
         :key="tab.id"
         class="tab-item"
-        :class="{ active: tab.id === activeId }"
-        :title="tab.label"
+        :class="{ active: tab.id === activeId, pinned: tab.pinned }"
+        :title="tab.label + (tab.pinned ? ' · ' + t('tabs.pinned') : '')"
+        :data-tab-id="tab.id"
         role="tab"
         :aria-selected="tab.id === activeId"
         :tabindex="tab.id === activeId ? 0 : -1"
@@ -88,7 +129,11 @@ function onMiddleClick(id: string, e: MouseEvent) {
         @keydown.space.prevent="emit('switch', tab.id)"
         @dblclick="emit('rename', tab.id)"
         @mousedown="onMiddleClick(tab.id, $event)"
+        @contextmenu="openContext(tab.id, $event)"
+        @keydown.shift.f10="openContext(tab.id, $event)"
+        @keydown.context-menu="openContext(tab.id, $event)"
       >
+        <svg v-if="tab.pinned" class="tab-pin" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" :aria-label="t('tabs.pinned')" role="img"><path d="M16 3l5 5-4 1-4 4v4l-6-6h4l4-4zM9 15l-6 6"/></svg>
         <SvgIcon v-if="tab.icon" :name="tab.icon" :size="11" />
         <span class="tab-name">{{ tab.label }}</span>
         <button v-if="tab.closable !== false && !tab.dirty" class="tab-close" :aria-label="t('common.closeTab', {name:tab.label})" @click.stop="emit('close', tab.id)">
@@ -109,6 +154,7 @@ function onMiddleClick(id: string, e: MouseEvent) {
       style="display:none"
       @change="onFileInput"
     />
+    <ContextMenu :visible="!!context" :x="context?.x ?? 0" :y="context?.y ?? 0" :items="contextItems" @action="contextAction" @close="closeContext" />
   </div>
 </template>
 
@@ -148,6 +194,7 @@ function onMiddleClick(id: string, e: MouseEvent) {
   flex-shrink: 0;
 }
 .tab-item:hover { background: #2a2a2a; color: #bbb; }
+.tab-pin { flex-shrink: 0; color: #a8bfd9; }
 .tab-item.active {
   background: #2d2d2d;
   color: #eee;

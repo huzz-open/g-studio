@@ -37,6 +37,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   'tab-switch': [id: string]
   'tab-close': [id: string]
+  'tab-pin': [id: string, pinned: boolean]
   'tab-add-empty': []
   'tab-add-file': [file: File]
   'tab-load-file': [file: File]
@@ -103,6 +104,7 @@ function onViewportDrop(files: File[], modifiers: DropModifiers) {
         :add-label="tabAddLabel"
         @switch="emit('tab-switch', $event)"
         @close="emit('tab-close', $event)"
+        @pin="(id, pinned) => emit('tab-pin', id, pinned)"
         @add-empty="emit('tab-add-empty')"
         @add-file="emit('tab-add-file', $event)"
         @rename="emit('tab-rename', $event)"

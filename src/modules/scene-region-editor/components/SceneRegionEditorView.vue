@@ -89,6 +89,7 @@ useExternalChangeWatch({
 const tabs = computed<TabItem[]>(() =>
   instances.value.map((inst: SceneRegionStore) => ({
     id: inst.id,
+    pinned: tabsManager.pinnedIds.value.has(inst.id),
     label: inst.getLabel() || t('common.newTab'),
     dirty: inst.state.dirty,
   }))
@@ -177,6 +178,7 @@ function onImportJson() {
     :viewport="{ accept: 'image/*' }"
     @tab-switch="onTabSwitch"
     @tab-close="onTabClose"
+    @tab-pin="tabsManager.setPinned"
     @tab-add-empty="createTab()"
     @tab-add-file="onTabAddFile"
     @tab-load-file="onTabLoadFile"

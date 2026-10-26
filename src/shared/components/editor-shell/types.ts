@@ -3,6 +3,7 @@ export interface TabItem {
   label: string
   dirty?: boolean
   closable?: boolean
+  pinned?: boolean
   icon?: string
 }
 

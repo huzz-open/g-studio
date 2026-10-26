@@ -1,4 +1,11 @@
 export default {
+  'tabs.close.current': 'Close current',
+  'tabs.close.others': 'Close others',
+  'tabs.close.left': 'Close to the left',
+  'tabs.close.right': 'Close to the right',
+  'tabs.pin': 'Pin to the left',
+  'tabs.unpin': 'Unpin',
+  'tabs.pinned': 'Pinned',
   'parts.defaultScene': 'Default scene',
   'sceneLight.showShadowPoints': 'Show shadow landing points',
   'sceneLight.shadowPointsHelp': 'Continuously shows surface samples shaded by other objects, updating as objects or lights move. Excludes self-shadowing; samples do not represent the full shadow area.',

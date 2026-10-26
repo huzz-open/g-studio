@@ -98,6 +98,7 @@ useEditorKeyboard(() => activeInstance.value ? {
 const tabs = computed<TabItem[]>(() =>
   tabInstances.value.map((inst: TilesetInstance) => ({
     id: inst.id,
+    pinned: tabsManager.pinnedIds.value.has(inst.id),
     label: inst.getLabel() || t('common.newTab'),
     dirty: inst.state.dirty,
   }))
@@ -238,6 +239,7 @@ onUnmounted(() => {
     :viewport="{ accept: 'image/png,image/jpeg,image/webp' }"
     @tab-switch="onTabSwitch"
     @tab-close="onTabClose"
+    @tab-pin="tabsManager.setPinned"
     @tab-add-empty="createTab()"
     @tab-add-file="onTabAddFile"
     @tab-load-file="onTabLoadFile"

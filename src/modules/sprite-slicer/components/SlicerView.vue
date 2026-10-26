@@ -81,6 +81,7 @@ const leftPanelConfig = definePanelConfig('slicer-sidebar-width', 300)
 const tabs = computed<TabItem[]>(() =>
   instances.value.map((inst: SlicerInstance) => ({
     id: inst.id,
+    pinned: tabsManager.pinnedIds.value.has(inst.id),
     label: inst.getLabel() || t('common.newTab'),
     dirty: inst.state.dirty,
   }))
@@ -172,6 +173,7 @@ function onExportLocal(payload: OutputPayload) { void output(payload, false) }
     :viewport="{ accept: 'image/png,image/jpeg,image/webp' }"
     @tab-switch="onTabSwitch"
     @tab-close="onTabClose"
+    @tab-pin="tabsManager.setPinned"
     @tab-add-empty="createTab()"
     @tab-add-file="onTabAddFile"
     @tab-load-file="onTabLoadFile"

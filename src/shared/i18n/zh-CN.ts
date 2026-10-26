@@ -1,4 +1,11 @@
 export default {
+  'tabs.close.current': '关闭当前',
+  'tabs.close.others': '关闭其它',
+  'tabs.close.left': '关闭左侧',
+  'tabs.close.right': '关闭右侧',
+  'tabs.pin': '固定到左侧',
+  'tabs.unpin': '取消固定',
+  'tabs.pinned': '已固定',
   'parts.defaultScene': '默认场景',
   'sceneLight.showShadowPoints': '显示阴影落点',
   'sceneLight.shadowPointsHelp': '持续显示被其他物体遮光的表面采样点，移动物体或调整灯光时同步更新。不含自身遮挡；采样点不代表完整阴影面积。',

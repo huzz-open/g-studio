@@ -28,7 +28,7 @@ const showShadowPoints = ref(false)
 const manager = useSceneTabs(), fallback = emptyScene()
 const history = computed(()=>manager.activeInstance.value ? sceneHistory(manager.activeInstance.value) : null)
 const state = computed(() => manager.activeInstance.value?.state ?? fallback)
-const tabs = computed(() => manager.instances.value.map(doc => ({id: doc.id, label: doc.id === DEFAULT_SCENE_ID ? t('parts.defaultScene') : doc.name, closable: doc.id !== DEFAULT_SCENE_ID})))
+const tabs = computed(() => manager.instances.value.map(doc => ({id: doc.id, label: doc.id === DEFAULT_SCENE_ID ? t('parts.defaultScene') : doc.name, closable: doc.id !== DEFAULT_SCENE_ID, pinned: manager.pinnedIds.value.has(doc.id)})))
 const leftPanel = definePanelConfig('scene-lighting-sidebar-width', 300)
 const rightPanel = definePanelConfig('scene-lighting-properties-width', 260)
 const viewport = ref<InstanceType<typeof LightingViewport>>()
@@ -82,7 +82,7 @@ onMounted(async()=>{try{await initializeScene()}catch(e){error.value=String(e)}}
 </script>
 <template>
   <EditorShell :history="history" :tabs="tabs" :active-tab-id="manager.activeTabId.value" tab-add-mode="empty" :tab-add-label="t('parts.newScene')" tab-accept=".json,application/json" :left-panel="leftPanel" :right-panel="rightPanel" :left-collapsed="leftCollapsed"
-    @tab-switch="manager.switchTab" @tab-close="closeSceneTab" @tab-rename="renameTab" @tab-add-empty="newTab" @tab-add-file="importAssetFile($event,true)" @tab-load-file="importAssetFile($event,false)" @update:left-collapsed="leftCollapsed=$event">
+    @tab-switch="manager.switchTab" @tab-close="closeSceneTab" @tab-pin="manager.setPinned" @tab-rename="renameTab" @tab-add-empty="newTab" @tab-add-file="importAssetFile($event,true)" @tab-load-file="importAssetFile($event,false)" @update:left-collapsed="leftCollapsed=$event">
     <template #tab-actions><button v-if="closedScenes.length" class="reopen-tab" :title="t('parts.reopenScene')" :aria-label="t('parts.reopenScene')" @click="reopenSceneTab"><SvgIcon name="undo" :size="13"/></button></template>
     <template #left><ScrollArea class="lighting-sidebar" :label="t('parts.sceneSettings')">
       <div v-if="error||libraryError||sceneStorageError" class="error" role="alert">{{error||libraryError||sceneStorageError}}</div>

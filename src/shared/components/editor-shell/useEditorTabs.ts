@@ -1,4 +1,5 @@
 import { ref, shallowRef, computed, type Ref, type ShallowRef, type ComputedRef } from 'vue'
+import { movePinnedTab } from './tab-actions'
 
 export interface TabPersistConfig<T extends { id: string }> {
   key: string
@@ -22,6 +23,8 @@ export interface UseEditorTabsReturn<T extends { id: string }> {
   createTab: () => T
   switchTab: (id: string) => void
   closeTab: (id: string) => void
+  pinnedIds: Ref<Set<string>>
+  setPinned: (id: string, pinned: boolean) => void
   restoring: Ref<boolean>
   ready: Promise<void>
   saveSession: () => void
@@ -34,6 +37,7 @@ export function useEditorTabs<T extends { id: string }>(
   const instances = shallowRef<T[]>([])
   const activeTabId = ref<string | null>(null)
   const restoring = ref(false)
+  const pinnedIds = ref(new Set<string>())
   let counter = 0
 
   const activeInstance = computed<T | null>(() => {
@@ -61,6 +65,7 @@ export function useEditorTabs<T extends { id: string }>(
     const arr = [...instances.value]
     arr.splice(idx, 1)
     instances.value = arr
+    pinnedIds.value.delete(id)
     options.destroy?.(id)
     if (activeTabId.value === id) {
       activeTabId.value =
@@ -69,10 +74,18 @@ export function useEditorTabs<T extends { id: string }>(
     saveSession()
   }
 
+  function setPinned(id: string, pinned: boolean) {
+    if (!instances.value.some(tab => tab.id === id) || pinnedIds.value.has(id) === pinned) return
+    if (pinned) pinnedIds.value.add(id)
+    else pinnedIds.value.delete(id)
+    instances.value = movePinnedTab(instances.value, id, pinnedIds.value, pinned)
+    saveSession()
+  }
+
   function saveSession() {
     if (!options.persist) return
     const descriptors = instances.value
-      .map(inst => options.persist!.serialize(inst))
+      .map(inst => { const descriptor = options.persist!.serialize(inst); return descriptor ? {...descriptor, pinned: pinnedIds.value.has(inst.id)} : null })
       .filter(d => d !== null)
     const activeInst = instances.value.find(i => i.id === activeTabId.value)
     const activeId = activeInst ? options.persist!.getIdentifier(activeInst) : null
@@ -90,7 +103,7 @@ export function useEditorTabs<T extends { id: string }>(
     try {
       const raw = sessionStorage.getItem(options.persist.key)
       if (raw) {
-        let data: { tabs: Array<{ gsPath: string }>; activeId: string | null }
+        let data: { tabs: Array<{ gsPath: string; pinned?: boolean }>; activeId: string | null }
         try {
           data = JSON.parse(raw)
         } catch {
@@ -104,6 +117,7 @@ export function useEditorTabs<T extends { id: string }>(
           try {
             const inst = await options.persist.restore(desc)
             restored.push(inst)
+            if (desc.pinned === true) pinnedIds.value.add(inst.id)
           } catch { /* restore failed for this tab, skip */ }
         }
         if (restored.length > 0) {
@@ -148,5 +162,5 @@ export function useEditorTabs<T extends { id: string }>(
 
   const ready = _init()
 
-  return { instances, activeTabId, activeInstance, createTab, switchTab, closeTab, restoring, ready, saveSession, handleRouteIntent }
+  return { instances, activeTabId, activeInstance, createTab, switchTab, closeTab, pinnedIds, setPinned, restoring, ready, saveSession, handleRouteIntent }
 }

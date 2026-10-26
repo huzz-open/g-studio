@@ -24,10 +24,11 @@ const emit = defineEmits<{
 
 const menuEl = ref<HTMLElement>()
 
-watch(() => props.visible, async (v) => {
+watch(() => [props.visible, props.x, props.y] as const, async ([v]) => {
   if (v) {
     await nextTick()
     clampToViewport()
+    menuEl.value?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
   }
 })
 
@@ -37,15 +38,12 @@ function clampToViewport() {
   const rect = el.getBoundingClientRect()
   const vw = window.innerWidth
   const vh = window.innerHeight
-  if (rect.right > vw) {
-    el.style.left = `${props.x - rect.width}px`
-  }
-  if (rect.bottom > vh) {
-    el.style.top = `${props.y - rect.height}px`
-  }
+  el.style.left = `${Math.max(4, Math.min(props.x, vw - rect.width - 4))}px`
+  el.style.top = `${Math.max(4, Math.min(props.y, vh - rect.height - 4))}px`
 }
 
 function onAction(id: string) {
+  if (props.items.find(item => item.id === id)?.disabled) return
   emit('action', id)
   emit('close')
 }
@@ -58,18 +56,30 @@ function onDocMouseDown(e: MouseEvent) {
 }
 
 function onKeyDown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && props.visible) {
+  if (!props.visible) return
+  if (e.key === 'Escape' || e.key === 'Tab') {
+    if (e.key === 'Escape') e.preventDefault()
     emit('close')
+  } else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
+    e.preventDefault()
+    const buttons = [...menuEl.value?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? []]
+    if (!buttons.length) return
+    const index = buttons.findIndex(button => button === document.activeElement)
+    const next = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1 : (index + (e.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length
+    buttons[next]?.focus()
   }
 }
+function closeOnResize() { if (props.visible) emit('close') }
 
 onMounted(() => {
   document.addEventListener('mousedown', onDocMouseDown, true)
   document.addEventListener('keydown', onKeyDown)
+  window.addEventListener('resize', closeOnResize)
 })
 onUnmounted(() => {
   document.removeEventListener('mousedown', onDocMouseDown, true)
   document.removeEventListener('keydown', onKeyDown)
+  window.removeEventListener('resize', closeOnResize)
 })
 </script>
 
@@ -79,13 +89,17 @@ onUnmounted(() => {
       v-if="visible"
       ref="menuEl"
       class="ctx-menu"
+      role="menu"
+      @contextmenu.prevent
       :style="{ left: x + 'px', top: y + 'px' }"
     >
       <template v-for="item in items" :key="item.id">
-        <div v-if="item.separator" class="ctx-sep" />
+        <div v-if="item.separator" class="ctx-sep" role="separator" />
         <button
           v-else
           class="ctx-item"
+          role="menuitem"
+          tabindex="-1"
           :disabled="item.disabled"
           @click="onAction(item.id)"
         >
@@ -125,6 +139,7 @@ onUnmounted(() => {
 .ctx-item:hover:not(:disabled) {
   background: #3a3a3a;
 }
+.ctx-item:focus-visible { outline: none; background: #3a3a3a; box-shadow: inset 0 0 0 1px #738ba6; }
 .ctx-item:disabled {
   color: #666;
   cursor: default;
