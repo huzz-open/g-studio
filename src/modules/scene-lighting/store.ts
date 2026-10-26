@@ -5,7 +5,7 @@ import { reactive, ref, watch, type Ref } from 'vue'
 import { useEditorTabs, type UseEditorTabsReturn } from '../../shared/components/editor-shell/useEditorTabs'
 import { translate } from '../../shared/i18n'
 import { partMovementLimits } from './part-geometry'
-import { createScene, DEFAULT_ROOM, type Preset, type SceneState } from './model'
+import { createScene, createDefaultScene, DEFAULT_SCENE_ID, DEFAULT_ROOM, type Preset, type SceneState } from './model'
 import { clonePart, MAX_SCENE_ITEMS, type PartAsset } from '../../shared/parts/schema'
 import { loadPartLibrary, partLibrary } from '../../shared/parts/library'
 
@@ -29,7 +29,7 @@ export function sceneHistory(doc: SceneDocument) {
   }
   return history
 }
-export function emptyScene(): SceneState { return { ...createScene(), items: [], selected: '' } }
+export function emptyScene(): SceneState { return { ...createDefaultScene(), items: [], selected: '' } }
 function makeDocument(id: string): SceneDocument {
   return reactive({ id, name: translate('parts.sceneTab', { number: ++number }), state: emptyScene() })
 }
@@ -49,8 +49,17 @@ function restore(value: any): SceneDocument {
   return reactive({ id: value.id, name: value.name === 'parts.sceneTab' ? translate('parts.sceneTab', {number: ++number}) : value.name, state: parseScene(value.state) })
 }
 
+function ensureDefaultScene() {
+  if (tabs.instances.value.some(doc => doc.id === DEFAULT_SCENE_ID)) return
+  const saved = closedScenes.value.find(doc => doc.id === DEFAULT_SCENE_ID)
+  const doc = saved ? restore(saved) : reactive({ id: DEFAULT_SCENE_ID, name: translate('parts.defaultScene'), state: createDefaultScene() })
+  closedScenes.value = closedScenes.value.filter(scene => scene.id !== DEFAULT_SCENE_ID)
+  tabs.instances.value = [doc, ...tabs.instances.value]
+  tabs.switchTab(doc.id)
+}
+
 export function initializeScene(): Promise<void> {
-  if (initialized) return loadPartLibrary()
+  if (initialized) return loadPartLibrary().then(() => { ensureDefaultScene(); persist() })
   return initializing ??= (async () => {
     await loadPartLibrary(); await tabs.ready
     try {
@@ -70,7 +79,7 @@ export function initializeScene(): Promise<void> {
         }
       }
     } catch (error) { sceneStorageError.value = String(error) }
-    if (!tabs.instances.value.length) tabs.createTab()
+    ensureDefaultScene()
     initialized = true; persist()
   })()
 }
@@ -94,6 +103,7 @@ export async function newSceneTab(name?: string, state?: SceneState) {
   return doc
 }
 export function closeSceneTab(id: string) {
+  if (id === DEFAULT_SCENE_ID) return
   const doc = tabs.instances.value.find(d => d.id === id); if (!doc) return
   closedScenes.value = [...closedScenes.value.filter(d => d.id !== id), snapshot(doc)]
   histories.get(id)?.dispose(); histories.delete(id)
@@ -105,6 +115,7 @@ export function reopenSceneTab() {
   const doc = restore(saved); tabs.instances.value = [...tabs.instances.value, doc]; tabs.switchTab(doc.id)
 }
 export function renameSceneTab(id: string, name: string) {
+  if (id === DEFAULT_SCENE_ID) return
   const doc = tabs.instances.value.find(d => d.id === id)
   if (doc && name.trim()) doc.name = name.trim().slice(0, 120)
 }

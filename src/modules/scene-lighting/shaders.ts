@@ -101,6 +101,36 @@ void main(){
   color=vec4(shade(base,world,normalize(surfaceNormal),0.0),1.0);
 }
 `
+export const shadowPointVertex = `#version 300 es
+layout(location=0) in vec3 position; layout(location=1) in vec3 normal;
+uniform mat4 matrix; uniform vec3 offset; uniform float objectScale; uniform float pointSize;
+out vec3 world; out vec3 surfaceNormal; out vec3 localPosition;
+void main(){
+  localPosition=position; world=position*objectScale+offset; surfaceNormal=normal;
+  gl_Position=matrix*vec4(world,1.0);
+  // A tiny camera-depth bias keeps markers on the surface without drawing through objects.
+  gl_Position.z-=0.00002*gl_Position.w; gl_PointSize=pointSize;
+}
+`
+export const shadowPointFragment = `#version 300 es
+precision highp float;
+in vec3 world; in vec3 surfaceNormal; in vec3 localPosition;
+uniform float objectId; uniform float spriteReceiver; uniform sampler2D colorMap;
+uniform vec3 right; uniform vec3 up; uniform vec4 bounds;
+out vec4 color;
+${lighting}
+void main(){
+  if(length(gl_PointCoord-vec2(0.5))>0.5)discard;
+  if(spriteReceiver>0.5){
+    vec2 uv=(vec2(dot(localPosition,right),dot(localPosition,up))-bounds.xy)/bounds.zw;
+    if(any(lessThan(uv,vec2(0)))||any(greaterThan(uv,vec2(1)))||texture(colorMap,uv).a<0.08)discard;
+  }
+  vec3 n=normalize(surfaceNormal), toLight=directional>0.5?sunDirection:normalize(light-world);
+  // Only external occlusion of a light-facing receiver counts as a shadow landing point.
+  if(dot(n,toLight)<=0.0||visibility(world,n,objectId)>0.5)discard;
+  color=vec4(0.2,1.0,0.85,1.0);
+}
+`
 export const spriteVertex = `#version 300 es
 layout(location=0) in vec2 uvPosition;
 uniform mat4 matrix;uniform vec3 offset;uniform vec3 right;uniform vec3 up;uniform vec4 bounds;uniform float objectScale;

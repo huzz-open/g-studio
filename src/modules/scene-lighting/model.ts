@@ -47,6 +47,11 @@ export function createScene(preset: Preset = 'spread'): SceneState {
   }
 }
 
+export const DEFAULT_SCENE_ID = 'lighting-default'
+export function createDefaultScene(): SceneState {
+  return { ...createScene('spread'), scene: 'corner' }
+}
+
 export interface Mesh { vertices: Float32Array; triangles: Vec3[][] }
 export function meshBuilder() {
   const vertices: number[] = [], triangles: Vec3[][] = []

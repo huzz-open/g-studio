@@ -1,4 +1,9 @@
 export default {
+  'parts.defaultScene': 'Default scene',
+  'sceneLight.showShadowPoints': 'Show shadow landing points',
+  'sceneLight.shadowPointsHelp': 'Continuously shows surface samples shaded by other objects, updating as objects or lights move. Excludes self-shadowing; samples do not represent the full shadow area.',
+  'sceneLight.shadowPointsLegend': 'Teal dots: locations receiving shadows from other objects',
+  'sceneLight.shadowPointsDisabled': 'Shadows are off. Enable shadows to display landing points.',
   'parts.slicerSettings': 'Slicer settings',
   "common.closeTab": "Close {name}",
   "parts.newScene": "New scene",

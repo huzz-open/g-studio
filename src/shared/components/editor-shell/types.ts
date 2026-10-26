@@ -2,6 +2,7 @@ export interface TabItem {
   id: string
   label: string
   dirty?: boolean
+  closable?: boolean
   icon?: string
 }
 

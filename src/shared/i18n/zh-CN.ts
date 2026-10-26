@@ -1,4 +1,9 @@
 export default {
+  'parts.defaultScene': '默认场景',
+  'sceneLight.showShadowPoints': '显示阴影落点',
+  'sceneLight.shadowPointsHelp': '持续显示被其他物体遮光的表面采样点，移动物体或调整灯光时同步更新。不含自身遮挡；采样点不代表完整阴影面积。',
+  'sceneLight.shadowPointsLegend': '青绿色圆点：接收到其他物体阴影的位置',
+  'sceneLight.shadowPointsDisabled': '阴影已关闭，开启阴影后显示落点。',
   'parts.slicerSettings': '切图设置',
   "common.closeTab": "关闭 {name}",
   "parts.newScene": "新建场景",

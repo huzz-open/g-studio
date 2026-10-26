@@ -4,7 +4,8 @@ import { buildRoom, FORWARD, PITCH, RIGHT, roomBounds, UP, YAW, type Mesh, type 
 import { buildPartGeometry, alignedBounds } from './part-geometry'
 import { clonePart, partRenderKey, type PartAsset } from '../../shared/parts/schema'
 import { partPixels, normalImageUrl, loadImage } from '../../shared/parts/images'
-import { depthFragment, fieldFragment, fieldVertex, meshVertex, spriteFragment, spriteVertex, surfaceFragment } from './shaders'
+import { depthFragment, fieldFragment, fieldVertex, meshVertex, spriteFragment, spriteVertex, surfaceFragment, shadowPointVertex, shadowPointFragment } from './shaders'
+import { meshShadowSamples, roomShadowSamples } from './shadow-samples'
 
 const FAR = 64, MAP_SIZE = 1024
 const DIRECTIONS: Vec3[] = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]
@@ -12,7 +13,8 @@ const UPS: Vec3[] = [[0, -1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1], [0, -1, 0], 
 export function sceneCamera(state: SceneState, aspect: number) {
   return camera({ yaw: YAW, pitch: PITCH, distance: state.zoom, projection: 'orthographic' }, aspect, state.target)
 }
-interface GpuMesh { mesh: Mesh; vao: WebGLVertexArrayObject; buffer: WebGLBuffer; count: number }
+interface GpuPoints { vao: WebGLVertexArrayObject; buffer: WebGLBuffer; count: number }
+interface GpuMesh extends GpuPoints { mesh: Mesh; points?: GpuPoints }
 interface SpriteAsset extends GpuMesh {
   id: string; key: string; directx: boolean; bounds: SpriteBounds; color: WebGLTexture; normal: WebGLTexture
   depth: WebGLTexture; surface: WebGLTexture; alpha: Uint8ClampedArray; width: number; height: number
@@ -38,6 +40,7 @@ export function createSceneRenderer(canvas: HTMLCanvasElement) {
   }
   const depthProgram = program(meshVertex, depthFragment), surfaceProgram = program(meshVertex, surfaceFragment)
   const fieldProgram = program(fieldVertex, fieldFragment), spriteProgram = program(spriteVertex, spriteFragment)
+  const pointProgram = program(shadowPointVertex, shadowPointFragment)
   const uniformCache = new Map<WebGLProgram, Map<string, WebGLUniformLocation | null>>()
   function u(p: WebGLProgram, name: string) {
     if (!uniformCache.has(p)) uniformCache.set(p, new Map())
@@ -54,11 +57,23 @@ export function createSceneRenderer(canvas: HTMLCanvasElement) {
     for (let i = 0; i < 3; i++) { gl!.enableVertexAttribArray(i); gl!.vertexAttribPointer(i, 3, gl!.FLOAT, false, 36, i * 12) }
     return { mesh, vao, buffer: vertexBuffer, count: mesh.vertices.length / 9 }
   }
+  function pointBuffer(data: Float32Array): GpuPoints {
+    const vao = gl!.createVertexArray()!; vaos.push(vao); gl!.bindVertexArray(vao)
+    const vertexBuffer = buffer(data)
+    for (let i = 0; i < 2; i++) { gl!.enableVertexAttribArray(i); gl!.vertexAttribPointer(i, 3, gl!.FLOAT, false, 24, i * 12) }
+    return { vao, buffer: vertexBuffer, count: data.length / 6 }
+  }
+  function releaseGeometry(mesh: GpuMesh) {
+    for (const geometry of [mesh, ...(mesh.points ? [mesh.points] : [])]) {
+      gl!.deleteBuffer(geometry.buffer); buffers.splice(buffers.indexOf(geometry.buffer), 1)
+      gl!.deleteVertexArray(geometry.vao); vaos.splice(vaos.indexOf(geometry.vao), 1)
+    }
+  }
   let room:GpuMesh|undefined, roomKey=''
   function updateRoom(state:SceneState){
     const key=JSON.stringify([state.scene,state.room]);if(key===roomKey)return
     const next=meshBuffer(buildRoom(state.scene,state.room))
-    if(room){gl!.deleteBuffer(room.buffer);buffers.splice(buffers.indexOf(room.buffer),1);gl!.deleteVertexArray(room.vao);vaos.splice(vaos.indexOf(room.vao),1)}
+    if(room)releaseGeometry(room)
     room=next;roomKey=key;shadowKey=''
   }
   const quadVao = gl.createVertexArray()!; vaos.push(quadVao); gl.bindVertexArray(quadVao)
@@ -85,7 +100,7 @@ export function createSceneRenderer(canvas: HTMLCanvasElement) {
   const assets = new Map<string, SpriteAsset>()
   const lightProjection = perspective(Math.PI / 2, 1, .03, FAR)
   let sunMatrix:Mat4=new Float32Array(16)
-  let lightMatrices: Mat4[] = [], shadowKey = '', lastState: SceneState | undefined
+  let lightMatrices: Mat4[] = [], shadowKey = '', lastState: SceneState | undefined, lastShowShadowPoints = false
   function status() { if (gl!.checkFramebufferStatus(gl!.FRAMEBUFFER) !== gl!.FRAMEBUFFER_COMPLETE) throw new Error('Lighting framebuffer is unavailable') }
   function basis(p: WebGLProgram, bounds: SpriteBounds) {
     gl!.uniform3fv(u(p, 'right'), RIGHT); gl!.uniform3fv(u(p, 'up'), UP); gl!.uniform3fv(u(p, 'forward'), FORWARD)
@@ -113,8 +128,7 @@ export function createSceneRenderer(canvas: HTMLCanvasElement) {
     gl!.bindFramebuffer(gl!.FRAMEBUFFER, null)
   }
   function releaseAsset(asset: SpriteAsset) {
-    gl!.deleteBuffer(asset.buffer); buffers.splice(buffers.indexOf(asset.buffer), 1)
-    gl!.deleteVertexArray(asset.vao); vaos.splice(vaos.indexOf(asset.vao), 1)
+    releaseGeometry(asset)
     for (const tex of [asset.color, asset.normal, asset.depth, asset.surface]) { gl!.deleteTexture(tex); textures.splice(textures.indexOf(tex), 1) }
   }
   let syncEpoch = 0
@@ -189,9 +203,36 @@ export function createSceneRenderer(canvas: HTMLCanvasElement) {
     gl!.activeTexture(gl!.TEXTURE5);gl!.bindTexture(gl!.TEXTURE_2D,sunMap);gl!.uniform1i(u(p,'sunShadowMap'),5)
     gl!.activeTexture(gl!.TEXTURE0); gl!.bindTexture(gl!.TEXTURE_CUBE_MAP, cube); gl!.uniform1i(u(p, 'shadowMap'), 0)
   }
-  function render(state: SceneState) {
+  function drawShadowPoints(state: SceneState, matrix: Mat4, dpr: number) {
+    lighting(pointProgram, state, matrix)
+    gl!.uniform1f(u(pointProgram, 'receives'), 1)
+    gl!.uniform1f(u(pointProgram, 'pointSize'), 4 * dpr)
+    gl!.depthMask(false); gl!.depthFunc(gl!.LEQUAL)
+    function draw(mesh: GpuMesh, offset: Vec3, id: number, scale: number) {
+      gl!.uniform1f(u(pointProgram, 'objectScale'), scale); gl!.uniform3fv(u(pointProgram, 'offset'), offset)
+      gl!.uniform1f(u(pointProgram, 'objectId'), id); gl!.bindVertexArray(mesh.points!.vao)
+      gl!.drawArrays(gl!.POINTS, 0, mesh.points!.count)
+    }
+    try {
+      room!.points ??= pointBuffer(roomShadowSamples(state))
+      gl!.uniform1f(u(pointProgram, 'spriteReceiver'), 0)
+      // Bind a valid 2D texture even when sprite masking is disabled.
+      gl!.activeTexture(gl!.TEXTURE1); gl!.bindTexture(gl!.TEXTURE_2D, sunMap); gl!.uniform1i(u(pointProgram, 'colorMap'), 1)
+      draw(room!, [0, 0, 0], 1, 1)
+      state.items.forEach((item, i) => {
+        const asset = assets.get(item.assetId)
+        if (!asset || !item.visible || !item.receives) return
+        asset.points ??= pointBuffer(meshShadowSamples(asset.mesh))
+        gl!.uniform1f(u(pointProgram, 'spriteReceiver'), +(state.mode === 'sprites'))
+        basis(pointProgram, asset.bounds)
+        gl!.activeTexture(gl!.TEXTURE1); gl!.bindTexture(gl!.TEXTURE_2D, asset.color)
+        draw(asset, [item.x, 0, item.z], i + 2, item.scale)
+      })
+    } finally { gl!.depthMask(true); gl!.depthFunc(gl!.LESS) }
+  }
+  function render(state: SceneState, showShadowPoints = false) {
     if (disposed) return
-    lastState = state
+    lastState = state; lastShowShadowPoints = showShadowPoints
     const rect = canvas.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 1.5)
     const width = Math.max(1, Math.round(rect.width * dpr)), height = Math.max(1, Math.round(rect.height * dpr))
     if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height }
@@ -215,6 +256,7 @@ export function createSceneRenderer(canvas: HTMLCanvasElement) {
         gl!.drawArrays(gl!.TRIANGLES, 0, 6)
       })
     }
+    if (showShadowPoints && state.shadows) drawShadowPoints(state, view.matrix, dpr)
     const error = gl!.getError(); if (error !== gl!.NO_ERROR) throw new Error(`WebGL error ${error}`)
   }
   function project(point: Vec3, state: SceneState) {
@@ -291,5 +333,5 @@ export function createSceneRenderer(canvas: HTMLCanvasElement) {
     textures.forEach(t => gl!.deleteTexture(t)); buffers.forEach(b => gl!.deleteBuffer(b)); vaos.forEach(v => gl!.deleteVertexArray(v)); programs.forEach(p => gl!.deleteProgram(p)); shaders.forEach(s => gl!.deleteShader(s))
     assets.clear()
   }
-  return { syncAssets, render, project, pick, inspect, dispose, coverage: () => Object.fromEntries([...assets].map(([id, a]) => [id, a.coverage])), repaint: () => lastState && render(lastState) }
+  return { syncAssets, render, project, pick, inspect, dispose, coverage: () => Object.fromEntries([...assets].map(([id, a]) => [id, a.coverage])), repaint: () => lastState && render(lastState, lastShowShadowPoints) }
 }

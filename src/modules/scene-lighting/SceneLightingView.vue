@@ -18,16 +18,17 @@ import { partImageUrl, portablePart } from '../../shared/parts/images'
 import { openPartEditor } from '../../shared/parts/editor-session'
 import { useSceneTabs, initializeScene, newSceneTab, closeSceneTab, reopenSceneTab, renameSceneTab, closedScenes, emptyScene, addPartsToScene, removeSceneItem, sceneHistory, parseScene, sceneStorageError } from './store'
 import { partMovementLimits } from './part-geometry'
-import { createScene, roomBounds, DEFAULT_ROOM, type Preset } from './model'
+import { roomBounds, DEFAULT_ROOM, DEFAULT_SCENE_ID } from './model'
 import LightingViewport from './LightingViewport.vue'
 import LightSettings from './LightSettings.vue'
 
 const { t } = useI18n(), error = ref(''), busy = ref(false), importInput = ref<HTMLInputElement>()
 const search = ref(''), leftCollapsed = ref(false)
+const showShadowPoints = ref(false)
 const manager = useSceneTabs(), fallback = emptyScene()
 const history = computed(()=>manager.activeInstance.value ? sceneHistory(manager.activeInstance.value) : null)
 const state = computed(() => manager.activeInstance.value?.state ?? fallback)
-const tabs = computed(() => manager.instances.value.map(doc => ({id: doc.id, label: doc.name})))
+const tabs = computed(() => manager.instances.value.map(doc => ({id: doc.id, label: doc.id === DEFAULT_SCENE_ID ? t('parts.defaultScene') : doc.name, closable: doc.id !== DEFAULT_SCENE_ID})))
 const leftPanel = definePanelConfig('scene-lighting-sidebar-width', 300)
 const rightPanel = definePanelConfig('scene-lighting-properties-width', 260)
 const viewport = ref<InstanceType<typeof LightingViewport>>()
@@ -45,9 +46,9 @@ function edit(id?: string) { if(id && partLibrary[id]) openPartEditor({assetId:i
 function revealItems(){history.value?.batch(()=>state.value.items.forEach(item=>{item.visible=true}))}
 function changeScene(value:string){if(value==='open'||value==='corner')state.value.scene=value}
 async function add(parts: PartAsset[], point?: {x:number;z:number}) { error.value='';try { await addPartsToScene(parts,manager.activeTabId.value??undefined,point) } catch(e){error.value=String(e)} }
-async function preset(id: Preset) { await newSceneTab(t('sceneLight.'+id), createScene(id)) }
 async function newTab() { await newSceneTab() }
 async function renameTab(id: string) {
+  if (id === DEFAULT_SCENE_ID) return
   const doc=manager.instances.value.find(d=>d.id===id);if(!doc)return
   const name=await prompt({title:t('parts.renameScene'),defaultValue:doc.name})
   if(name)renameSceneTab(id,name)
@@ -85,7 +86,6 @@ onMounted(async()=>{try{await initializeScene()}catch(e){error.value=String(e)}}
     <template #tab-actions><button v-if="closedScenes.length" class="reopen-tab" :title="t('parts.reopenScene')" :aria-label="t('parts.reopenScene')" @click="reopenSceneTab"><SvgIcon name="undo" :size="13"/></button></template>
     <template #left><ScrollArea class="lighting-sidebar" :label="t('parts.sceneSettings')">
       <div v-if="error||libraryError||sceneStorageError" class="error" role="alert">{{error||libraryError||sceneStorageError}}</div>
-      <SidebarSection :title="t('parts.examples')"><div class="row"><button v-for="p in (['spread','wall','mutual'] as const)" :key="p" @click="preset(p)">{{t('sceneLight.'+p)}}</button></div></SidebarSection>
       <SidebarSection title="" :collapsible="false">
         <SegmentedControl :label="t('sceneLight.environment')" :model-value="state.scene" :options="[{value:'open',label:t('sceneLight.open')},{value:'corner',label:t('sceneLight.corner')}]" role="group" :aria-label="t('sceneLight.environment')" @update:model-value="changeScene" />
 
@@ -106,6 +106,7 @@ onMounted(async()=>{try{await initializeScene()}catch(e){error.value=String(e)}}
       </SidebarSection>
       <SidebarSection :title="t('sceneLight.lighting')" :collapsible="false">
         <LightSettings :state="state"/>
+        <InlineSwitch v-model="showShadowPoints" :label="t('sceneLight.showShadowPoints')" :info="t('sceneLight.shadowPointsLegend')+'\n'+t('sceneLight.shadowPointsHelp')+(state.shadows?'':'\n'+t('sceneLight.shadowPointsDisabled'))" block/>
       </SidebarSection>
       <div class="lighting-info"><button class="wide" :disabled="busy" @click="exportScene">{{t('parts.exportScene')}}</button></div>
     </ScrollArea></template>
@@ -121,7 +122,7 @@ onMounted(async()=>{try{await initializeScene()}catch(e){error.value=String(e)}}
       </SidebarSection>
       <p v-if="missing.length" class="error">{{t('parts.missingHelp')}}</p>
     </ScrollArea></template>
-    <template #viewport><LightingViewport ref="viewport" :state="state" :assets="assets" :controls="false" @edit="edit"/></template>
+    <template #viewport><LightingViewport ref="viewport" :state="state" :assets="assets" :controls="false" :show-shadow-points="showShadowPoints" @edit="edit"/></template>
   </EditorShell>
 </template>
 <style scoped>

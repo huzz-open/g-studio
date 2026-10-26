@@ -6,6 +6,41 @@ require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileMo
 }).outputText, filename)
 const { buildItem, buildRoom, createScene, DEFINITIONS, PITCH, YAW, ROOM, movementLimits, rayHit, spriteBounds } = require('../src/modules/scene-lighting/model.ts')
 const { camera, transform } = require('../src/modules/experiments/umbrella/math.ts')
+const { meshShadowSamples, roomShadowSamples } = require('../src/modules/scene-lighting/shadow-samples.ts')
+
+test('landing samples stay on receiver surfaces after room resizing and environment changes', () => {
+  const state = createScene()
+  state.room = { width: 2.3, depth: 3.7, height: 1.1 }
+  const open = roomShadowSamples(state)
+  for (let i = 0; i < open.length; i += 6) {
+    assert.equal(open[i + 1], 0)
+    assert.deepEqual([...open.slice(i + 3, i + 6)], [0, 1, 0])
+    assert.ok(open[i] > -5.5 && open[i] < -3.2 && open[i + 2] > -4 && open[i + 2] < -.3)
+  }
+  state.scene = 'corner'
+  const corner = roomShadowSamples(state)
+  assert.ok(corner.length > open.length)
+  assert.deepEqual(corner.slice(0, open.length), open)
+  for (let i = open.length; i < corner.length; i += 6) {
+    assert.ok(corner[i + 1] > 0 && corner[i + 1] < state.room.height)
+    assert.ok(corner[i] === -5.5 || corner[i + 2] === -4)
+  }
+})
+
+test('asset landing points lie inside triangles with the matching surface normal', () => {
+  for (const { id } of DEFINITIONS) {
+    const mesh = buildItem(id), samples = meshShadowSamples(mesh)
+    assert.equal(samples.length / 6, mesh.triangles.length)
+    for (let i = 0; i < samples.length; i += 6) {
+      const triangle = mesh.triangles[i / 6]
+      for (let axis = 0; axis < 3; axis++) {
+        const centroid = triangle.reduce((sum, p) => sum + p[axis], 0) / 3
+        assert.ok(Math.abs(samples[i + axis] - centroid) < 1e-6)
+      }
+      assert.ok(Math.abs(Math.hypot(...samples.slice(i + 3, i + 6)) - 1) < 1e-5)
+    }
+  }
+})
 
 test('fixed 20-degree orthographic camera picks the ground at varied aspect ratios', () => {
   assert.equal(PITCH, 20)

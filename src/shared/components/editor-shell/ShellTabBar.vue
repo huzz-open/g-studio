@@ -57,7 +57,7 @@ function onDrop(e: DragEvent) {
 }
 
 function onMiddleClick(id: string, e: MouseEvent) {
-  if (e.button === 1) {
+  if (e.button === 1 && props.tabs.find(tab => tab.id === id)?.closable !== false) {
     e.preventDefault()
     emit('close', id)
   }
@@ -91,10 +91,10 @@ function onMiddleClick(id: string, e: MouseEvent) {
       >
         <SvgIcon v-if="tab.icon" :name="tab.icon" :size="11" />
         <span class="tab-name">{{ tab.label }}</span>
-        <button v-if="!tab.dirty" class="tab-close" :aria-label="t('common.closeTab', {name:tab.label})" @click.stop="emit('close', tab.id)">
+        <button v-if="tab.closable !== false && !tab.dirty" class="tab-close" :aria-label="t('common.closeTab', {name:tab.label})" @click.stop="emit('close', tab.id)">
           <SvgIcon name="close" :size="10" />
         </button>
-        <span v-else class="tab-dirty" @click.stop="emit('close', tab.id)">●</span>
+        <span v-else-if="tab.dirty" class="tab-dirty" @click.stop="tab.closable !== false && emit('close', tab.id)">●</span>
       </div>
       <button class="tab-add" :title="addLabel || t('common.newTab')" :aria-label="addLabel || t('common.newTab')" @click="onClickAdd">
         <SvgIcon name="plus" :size="12" />
