@@ -38,6 +38,7 @@ class DeviceTests(unittest.TestCase):
             return Tensor()
 
         return types.SimpleNamespace(
+            version=types.SimpleNamespace(cuda="12.4", hip=None),
             ones=ones,
             cuda=types.SimpleNamespace(
                 is_available=lambda: available,
@@ -45,6 +46,47 @@ class DeviceTests(unittest.TestCase):
                 empty_cache=lambda: None,
             ),
         )
+
+    def test_rocm_is_not_mistaken_for_nvidia_cuda(self):
+        torch = self.fake_torch()
+        torch.version.hip = "7.2.1"
+        with patch.dict(os.environ, {"GEN_DEVICE": "auto"}), patch.dict(sys.modules, {"torch": torch}):
+            result = device.probe()
+        self.assertEqual(result["backend"], "cpu")
+        self.assertIn("not supported", result["reason"])
+
+    def test_apple_silicon_mps_probe_and_cpu_override(self):
+        torch = self.fake_torch()
+        torch.version.cuda = None
+        torch.backends = types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda: True))
+        torch.mps = types.SimpleNamespace(synchronize=lambda: None, empty_cache=lambda: None)
+        with patch("device.platform.system", return_value="Darwin"), patch("device.platform.machine", return_value="arm64"), patch.dict(sys.modules, {"torch": torch}):
+            with patch.dict(os.environ, {"GEN_DEVICE": "mps"}):
+                self.assertEqual(device.probe()["backend"], "mps")
+            with patch.dict(os.environ, {"GEN_DEVICE": "cpu"}):
+                self.assertEqual(device.probe()["backend"], "cpu")
+
+    def test_unsupported_gpu_requests_fall_back_to_cpu(self):
+        for requested in ("xpu", "rocm"):
+            with patch.dict(os.environ, {"GEN_DEVICE": requested}):
+                result = device.probe()
+                self.assertEqual(result["backend"], "cpu")
+                self.assertIn("not supported", result["reason"])
+
+    def test_mps_uses_cpu_noise_generator_and_fp32(self):
+        from compute import inference_dtype, noise_generator, recoverable_accelerator_error
+        seen = {}
+        def generator(device):
+            seen["device"] = device
+            return types.SimpleNamespace(manual_seed=lambda seed: seen.update(seed=seed))
+        torch = types.SimpleNamespace(Generator=generator, float16="fp16", float32="fp32")
+        noise_generator(torch, "mps", 42)
+        self.assertEqual(seen, {"device": "cpu", "seed": 42})
+        self.assertEqual(inference_dtype(torch, "mps"), "fp32")
+        self.assertEqual(inference_dtype(torch, "cuda"), "fp16")
+        self.assertTrue(recoverable_accelerator_error("mps", "Not implemented for the MPS device"))
+        self.assertFalse(recoverable_accelerator_error("cpu", "out of memory"))
+        self.assertFalse(recoverable_accelerator_error("mps", "Invalid source image"))
 
     def test_gpu_preferred_after_runtime_validation(self):
         with (
@@ -91,6 +133,20 @@ class DeviceTests(unittest.TestCase):
 
 
 class DownloadTests(unittest.TestCase):
+    def test_accelerator_retry_preserves_the_original_upload(self):
+        import generate
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            (folder / "input.png").write_bytes(b"original upload")
+            def fail_after_preview(*args, **kwargs):
+                (folder / "input.png").write_bytes(b"normalized preview")
+                raise RuntimeError("MPS backend operation failed")
+            with patch("generate.subprocess.run", side_effect=fail_after_preview):
+                with self.assertRaises(RuntimeError): generate.hunyuan(folder, {})
+            with patch("generate.subprocess.run"):
+                generate.hunyuan(folder, {})
+            self.assertEqual((folder / "original.png").read_bytes(), b"original upload")
+
     def test_progress_continues_during_blocked_reads_and_preserves_resume(self):
         with (
             tempfile.TemporaryDirectory(prefix="generation-progress-") as directory,

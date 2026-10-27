@@ -1,0 +1,196 @@
+{
+  "date": "2026-10-27",
+  "model": "Hunyuan3D-2mini-Turbo",
+  "windows_comparison": {
+    "cpu": "Intel Core i5-10500, 6 cores / 12 logical processors",
+    "ram_GB": 32,
+    "gpu": "Intel UHD Graphics 630",
+    "gpu_driver": "27.20.100.9664",
+    "input": "public/scene-lighting/vase.png",
+    "steps": 1,
+    "resolution": 128,
+    "seed": 12345,
+    "torch": "2.4.1",
+    "volume_decoder": "vanilla",
+    "cpu_dtype": "float32",
+    "cpu_threads": 4,
+    "gpu_dtype": "float16",
+    "cpu_phases": [
+      {
+        "phase": "encode",
+        "seconds": 114.69722209998872,
+        "exit_code": 0
+      },
+      {
+        "phase": "sample",
+        "seconds": 54.110411099973135,
+        "exit_code": 0
+      },
+      {
+        "phase": "mesh",
+        "seconds": 58.89160680002533,
+        "exit_code": 0
+      }
+    ],
+    "gpu_phases": [
+      {
+        "phase": "encode",
+        "seconds": 489.0842364000855,
+        "exit_code": 0
+      },
+      {
+        "phase": "sample",
+        "seconds": 217.38385569991078,
+        "exit_code": 0
+      },
+      {
+        "phase": "mesh",
+        "seconds": 161.95411990000866,
+        "exit_code": 0
+      }
+    ],
+    "cpu_phase_sum_seconds": 227.69923999998719,
+    "gpu_phase_sum_seconds": 868.422212000005,
+    "gpu_over_cpu_time_ratio": 3.8139003538178424,
+    "gpu_run_boundary": "Successful GPU encode/sample cached outputs were reused for a subsequent successful vanilla mesh run. This aggregate is not one uninterrupted final-configuration run. Failed attempts are excluded. Neural computation ran on GPU; ordinary mesh surface extraction is CPU. No automatic CPU model fallback detected.",
+    "attention_microbenchmarks": [
+      {
+        "backend": "cpu",
+        "chunk": 128,
+        "sync": "chunk",
+        "shape": [
+          1,
+          24,
+          5330,
+          64
+        ],
+        "torch": "2.4.1+cpu",
+        "cpu_threads": 4,
+        "status": "passed",
+        "seconds": [
+          0.8599870998878032,
+          0.8242138000205159,
+          0.8176003000698984
+        ],
+        "warm_mean_seconds": 0.8209070500452071,
+        "max_error": 0.0
+      },
+      {
+        "backend": "dml",
+        "chunk": 128,
+        "sync": "chunk",
+        "shape": [
+          1,
+          24,
+          5330,
+          64
+        ],
+        "torch": "2.4.1+cpu",
+        "cpu_threads": 4,
+        "status": "passed",
+        "seconds": [
+          3.7030426000710577,
+          3.468072699964978,
+          3.473958299960941
+        ],
+        "warm_mean_seconds": 3.4710154999629594,
+        "max_error": 0.0002726316452026367
+      },
+      {
+        "backend": "dml",
+        "chunk": 512,
+        "sync": "attention",
+        "shape": [
+          1,
+          24,
+          5330,
+          64
+        ],
+        "torch": "2.4.1+cpu",
+        "cpu_threads": 4,
+        "status": "passed",
+        "seconds": [
+          4.73443439998664,
+          4.171915099956095,
+          3.8167124999454245
+        ],
+        "warm_mean_seconds": 3.99431379995076,
+        "max_error": 0.0002726316452026367
+      },
+      {
+        "backend": "dml",
+        "chunk": 512,
+        "sync": "chunk",
+        "shape": [
+          1,
+          24,
+          5330,
+          64
+        ],
+        "torch": "2.4.1+cpu",
+        "cpu_threads": 4,
+        "status": "passed",
+        "seconds": [
+          4.410721600055695,
+          3.850812099990435,
+          3.675480299978517
+        ],
+        "warm_mean_seconds": 3.763146199984476,
+        "max_error": 0.0002726316452026367
+      }
+    ],
+    "limitations": [
+      "Single desktop and one model/input, one diffusion step; not a universal GPU benchmark.",
+      "CPU uses native FP32 attention, GPU uses experimental chunked FP16 attention; these are practical backend comparisons, not identical kernels.",
+      "Stage wall times include process startup, imports, model loading, computation, and output writing.",
+      "Same Torch version, input, steps, seed, resolution, vanilla volume decoder, and below-normal process priority; runs occur at different times on an in-use desktop.",
+      "GLB validated for nonempty mesh and finite coordinates only; visual quality and CPU/GPU output equivalence have not been established.",
+      "Historical CPU ~211s used a different Torch version and FlashVDM; not used for the matched ratio."
+    ],
+    "source": "output/gpu-memory-retest-20261027/summary.json"
+  },
+  "amd": {
+    "gpu": "AMD Radeon 780M",
+    "small_operations": "passed",
+    "full_model_inference": "failed",
+    "elapsed_seconds": null,
+    "source": "output/gpu-inference-trial-20261027/amd-chunk128-result.json",
+    "note": "Native backend reported device no longer responding. No complete inference performance result."
+  },
+  "mac": {
+    "chip": "Apple M5",
+    "memory_GB": 24,
+    "macos": "26.5.2",
+    "backend": "MPS",
+    "steps": 5,
+    "resolution": 256,
+    "seed": 12345,
+    "target_faces": 12000,
+    "generation_seconds": 84.45028400421143,
+    "api_elapsed_seconds": 86.52244970900028,
+    "output_faces": 11999,
+    "cpu_fallback": false,
+    "full_launcher_validated": true,
+    "visual_quality": "Recognizable vase; opening remains closed, as in the historical CPU result.",
+    "one_step_control": {
+      "steps": 1,
+      "resolution": 256,
+      "generation_seconds": 201.9583339691162,
+      "backend": "MPS",
+      "visual_quality": "Severely distorted geometry"
+    },
+    "previous_minimal_trial": {
+      "steps": 1,
+      "resolution": 128,
+      "approximate_seconds": 99,
+      "visual_quality": "Failed; completion alone was insufficient"
+    },
+    "note": "Complete offline package started through the formal launcher and HTTP API. Single device/input; other Macs untested. Not a controlled cross-platform performance comparison."
+  },
+  "nvidia": {
+    "runtime": "PyTorch 2.6.0 / CUDA 12.4",
+    "complete_gpu_inference_validated": false,
+    "elapsed_seconds": null,
+    "note": "Runtime dependencies and packaging verified; no complete compatible NVIDIA GPU inference measurement."
+  }
+}

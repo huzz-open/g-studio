@@ -1,4 +1,4 @@
-"""Shape imports and staged, strictly checked weight loading for CPU and CUDA."""
+"""Shape imports and staged, strictly checked weight loading for CPU, CUDA and MPS."""
 
 import gc
 import json
@@ -7,8 +7,9 @@ from pathlib import Path
 import sys
 import types
 import time
+from compute import inference_dtype
 
-ROOT = Path(os.environ.get("GEN_HOME", Path.home() / ".g-studio/generation")).resolve()
+ROOT = Path(os.environ.get("GEN_HOME", Path(__file__).resolve().parents[2] / "runtime/generation")).resolve()
 SOURCE = ROOT / "vendor/Hunyuan3D-2"
 MODEL = ROOT / "models/hunyuan3d-dit-v2-mini-turbo"
 VAE = ROOT / "models/hunyuan3d-vae-v2-mini-turbo"
@@ -81,7 +82,7 @@ def load_module(config, filename, prefix, instantiate):
     )
     device = os.environ.get("GEN_DEVICE", "cpu")
     return module.to(
-        device=device, dtype=torch.float16 if device == "cuda" else torch.float32
+        device=device, dtype=inference_dtype(torch, device)
     )
 
 

@@ -1,6 +1,9 @@
 export type DeviceType = "cpu" | "gpu";
 export interface ServiceInfo {
   deviceType: DeviceType;
+  /** Local service reports cpu/cuda/mps; third-party providers may use other names. */
+  backend?: string;
+  reason?: string;
 }
 export interface GenerationRequest {
   protocolVersion: 1;
@@ -43,6 +46,7 @@ export interface GenerationResult {
   providerVersion?: string;
   parameters?: GenerationRequest;
   deviceType?: DeviceType;
+  backend?: string;
   elapsedSeconds?: number;
   protocolVersion: number;
   jobId: string;

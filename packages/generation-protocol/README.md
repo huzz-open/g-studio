@@ -1,15 +1,82 @@
 # Generation protocol v1
 
-The protocol is language and model independent. Implement the HTTP contract below to connect another AI or algorithm provider. TypeScript definitions are in `types.ts`; JSON Schema definitions are in `schema.json`; `openapi.json` describes transport. The Python provider registry is in `services/generation-python/providers.py`.
+Language- and model-independent contract for AI and algorithm providers. [Documentation index](../../docs/README.md) · [Backend deployment](../../services/generation-python/README.md)
 
-All endpoints except `/health` require `Authorization: Bearer <token>`. Configure an explicit CORS origin allowlist. Local HTTP binds to loopback; remote direct deployments require a TLS reverse proxy. `GET /v1/info` returns exactly `{"deviceType":"cpu"}` or `{"deviceType":"gpu"}` for the selected provider, not a hardware inventory. Unknown devices return a structured 503 error.
+## Contract files
 
-`POST /v1/jobs` accepts multipart fields `request` (JSON Request) and `image` (PNG/JPEG/WebP file). SHA256 covers the exact uploaded bytes. Supported parameters and resource limits come from `/v1/capabilities`; unsupported parameters are errors. `clientRequestId` is an idempotency key scoped to the caller. Reusing it with different content returns 409. HTTP 202 means accepted, not completed.
+| File | Purpose |
+| --- | --- |
+| [types.ts](./types.ts) | TypeScript request, job, capability and result types |
+| [schema.json](./schema.json) | JSON validation schemas |
+| [openapi.json](./openapi.json) | HTTP transport and authentication |
+| [providers.py](../../services/generation-python/providers.py) | Built-in Python provider registry |
 
-Poll `/v1/jobs/{id}` until terminal. `POST .../cancel` is idempotent. Fetch `/v1/jobs/{id}/outputs/shadow` after success and verify size and SHA256 before import. Call `POST .../ack` only after durable local storage; the service may then clean up the temporary result. Without acknowledgment, terminal tasks retain files for up to 24 hours. Task status is not an asset database.
+Update these contracts together when extending the protocol.
 
-The result is self-contained GLB 2.0 triangle geometry, right-handed Y-up, grounded and horizontally centered, longest source dimension normalized to 2. Real-world units and inferred camera orientation are not guaranteed. No external resources, skins, morph targets or compressed geometry extensions are accepted by the first client. The frontend importer accepts up to 40,000 triangles and 18MiB of binary mesh; the service transfer ceiling is 128MiB. Clients may impose stricter rendering limits than transport limits.
+## HTTP endpoints
 
-The relay uses the same Request/Job/Result structures. Browser grants belong to a device and task owner; they are distinct from the worker's long-lived secret. WSS RPC methods are `info`, `capabilities`, `submit`, `status`, `cancel`, `upload`, `ack`; each request has a random correlation ID. Images and GLBs use authenticated task-scoped HTTP transfers. Repeated submit messages use the relay job ID as the worker's idempotency key. No generic command execution or arbitrary URL proxy is exposed.
+Except for `/health`, endpoints require `Authorization: Bearer <token>`. Local HTTP binds to loopback; remote direct deployments require TLS and an explicit CORS origin allowlist.
 
-To add a Python provider, subclass `Provider`, implement `generate(folder, request)`, register it in `PROVIDERS`, and export `raw.glb`. The common runner handles normalization, simplification and the result manifest. Declare parameter bounds and GPU support; `describe()` exposes them. A model provider supplies its own trusted `prepare_command()` for isolated dependency/model preparation; readiness and errors are tracked separately per provider. A pure algorithm needs no preparation command or model download. Cancellation terminates the provider's task process tree. Do not accept executable code or module paths from requests.
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/health` | Process health |
+| GET | `/v1/info` | Selected provider's `deviceType`: `cpu` or `gpu`; optional `backend` (`cpu`/`cuda`/`mps` locally) and diagnostic `reason`; unknown device returns structured 503 |
+| GET | `/v1/capabilities` | Provider readiness, parameters and service limits |
+| POST | `/v1/jobs` | Submit multipart `request` JSON and `image` PNG/JPEG/WebP |
+| GET | `/v1/jobs/{id}` | Poll job status and result metadata |
+| POST | `/v1/jobs/{id}/cancel` | Idempotent cancellation |
+| GET | `/v1/jobs/{id}/outputs/shadow` | Download generated GLB |
+| POST | `/v1/jobs/{id}/ack` | Confirm durable local storage and permit cleanup |
+
+## Request and lifecycle
+
+Example multipart `request` field (replace the digest with SHA256 of the exact uploaded bytes):
+
+```json
+{
+  "protocolVersion": 1,
+  "clientRequestId": "unique-client-request-id",
+  "providerId": "hunyuan-mini",
+  "inputSha256": "<64-character lowercase SHA256>",
+  "targetFaces": 12000,
+  "seed": 12345,
+  "parameters": { "steps": 5, "resolution": 256 }
+}
+```
+
+Read capabilities before choosing provider parameters; unsupported values are errors. `clientRequestId` is scoped to the caller. Reusing it with different input returns HTTP 409.
+
+1. Submit the request. HTTP 202 means accepted, not completed.
+2. Poll until terminal; the job type includes queued, running, cancel_requested, cancelled, succeeded, failed and expired.
+3. After success, download the output and verify its byte size and SHA256.
+4. Persist the asset locally, then acknowledge it.
+
+Without acknowledgment, terminal task files remain for up to 24 hours. Task storage is temporary and is not an asset database.
+
+## Geometry result
+
+| Property | Contract |
+| --- | --- |
+| Format | Self-contained GLB 2.0 triangle geometry |
+| Coordinates | Right-handed, Y-up, grounded, horizontally centered |
+| Scale | Longest source dimension normalized to 2; no guaranteed real-world units or inferred camera direction |
+| Unsupported by first client | External resources, skins, morph targets and compressed geometry extensions |
+| Frontend import limit | 40,000 triangles and approximately 18MiB binary mesh |
+| Service transfer ceiling | 128MiB; this does not override client rendering limits |
+
+The result manifest includes provider/input identity, triangle count, bounds, warnings, output size and digest. See [part v2 storage](../../docs/reference/parts.md) for durable frontend assets.
+
+## Relay transport
+
+Browser grants belong to a device and task owner; they differ from the worker's long-lived secret. WSS RPC methods are `info`, `capabilities`, `submit`, `status`, `cancel`, `upload` and `ack`, each with a random correlation ID.
+
+Images and GLBs use authenticated task-scoped HTTP transfers. The relay job ID becomes the worker's idempotency key for repeated submissions. No generic command execution or arbitrary URL proxy is exposed. Deployment, pairing and grant lifetime are documented in the [relay guide](../../services/generation-relay/README.md).
+
+## Add a Python provider
+
+1. Subclass `Provider` and implement `generate(folder, request)`, writing `raw.glb`.
+2. Register it in `PROVIDERS`; declare parameter bounds and GPU support.
+3. If model preparation is needed, provide a trusted `prepare_command()`; readiness and errors are tracked per provider.
+4. Exercise it through the HTTP and relay tests in the [development guide](../../CONTRIBUTING.md#python-与真实推理).
+
+The common runner normalizes and simplifies output and builds the manifest. Pure algorithms require no weights. Cancellation terminates the task process tree. Executable code or module paths must not come from requests.

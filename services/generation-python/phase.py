@@ -8,6 +8,7 @@ import time
 import types
 
 from runtime import ROOT, MODEL, VAE, initialize, load_module, write_stats
+from compute import inference_dtype, noise_generator
 
 
 def main():
@@ -24,7 +25,7 @@ def main():
     pipeline = Pipeline.__new__(Pipeline)
     device = os.environ.get("GEN_DEVICE", "cpu")
     pipeline.device = torch.device(device)
-    pipeline.dtype = torch.float16 if device == "cuda" else torch.float32
+    pipeline.dtype = inference_dtype(torch, device)
     pipeline.kwargs = {}
     pipeline.image_processor = instantiate(config["image_processor"])
     checkpoint = MODEL / "model.fp16.safetensors"
@@ -100,7 +101,7 @@ def main():
                 image=None,
                 num_inference_steps=a.steps,
                 guidance_scale=5.0,
-                generator=torch.Generator(device=device).manual_seed(a.seed),
+                generator=noise_generator(torch, device, a.seed),
                 output_type="latent",
                 callback=progress,
                 callback_steps=1,

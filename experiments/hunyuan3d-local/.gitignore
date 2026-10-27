@@ -1,5 +1,0 @@
-.venv/
-vendor/
-models/
-__pycache__/
-*.log

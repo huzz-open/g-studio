@@ -338,6 +338,12 @@
               "cpu",
               "gpu"
             ]
+          },
+          "backend": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
           }
         }
       },
@@ -501,6 +507,9 @@
             "items": {
               "$ref": "#/components/schemas/Output"
             }
+          },
+          "backend": {
+            "type": "string"
           }
         }
       },

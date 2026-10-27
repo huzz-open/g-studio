@@ -92,7 +92,7 @@ async function connect() {
     try {
       const info = await new GenerationClient(snapshotConnection()).info();
       if (epoch === connectionEpoch)
-        device.value = info.deviceType.toUpperCase();
+        device.value = info.backend === 'cuda' ? 'GPU · NVIDIA CUDA' : info.backend === 'mps' ? 'GPU · Apple MPS' : info.deviceType.toUpperCase();
     } catch {
       if (epoch === connectionEpoch) device.value = t("generation.unknown");
     }

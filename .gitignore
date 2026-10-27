@@ -13,6 +13,9 @@ node_modules
 /.generation-mirrors.local.json
 /.generation-mirrors.local.json.tmp
 /.generation-test/
+/output/
+/runtime/*
+!/runtime/README.md
 **/__pycache__/
 *.pyc
 /services/**/.venv/

@@ -14,11 +14,12 @@ import sys
 import time
 import uuid
 from aiohttp import web
-from config import HOME, config, atomic_json
+from config import HOME, DATA_HOME, config, atomic_json
 from providers import PROVIDERS
+from compute import recoverable_accelerator_error
 
 ROOT = Path(__file__).resolve().parent
-JOBS = HOME / "jobs"
+JOBS = DATA_HOME / "jobs"
 JOBS.mkdir(exist_ok=True)
 LIMIT = 10 * 1024 * 1024
 TERMINAL = {"succeeded", "failed", "cancelled", "expired"}
@@ -36,6 +37,8 @@ class Service:
         self.jobs = {}
         self.queue = asyncio.Queue()
         self.device = None
+        self.backend = "cpu"
+        self.device_reason = "Device detection in progress"
         self.process = None
         self.running = None
         self.provider_states = {
@@ -73,7 +76,7 @@ class Service:
             return {"deviceType": "cpu"}
         if not self.device:
             raise Fault("DEVICE_NOT_READY", "Device detection in progress", 503)
-        return {"deviceType": self.device}
+        return {"deviceType": self.device, "backend": self.backend, "reason": self.device_reason}
 
     def capabilities(self):
         return {
@@ -114,15 +117,19 @@ class Service:
         try:
             d = json.loads(out)
             self.device = d["deviceType"]
+            self.backend = d.get("backend", "cpu")
+            self.device_reason = d["reason"]
             print(
                 "[generation] detected: CPU; GPU: "
                 + (", ".join(d["detected"]) or "none"),
                 flush=True,
             )
             print("[generation] runtime: " + d["reason"], flush=True)
-            print("[generation] selected device: " + self.device.upper(), flush=True)
+            print("[generation] selected device: " + self.backend.upper(), flush=True)
         except Exception:
             self.device = "cpu"
+            self.backend = "cpu"
+            self.device_reason = "Device probe failed; using CPU"
             print("[generation] GPU probe failed; selected device: CPU", flush=True)
         self.preparation_process = None
         for provider in PROVIDERS.values():
@@ -309,9 +316,10 @@ class Service:
                         self.device == "gpu"
                         and PROVIDERS[job["providerId"]].supports_gpu
                     )
+                    backend = self.backend if use_gpu else "cpu"
                     env = {
                         **os.environ,
-                        "GEN_DEVICE": "cuda" if use_gpu else "cpu",
+                        "GEN_DEVICE": backend,
                         "PYTHONIOENCODING": "utf-8",
                     }
                     opts = {} if os.name == "nt" else {"start_new_session": True}
@@ -349,12 +357,11 @@ class Service:
                     if (
                         attempt == 0
                         and use_gpu
-                        and any(
-                            s in detail.lower()
-                            for s in ("out of memory", "cuda error", "cublas")
-                        )
+                        and recoverable_accelerator_error(backend, detail)
                     ):
                         self.device = "cpu"
+                        self.backend = "cpu"
+                        self.device_reason = "Accelerator failed during inference; retried on CPU"
                         job["phase"] = "fallback-cpu"
                         self.save(job)
                         print(
@@ -381,6 +388,7 @@ class Service:
                         "providerVersion": PROVIDERS[job["providerId"]].version,
                         "parameters": job["parameters"],
                         "deviceType": "gpu" if use_gpu else "cpu",
+                        "backend": backend,
                         "inputSha256": job["inputSha256"],
                         "outputs": [
                             {
@@ -601,7 +609,7 @@ app.on_startup.append(startup)
 app.on_cleanup.append(shutdown)
 if __name__ == "__main__":
     print(
-        f"[generation] Configuration: {HOME / 'config.json'}; device detection starting",
+        f"[generation] Configuration: {DATA_HOME / 'config.json'}; device detection starting",
         flush=True,
     )
     web.run_app(

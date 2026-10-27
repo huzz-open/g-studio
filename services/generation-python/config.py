@@ -6,10 +6,12 @@ from pathlib import Path
 import secrets
 
 HOME = Path(
-    os.environ.get("GEN_HOME", Path.home() / ".g-studio" / "generation")
+    os.environ.get("GEN_HOME", Path(__file__).resolve().parents[2] / "runtime" / "generation")
 ).resolve()
 HOME.mkdir(parents=True, exist_ok=True)
-CONFIG = HOME / "config.json"
+DATA_HOME = Path(os.environ.get("GEN_DATA_HOME", HOME if os.environ.get("GEN_HOME") else HOME.parent / "generation-data")).resolve()
+DATA_HOME.mkdir(parents=True, exist_ok=True)
+CONFIG = DATA_HOME / "config.json"
 
 
 def atomic_json(path, value):

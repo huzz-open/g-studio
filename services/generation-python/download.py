@@ -129,6 +129,20 @@ def download(item):
                 shutil.copyfile(existing, dest)
             print("[generation] Imported verified cache: " + item["path"], flush=True)
             return
+    # Reuse verified caches from previous local launches. Never move credentials.
+    project = Path(__file__).resolve().parents[2]
+    for cache in (project / ".generation-test/bootstrap-clean", project / ".generation-test", Path.home() / ".g-studio/generation"):
+        existing = cache / item["path"]
+        if existing.resolve() == dest.resolve():
+            continue
+        if valid(existing, item):
+            with Progress("Importing previous cache: " + item["path"]):
+                staging = dest.with_suffix(dest.suffix + ".import")
+                shutil.copyfile(existing, staging)
+                staging.replace(dest)
+            return
+    if os.environ.get("GEN_OFFLINE") == "1":
+        raise RuntimeError("Offline: missing or invalid resource: " + item["path"])
     part = dest.with_suffix(dest.suffix + ".part")
     print(
         "[generation] download "

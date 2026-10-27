@@ -64,6 +64,10 @@ export class GenerationClient {
     );
     if (!["cpu", "gpu"].includes(v.deviceType))
       throw Error("Unknown device type");
+    if (v.backend !== undefined && typeof v.backend !== "string")
+      throw Error("Invalid compute backend");
+    if (v.reason !== undefined && typeof v.reason !== "string")
+      throw Error("Invalid device reason");
     return v;
   }
   capabilities(): Promise<Capabilities> {

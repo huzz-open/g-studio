@@ -1,129 +1,92 @@
 [中文](./README.zh-CN.md) | **English**
 
 <p align="center">
-  <img src="./public/favicon.svg" width="128" height="128" alt="G-Studio Logo">
+  <img src="./public/favicon.svg" width="96" height="96" alt="G-Studio Logo">
 </p>
 
-<h1 align="center">G-Studio</h1>
+# G-Studio
 
-<p align="center"><strong>Lightweight Game Asset Workbench</strong> — slice sprites, generate tilesets, draw regions, edit maps, all in one place.</p>
+A browser-based game asset workbench for slicing sprites, editing parts, previewing lighting, and creating tilesets and scene regions, with Godot resource export.
 
-**[Live Demo](https://huzz-open.github.io/g-studio/)** · [GitHub](https://github.com/huzz-open/g-studio)
+**[Live demo](https://huzz-open.github.io/g-studio/)** · [Documentation](./docs/README.md) · [Development guide](./CONTRIBUTING.md)
 
----
-
-G-Studio is a browser-based toolset for 2D game development, designed especially for Godot Engine projects. Core editing and assets stay local with no login required. Optional generation uses a local service or relay; relay tasks transfer images and models through the configured server.
-
-## Try It Out
-
-A sample sprite sheet is included in the [`samples/`](./samples/) directory for testing:
-
-![Sample sprite sheet](./samples/沧澜水乡_snippet.png)
-
-Open the Sprite Slicer module, drag and drop this image in, and try the auto-detection feature.
+Core editing requires no login and keeps assets local. Optional AI geometry generation uses a separate service; relay mode transfers images and models through the configured server.
 
 ## Features
 
-| Module | Description |
-|--------|-------------|
-| **Model Generation** | Silhouette approximation or local AI geometry, preview and save as a part; direct HTTP and WSS relay |
-| **Resource Manager** | Browse local workspace directories, manage images and data files |
-| **Sprite Slicer** | Auto/manual slice animation frames, icons, and items from sprite sheets |
-| **Map Editor** | Edit world maps, place locations, draw roads and regions |
-| **Tileset Maker** | Generate 47-tile auto-terrain atlases from textures or nine-grid sources, export Godot `.tres` |
-| **Scene Region Editor** | Draw collision/occlusion regions on scene backgrounds, export Godot `.tscn` |
+| Feature | Purpose |
+| --- | --- |
+| Sprite slicing | Automatically or manually slice sheets and export individual sprites or atlases |
+| Parts and scene lighting | Edit shared parts, normals and geometry; preview point and directional lights |
+| Model generation | Generate silhouette or local AI geometry, then preview and save it as a part |
+| Tileset generation | Build 47-tile terrain atlases and export Godot `.tres` files |
+| Scene regions | Draw collision and occlusion regions and export Godot `.tscn` files |
+| Resource management | Browse a local workspace and manage images and project files |
 
-## Getting Started
+Drop the [sample sprite sheet](./samples/沧澜水乡_snippet.png) into Sprite Slicer to try it. See the [parts and lighting guide](./docs/guides/parts-and-lighting.md) (Chinese) for editing steps.
 
-### Prerequisites
+## Quick start
 
-- [Node.js](https://nodejs.org/) >= 22.12 (Vite 8 supports `^20.19.0 || >=22.12.0`)
-- npm (included with Node.js); pnpm is also supported
-
-### Install & Run
-
-For developers in mainland China, run this once inside the cloned project **before `npm install`**:
+Requires Node.js 22.12+ and npm.
 
 ```sh
-npm run setup:cn
-```
-
-This dependency-free command persistently configures the current project to use Alibaba npmmirror, the Tsinghua Python package index, and ModelScope-first model weights. It does not change global settings, install packages, or download models. `npm run setup:default` removes the preset and restores the previous project npm configuration while keeping cached models.
-
-Repository revisions, required weights, resumable downloads and SHA256 checks are managed by the project; no manual hashes, ModelScope SDK or account token are required for these public files. Verified configuration and license files ship with the project, so switching mirrors does not change inference settings. uv, the Python runtime, CPU/CUDA PyTorch packages and upstream inference source still use their respective official sources; GitHub-based npm dependencies are also unaffected by npm registry settings.
-
-```bash
 git clone https://github.com/huzz-open/g-studio.git
 cd g-studio
+# Optional for mainland China: npm run setup:cn
 npm install
 npm run dev
 ```
 
-Open `http://localhost:5173` in your browser.
+Open <http://localhost:5173>. `npm run dev` starts the web app and AI backend; the first launch prepares Python and downloads approximately **4.23GB of model weights**. Use `npm run dev:web` for web-only development or editing without Python and model setup.
 
-`npm run dev` starts Vite and the Python generation service by default. On first launch it automatically prepares an isolated Python 3.12 environment, inference dependencies and approximately **4.2GB** of verified Hunyuan3D-2mini-Turbo weights. No manual Python/pip setup is required. Dependencies need additional space and download time. The web app starts first and remains usable during preparation. Later launches reuse the cache. Ctrl+C stops the launched processes. Windows users can also double-click `start-generation.cmd`; other platforms can run `sh start-generation.sh`.
+See [download sources](./services/generation-python/README.md#download-sources) for the China preset and how to reset it.
 
-GPU is preferred by default. Startup validates NVIDIA CUDA availability, logs detected adapters and the selected CPU/GPU type, and falls back to CPU if unavailable. Windows CPU inference is tested; NVIDIA and Linux execution still need hardware-specific verification. Intel integrated graphics are not treated as a supported CUDA device.
+## AI hardware and offline packages
 
-Open **Settings → Model generation → Connection settings → Direct API → Test connection**. Local development obtains the connection credential automatically and shows **Compute device: CPU / GPU**. The default mode remains silhouette approximation; starting a service does not upload images. Generate from the new menu or a part editor, inspect the result, then apply/save it. Saved mesh parts remain usable offline.
+Supported execution paths are **CPU, compatible NVIDIA CUDA GPUs, and Apple Silicon Macs (MPS)**. Ordinary Windows laptop integrated GPUs are not recommended for this model: inference can be slower than CPU or fail on backend/driver compatibility. A desktop CPU can outperform its integrated GPU.
+
+| Device / path tested on 2026-10-27 | Result |
+| --- | --- |
+| Desktop i5-10500, CPU | About **228 seconds** |
+| Same desktop, Intel UHD 630, experimental DirectML | About **868 seconds** after chunking adaptations: **3.8× the CPU time**; production uses CPU |
+| Laptop AMD Radeon 780M | Small operations passed; model inference failed. Use CPU |
+| Apple M5, 24 GB, MPS | **84.5 seconds** for generation, no CPU fallback; full offline startup, API and vase geometry inspection passed |
+| NVIDIA CUDA | Execution path and offline package available; no complete GPU inference benchmark yet. MX150 2 GB GPU inference is not supported for this model; use CPU |
+
+Windows Intel/CPU trials used **1 step, resolution 128**; GPU time aggregates successful phases and visual quality was not validated. The Mac API trial used the recommended **5 steps, resolution 256** (86.5 seconds including submission/polling). Reducing only the steps to 1 distorted the vase and was slower. These are not a controlled cross-platform ranking or a guarantee for other devices. See the [conditions and results](./docs/history/model-generation-validation.md#2026-10-27设备实测汇总) (Chinese).
+
+Offline backend archives are prepared locally in `runtime/bundles/` (not distributed through Git):
+
+| Archive | Use / reuse |
+| --- | --- |
+| `g-studio-generation-win32-x64-cu124.zip` | Windows NVIDIA + CPU, about 9.68 GB; `--cpu` reuses the included environment |
+| `g-studio-generation-win32-x64-cpu.zip` | Optional smaller Windows CPU package, about 6.18 GB |
+| `g-studio-generation-darwin-arm64-mps.zip` | Apple Silicon MPS + CPU in one package, about 5.29 GB |
+
+Extract and run `sh start-generation.sh --offline` (Git Bash on Windows; Terminal on Mac). Node, Python, dependencies and weights are included; the web frontend is separate. OS binaries require separate packages, while model weights and inference source use the same versions. See [portable packages](./services/generation-python/README.md#portable-packages).
+
+## Common commands
 
 | Command | Purpose |
 | --- | --- |
-| `npm run dev` | Start both the local web app and AI generation service; use this for local use |
-| `npm run dev:web` | Web only, without Python/model setup |
-| `npm run generation:start` | Start only the AI generation service: prepare Python and models by default, then compute submitted jobs on this machine's GPU or CPU; does not start the web app |
-| `npm run generation:download` | Download and verify models in advance |
-| `npm run generation:doctor` | Check runtime and service connectivity |
-| `npm run relay:start` | Start only the relay: transfer jobs, images and results between the website and generation service; does not download AI models or perform AI computation |
+| `npm run dev` | Start the web app and AI backend |
+| `npm run dev:web` | Start only the web app |
+| `npm run build` | Type-check and build to `dist/`, without model downloads |
+| `npm run preview` | Preview the production build locally |
+| `sh start-generation.sh` | Start only the backend; use Git Bash on Windows |
 
-**How do `generation:start` and `relay:start` differ?**
+See the [model generation guide](./docs/guides/model-generation.md) (Chinese) for connection steps, and [backend deployment](./services/generation-python/README.md) for caching, GPU selection, offline operation and portable packages. Keep [`runtime/generation/`](./runtime/README.md) during cleanup; deleting it triggers resource preparation again.
 
-`generation:start` launches the Python service that actually generates models, using the compute resources of the machine running it. `relay:start` launches a TypeScript (TS) service running on Node.js for device pairing, job forwarding and temporary transfer storage. “No AI on the relay” means that the connected generation service performs the computation. Running only the relay cannot generate AI models.
+## Documentation and development
 
-Choose according to your setup:
+- [Documentation index](./docs/README.md): guides, deployment, references, designs and validation records; entries identify their language.
+- [Development guide](./CONTRIBUTING.md) (Chinese): project structure, workflow and tests.
+- [Relay deployment](./services/generation-relay/README.md): connect a public website to your local generation service.
 
-- **Web app and AI on your own computer:** run `npm run dev`. The browser connects directly to the local generation service; there is no need to run `relay:start` or a separate `generation:start`.
-- **Website already running or deployed, with only the AI service missing:** run `npm run generation:start` on the machine that will perform the computation, then configure Direct API in the website.
-- **Public website using your computer's compute through a relay:** run `npm run relay:start` on the server, run `npm run generation:start` with `--relay` on your computer, and complete the pairing steps below. Jobs travel from the website through the relay to your local AI service; results return along the same route.
+Built with Vue 3, TypeScript, Vite, Three.js and OpenCV.js.
 
-Relay mode requires both services to be online. The relay server needs no GPU, but the machine running the generation service still needs the models and performs the AI computation.
-
-The default cache/configuration directory is `~/.g-studio/generation`; override it with `GEN_HOME`. Failed downloads can resume. Configure `GEN_PORT` / `GEN_WEB_PORT` if ports are occupied. CPU inference takes minutes and needs several GB of available memory; lower extraction resolution, use remote compute, or keep silhouette mode on low-resource machines.
-
-To use local compute through a public relay, first deploy the website and relay (`npm run relay:start`) on the server with HTTPS/WSS configured as described in the deployment guide below. Then run this on the user's computer that will perform AI computation:
-
-```sh
-npm run generation:start -- --relay wss://your-domain/generation/worker --pair
-```
-
-Enter the relay HTTPS base URL and eight-character code in the website, compare the request identifier, then type `y` in the worker terminal. Codes expire after five minutes and one successful use. Future launches can omit `--pair`, retaining the same cache directory and relay URL. Relay files are temporary (24 hours by default) and pass through the server; browser grants can be revoked. Direct mode avoids relay transfer but public-to-local access may require browser permission.
-
-See [worker setup and configuration](./services/generation-python/README.md), [relay deployment](./services/generation-relay/README.md), [provider protocol](./packages/generation-protocol/README.md), and the [full design](./docs/model-generation-service-plan.md) (Chinese). Upstream [code](https://github.com/Tencent-Hunyuan/Hunyuan3D-2) and [model terms](https://huggingface.co/tencent/Hunyuan3D-2mini) remain applicable; weights do not inherit the project license.
-
-### Build
-
-```bash
-npm run build
-```
-
-Output goes to `dist/`; building does not start Python or download weights. Static hosting serves the UI. WSS relay mode additionally requires the long-running TS service.
-
-## Browser Compatibility
-
-See the [validation record](./docs/model-generation-validation.md) (Chinese) for real CPU inference, TLS relay, offline assets and hardware validation limits.
-
-G-Studio uses the [File System Access API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API) to read/write local directories. Recommended:
-
-- Chrome / Edge >= 86
-- Other browsers work in "browser-only mode" (data stored in IndexedDB, not persisted to disk)
-
-## Tech Stack
-
-- Vue 3 + TypeScript + Vite
-- Vue Router (Hash mode)
-- IndexedDB + File System Access API (two-layer storage)
-- OpenCV.js (image processing)
+Chrome or Edge is recommended for local directory access through the File System Access API. Other browsers can use browser storage; export important assets as backups.
 
 ## License
 
-[Apache License 2.0](./LICENSE)
+[Apache License 2.0](./LICENSE). Optional models and upstream inference code retain their own terms; see [third-party licensing](./services/generation-python/README.md#license).

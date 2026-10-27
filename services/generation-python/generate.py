@@ -37,7 +37,10 @@ def silhouette(folder):
 def hunyuan(folder, request):
     import shutil
 
-    shutil.copyfile(folder / "input.png", folder / "original.png")
+    # encode writes a normalized preview to input.png. Accelerator retries must
+    # reuse the upload, not preprocess that preview a second time.
+    if not (folder / "original.png").exists():
+        shutil.copyfile(folder / "input.png", folder / "original.png")
     for phase in ("encode", "sample", "mesh"):
         progress(phase)
         subprocess.run(

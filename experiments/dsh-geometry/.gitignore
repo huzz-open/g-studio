@@ -1,6 +1,0 @@
-node_modules/
-.dsh-home/
-trials/
-*.local.*
-*.log
-__pycache__/

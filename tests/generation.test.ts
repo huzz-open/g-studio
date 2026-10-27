@@ -4,6 +4,29 @@ import {
   parseJob,
 } from "../packages/generation-protocol/validate.ts";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { GenerationClient } from "../src/shared/generation/client.ts";
+
+test("device diagnostics stay compatible across clients and published schemas", async (t) => {
+  const client = new GenerationClient({
+    mode: "direct", baseUrl: "http://127.0.0.1:8765", token: "",
+    relayUrl: "", relayToken: "", deviceId: "", providerId: "hunyuan-mini",
+    targetFaces: 12000, seed: 12345, parametersByProvider: {},
+  });
+  let response: Record<string, unknown> = { deviceType: "cpu" };
+  t.mock.method(client, "call", async () => response);
+  assert.deepEqual(await client.info(), response);
+  response = { deviceType: "gpu", backend: "mps", reason: "MPS device operation passed" };
+  assert.deepEqual(await client.info(), response);
+  const schema = JSON.parse(readFileSync(new URL("../packages/generation-protocol/schema.json", import.meta.url), "utf8"));
+  const api = JSON.parse(readFileSync(new URL("../packages/generation-protocol/openapi.json", import.meta.url), "utf8"));
+  assert.deepEqual(api.components.schemas.Info, schema.$defs.Info);
+  assert.deepEqual(Object.keys(response).sort(), Object.keys(schema.$defs.Info.properties).sort());
+  for (const invalid of [{ backend: 7 }, { reason: {} }, { deviceType: "unknown" }]) {
+    response = { deviceType: "gpu", backend: "mps", reason: "ready", ...invalid };
+    await assert.rejects(client.info());
+  }
+});
 
 test("third-party capabilities accept new provider IDs and reject malformed or unsafe identifiers", () => {
   const value = {

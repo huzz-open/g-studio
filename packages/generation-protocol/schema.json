@@ -6,7 +6,11 @@
     "Info": {
       "type": "object", "additionalProperties": false,
       "required": ["deviceType"],
-      "properties": { "deviceType": { "enum": ["cpu", "gpu"] } }
+      "properties": {
+        "deviceType": { "enum": ["cpu", "gpu"] },
+        "backend": { "type": "string" },
+        "reason": { "type": "string" }
+      }
     },
     "Request": {
       "type": "object", "additionalProperties": false,
@@ -35,6 +39,7 @@
     "Result": {
       "type": "object", "required": ["protocolVersion", "jobId", "providerId", "inputSha256", "coordinateSystem", "triangles", "bounds", "warnings", "outputs"],
       "properties": {
+        "backend": { "type": "string" },
         "protocolVersion": { "const": 1 }, "jobId": { "type": "string" }, "providerId": { "type": "string" },
         "inputSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }, "coordinateSystem": { "const": "right-handed-y-up" },
         "triangles": { "type": "integer", "minimum": 1, "maximum": 40000 },
