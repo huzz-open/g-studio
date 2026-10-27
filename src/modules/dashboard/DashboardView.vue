@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { navigationItems } from '../../shared/navigation'
+import { needsGenerationSetup } from '../../shared/settings-dialog'
 import { useRouter } from 'vue-router'
 import { useI18n } from '../../shared/i18n'
 import SvgIcon from '../../shared/icons/SvgIcon.vue'
@@ -6,44 +8,7 @@ import SvgIcon from '../../shared/icons/SvgIcon.vue'
 const router = useRouter()
 const { t } = useI18n()
 
-const modules = [
-  {route:'/model-generation',icon:'wand',titleKey:'generation.title',descKey:'generation.subtitle',color:'#5577aa'},
-  {
-    route: '/scene-lighting',
-    icon: 'layers',
-    titleKey: 'sceneLight.title',
-    descKey: 'sceneLight.subtitle',
-    color: '#708c70',
-  },
-  {
-    route: '/resource-manager',
-    icon: 'folder-open',
-    titleKey: 'dashboard.resourceManager.title',
-    descKey: 'dashboard.resourceManager.desc',
-    color: '#4a8a6a',
-  },
-  {
-    route: '/sprite-slicer',
-    icon: 'scissors',
-    titleKey: 'dashboard.spriteSlicer.title',
-    descKey: 'dashboard.spriteSlicer.desc',
-    color: '#5577aa',
-  },
-  {
-    route: '/tileset-maker',
-    icon: 'grid',
-    titleKey: 'dashboard.tilesetMaker.title',
-    descKey: 'dashboard.tilesetMaker.desc',
-    color: '#6a8a5a',
-  },
-  {
-    route: '/scene-region-editor',
-    icon: 'layers',
-    titleKey: 'dashboard.sceneRegionEditor.title',
-    descKey: 'dashboard.sceneRegionEditor.desc',
-    color: '#5a7a9a',
-  },
-]
+const modules = navigationItems
 </script>
 
 <template>
@@ -57,13 +22,13 @@ const modules = [
         v-for="m in modules"
         :key="m.route"
         class="module-card"
-        @click="router.push(m.route)"
+        @click="!needsGenerationSetup(m.route) && router.push(m.route)"
       >
         <div class="card-icon" :style="{ background: m.color }">
           <SvgIcon :name="m.icon" :size="32" />
         </div>
         <div class="card-info">
-          <h3>{{ t(m.titleKey) }}</h3>
+          <h3>{{ t(m.labelKey) }}</h3>
           <p>{{ t(m.descKey) }}</p>
         </div>
       </button>
@@ -72,6 +37,7 @@ const modules = [
 </template>
 
 <style scoped>
+.module-card.needs-connection { opacity: .65; cursor: pointer; }
 .dashboard {
   flex: 1;
   display: flex;

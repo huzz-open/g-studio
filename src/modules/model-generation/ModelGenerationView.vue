@@ -1,270 +1,131 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import { useI18n } from "../../shared/i18n";
-import GenerationPanel from "../../shared/generation/GenerationPanel.vue";
-import {
-  generationJobs,
-  loadGenerationJobs,
-  removeJob,
-  type LocalJob,
-} from "../../shared/generation/jobs";
-import { createPart, type PartAsset } from "../../shared/parts/schema";
-import { savePart } from "../../shared/parts/library";
-import { openPartEditor } from "../../shared/parts/editor-session";
-import { showToast } from "../../shared/components/toast";
-import { prompt } from "../../shared/components/prompt";
-import {
-  EditorShell,
-  definePanelConfig,
-} from "../../shared/components/editor-shell";
-import ScrollArea from "../../shared/components/ScrollArea.vue";
-const { t } = useI18n(),
-  part = ref<PartAsset>(),
-  jobId = ref(""),
-  error = ref(""),
-  upload = ref<HTMLInputElement>(),
-  busy = ref(false);
-const leftCollapsed = ref(false);
-async function renameTab() {
-  if (!part.value) return;
-  const name = await prompt({
-    title: t("parts.name"),
-    defaultValue: part.value.name,
-  });
-  if (name?.trim()) part.value.name = name.trim().slice(0, 120);
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
+import { useI18n } from '../../shared/i18n'
+import GenerationTaskDetails from '../../shared/generation/GenerationTaskDetails.vue'
+import GenerationActions, { type GenerationAction } from '../../shared/generation/GenerationActions.vue'
+import GenerationSettings from '../../shared/generation/GenerationSettings.vue'
+import FileDropZone from '../../shared/components/FileDropZone.vue'
+import SidebarSection from '../../shared/components/editor-shell/SidebarSection.vue'
+import { createGenerationJob, regenerateModel, modelReplacing, findGenerationJob, generationJobs, loadGenerationJobs, removeJob, type LocalJob } from '../../shared/generation/jobs'
+import { snapshotGenerationConnection } from '../../shared/generation/request-snapshot'
+import { copyGenerationParameters, generationParametersFor, modelParametersFor } from '../../shared/generation/parameters'
+import GenerationQueue from '../../shared/generation/GenerationQueue.vue'
+import { canGenerateModels } from '../../shared/generation/connection'
+import { openGenerationSettings } from '../../shared/settings-dialog'
+import { clonePart, createPart } from '../../shared/parts/schema'
+import { showToast } from '../../shared/components/toast'
+import { prompt } from '../../shared/components/prompt'
+import { EditorShell, definePanelConfig, type DropModifiers } from '../../shared/components/editor-shell'
+import ScrollArea from '../../shared/components/ScrollArea.vue'
+import { generationTabs, generationInput, generationQueueExpanded } from './store'
+const ModelViewer = defineAsyncComponent(() => import('../../shared/generation/ModelViewer.vue'))
+const { t } = useI18n()
+const { instances, activeInstance, activeTabId, pinnedIds, createTab, switchTab, closeTab, setPinned } = generationTabs
+const leftCollapsed = ref(false), rightCollapsed = ref(false), busy = ref(false), error = ref('')
+const panel = definePanelConfig('model-generation-sidebar-width', 280)
+const rightPanel = definePanelConfig('model-generation-properties-width', 260)
+const visibleJobs = computed(() => generationJobs.filter(job => job.connection.providerId !== 'silhouette'))
+const selectedJob = computed(() => findGenerationJob(activeInstance.value?.jobId))
+// Source images follow the selected tab; editable parameters keep their own draft.
+const sourcePart = computed(() => activeInstance.value?.part)
+const emptyParameters = ref(copyGenerationParameters())
+const parameters = computed(() => selectedJob.value ? modelParametersFor(selectedJob.value) : sourcePart.value ? generationParametersFor(sourcePart.value.id) : emptyParameters.value)
+const tabs = computed(() => instances.value.map(entry => ({ id:entry.id, label:entry.part?.name || t('generation.newImage'), pinned:pinnedIds.value.has(entry.id) })))
+async function renameTab(id: string) {
+  const entry = instances.value.find(tab => tab.id === id)
+  if (!entry?.part) return
+  const name = await prompt({ title:t('parts.name'), defaultValue:entry.part.name })
+  if (name?.trim()) entry.part.name = name.trim().slice(0,120)
 }
-const panel = definePanelConfig("model-generation-sidebar-width", 250);
-const tabs = computed(() =>
-  part.value ? [{ id: "generation", label: part.value.name }] : [],
-);
-async function inputFile(event: Event) {
-  const file = (event.target as HTMLInputElement).files?.[0];
-  (event.target as HTMLInputElement).value = "";
-  if (file) await loadFile(file);
-}
-async function loadFile(file: File) {
+async function loadFile(file: File, replace = false) {
   try {
-    if (file.size > 10 * 1024 * 1024) throw Error(t("generation.inputLimit"));
-    const bitmap = await createImageBitmap(file);
-    if (
-      bitmap.width > 2048 ||
-      bitmap.height > 2048 ||
-      bitmap.width * bitmap.height > 4000000
-    ) {
-      bitmap.close();
-      throw Error(t("generation.inputLimit"));
-    }
-    const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    canvas.getContext("2d")!.drawImage(bitmap, 0, 0);
-    bitmap.close();
-    part.value = createPart(file.name.replace(/\.[^.]+$/, "").slice(0, 120), {
-      uri: canvas.toDataURL("image/png"),
-      width: canvas.width,
-      height: canvas.height,
-    });
-    jobId.value = "";
-    error.value = "";
-  } catch (e) {
-    error.value = String(e);
-  }
+    if (!['image/png','image/jpeg','image/webp'].includes(file.type) || file.size > 10*1024*1024) throw Error(t('generation.inputLimit'))
+    const bitmap = await createImageBitmap(file)
+    if (bitmap.width > 2048 || bitmap.height > 2048 || bitmap.width*bitmap.height > 4000000) { bitmap.close(); throw Error(t('generation.inputLimit')) }
+    const canvas = document.createElement('canvas')
+    canvas.width=bitmap.width; canvas.height=bitmap.height
+    canvas.getContext('2d')!.drawImage(bitmap,0,0); bitmap.close()
+    const part = createPart(file.name.replace(/\.[^.]+$/, '').slice(0,120), { uri:canvas.toDataURL('image/png'),width:canvas.width,height:canvas.height })
+    const entry = (replace || !activeInstance.value?.part) && activeInstance.value ? activeInstance.value : createTab()
+    generationInput.value=part; entry.part=part; entry.jobId=''; error.value=''
+  } catch(e) { error.value=String(e); showToast(error.value, 'error') }
+}
+async function dropFiles(files: File[], modifiers: DropModifiers) {
+  for (const [index,file] of files.entries()) await loadFile(file, index===0 && modifiers.alt)
 }
 async function select(job: LocalJob) {
+  rightCollapsed.value = false
+  const existing=instances.value.find(tab=>tab.jobId===job.localId)
+  if(existing) { switchTab(existing.id); return }
   try {
-    const image = new Image();
-    image.src = job.image;
-    await image.decode();
-    part.value = createPart(job.name, {
-      uri: job.image,
-      width: image.naturalWidth,
-      height: image.naturalHeight,
-    });
-    jobId.value = job.localId;
-  } catch (e) {
-    error.value = String(e);
-  }
+    const image=new Image(); image.src=job.image; await image.decode()
+    const entry=!activeInstance.value?.part && activeInstance.value ? activeInstance.value : createTab()
+    entry.part=createPart(job.name,{uri:job.image,width:image.naturalWidth,height:image.naturalHeight}); entry.jobId=job.localId
+  } catch(e) { showToast(String(e),'error') }
 }
-async function apply(value: PartAsset) {
-  busy.value = true;
+async function generate(mode: GenerationAction) {
+  if (busy.value || !sourcePart.value || !canGenerateModels.value) return
+  busy.value = true
   try {
-    const saved = await savePart(value);
-    part.value = saved;
-    showToast(t("generation.saved"));
-    openPartEditor({ assetId: saved.id, origin: "scene" });
-  } catch (e) {
-    error.value = String(e);
-  } finally {
-    busy.value = false;
-  }
+    const source = clonePart(sourcePart.value), connection = snapshotGenerationConnection(parameters.value)
+    const target = selectedJob.value
+    const created = (job: LocalJob) => {
+      generationQueueExpanded.value = true; rightCollapsed.value = false
+      if (mode === 'overwrite') return
+      const entry = mode === 'initial' ? instances.value.find(tab=>tab.part?.id===source.id && !tab.jobId) ?? createTab() : createTab()
+      entry.part = mode === 'new' ? createPart(source.name, {...source.image}) : source
+      entry.jobId=job.localId; switchTab(entry.id)
+    }
+    if (mode === 'initial') await createGenerationJob(source.name, source.image.uri, connection, undefined, created)
+    else if (target?.geometry) await regenerateModel(target, mode, connection, created)
+  } catch(e) { showToast(String(e),'error') }
+  finally { busy.value=false }
 }
 async function discard(job: LocalJob) {
   try {
-    await removeJob(job);
-    if (jobId.value === job.localId) {
-      part.value = undefined;
-      jobId.value = "";
-    }
-  } catch (e) {
-    error.value = String(e);
-  }
+    await removeJob(job)
+    for(const entry of instances.value) if(entry.jobId===job.localId) entry.jobId=''
+  } catch(e) { showToast(String(e),'error') }
 }
-onMounted(() => {
-  void loadGenerationJobs().catch((e) => {
-    error.value = String(e);
-  });
-});
+onMounted(()=> { void loadGenerationJobs().catch(e=>showToast(String(e),'error')) })
 </script>
 <template>
-  <EditorShell
-    v-model:left-collapsed="leftCollapsed"
-    :tabs="tabs"
-    :active-tab-id="part ? 'generation' : null"
-    :left-panel="panel"
-    tab-accept="image/png,image/jpeg,image/webp"
-    @tab-add-file="loadFile"
-    @tab-load-file="loadFile"
-    @tab-close="part = undefined"
-    @tab-rename="renameTab"
-  >
-    <template #left
-      ><ScrollArea class="jobs"
-        ><div class="job-toolbar">
-          <button @click="upload?.click()">
-            {{ t("generation.chooseImage") }}</button
-          ><input
-            ref="upload"
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            hidden
-            @change="inputFile"
-          />
+  <EditorShell v-model:left-collapsed="leftCollapsed" v-model:right-collapsed="rightCollapsed" :tabs="tabs" :active-tab-id="activeTabId" :left-panel="panel" :right-panel="rightPanel"
+    tab-accept="image/png,image/jpeg,image/webp" :show-empty="!activeInstance?.part" :managed-drop="false"
+    @tab-switch="switchTab" @tab-close="closeTab" @tab-pin="setPinned" @tab-rename="renameTab"
+    @tab-add-empty="createTab" @tab-add-file="loadFile" @tab-load-file="file=>loadFile(file,true)" @viewport-drop="dropFiles">
+    <template #left>
+      <ScrollArea class="generation-sidebar">
+        <SidebarSection :title="t('slicer.source')" :collapsible="false">
+          <FileDropZone compact accept="image/png,image/jpeg,image/webp" icon="image"
+            :hint="sourcePart ? t('slicer.reselect') : t('generation.dropImage')"
+            :file-name="sourcePart ? `${sourcePart.image.width} × ${sourcePart.image.height} px` : ''"
+            @file="file=>loadFile(file,true)">
+            <template v-if="sourcePart" #icon><img class="source-thumbnail" :src="sourcePart.image.uri" :alt="sourcePart.name" /></template>
+          </FileDropZone>
+        </SidebarSection>
+        <div id="generation-properties" class="generation-properties" :class="{ 'empty-properties': !activeInstance?.part }">
+          <button v-if="!canGenerateModels" class="connection-button" @click="openGenerationSettings">{{ t('generation.connectionSettings') }}</button>
+          <GenerationSettings section="defaults" :parameters="parameters" :disabled="busy || !sourcePart" />
+          <div class="empty-actions"><GenerationActions :existing="!!selectedJob?.geometry" :busy="busy" :replacing="modelReplacing(selectedJob)" :disabled="!sourcePart || !canGenerateModels" @generate="generate" /></div>
         </div>
-        <p v-if="!generationJobs.length">{{ t("generation.noJobs") }}</p>
-        <div v-for="job in generationJobs" :key="job.localId" class="job-row">
-          <button @click="select(job)">
-            <img :src="job.image" alt="" /><span
-              >{{ job.name
-              }}<small>{{
-                t(
-                  "generation.status." +
-                    (job.geometry
-                      ? "succeeded"
-                      : job.remote?.status || "queued"),
-                )
-              }}</small></span
-            ></button
-          ><button
-            :aria-label="t('generation.removeTask')"
-            @click="discard(job)"
-          >
-            ×
-          </button>
-        </div></ScrollArea
-      ></template
-    >
-    <template #viewport
-      ><div class="generation-workspace">
-        <p v-if="error" class="error" role="alert">{{ error }}</p>
-        <GenerationPanel
-          v-if="part"
-          :key="part.id + jobId"
-          :part="part"
-          :job-id="jobId"
-          @apply="apply"
-          @close="part = undefined"
-        />
-        <div v-else class="empty">
-          <h2>{{ t("generation.title") }}</h2>
-          <p>{{ t("generation.subtitle") }}</p>
-          <button @click="upload?.click()">
-            {{ t("generation.chooseImage") }}
-          </button>
-        </div>
-      </div></template
-    >
+      </ScrollArea>
+    </template>
+    <template #viewport>
+      <ModelViewer v-if="selectedJob?.geometry?.mesh" :uri="selectedJob.geometry.mesh.uri" :image="selectedJob.image" :name="selectedJob.name" />
+      <div v-else-if="activeInstance?.part" class="source-preview"><img :src="selectedJob?.image || activeInstance.part.image.uri" :alt="activeInstance.part.name" /></div>
+    </template>
+    <template #viewport-overlay><GenerationQueue v-model:expanded="generationQueueExpanded" :jobs="visibleJobs" :selected-id="selectedJob?.localId" @select="select" @remove="discard" /></template>
+    <template #right><GenerationTaskDetails :job="selectedJob" /></template>
   </EditorShell>
 </template>
 <style scoped>
-.generation-workspace {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-.jobs {
-  height: 100%;
-  background: #252525;
-  padding: 12px;
-  box-sizing: border-box;
-}
-.job-toolbar {
-  margin-bottom: 16px;
-}
-.jobs button,
-.empty button {
-  background: #303030;
-  border: 1px solid #555;
-  border-radius: 5px;
-  color: #ccc;
-  padding: 6px 9px;
-  font-size: 12px;
-  cursor: pointer;
-}
-.jobs p {
-  font-size: 11px;
-  color: #888;
-}
-.job-row {
-  display: flex;
-  border-bottom: 1px solid #383838;
-  padding: 8px 0;
-  gap: 5px;
-}
-.job-row > button:first-child {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-  text-align: left;
-  border: 0;
-  background: none;
-}
-.job-row img {
-  width: 36px;
-  height: 42px;
-  object-fit: contain;
-}
-.job-row span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  color: #ccc;
-}
-.job-row small {
-  display: block;
-  color: #888;
-  font-size: 10px;
-  margin-top: 5px;
-}
-.empty {
-  margin: auto;
-  text-align: center;
-  color: #aaa;
-  padding: 30px;
-}
-.empty h2 {
-  font-size: 18px;
-}
-.empty p {
-  font-size: 12px;
-  line-height: 1.8;
-  max-width: 450px;
-}
-.error {
-  color: #efad99;
-  padding: 10px;
-  font-size: 12px;
-}
+.generation-sidebar { height:100%; background:#252525; }
+.source-thumbnail { width:28px; height:32px; object-fit:contain; flex-shrink:0; image-rendering:pixelated; }
+.generation-properties { margin:0; padding:0 12px; border:0; min-width:0; }
+.source-preview { display:flex; align-items:center; justify-content:center; flex:1; min-height:0; padding:32px; background:#202327; overflow:hidden; }
+.source-preview img { max-width:100%; max-height:100%; object-fit:contain; image-rendering:pixelated; }
+.empty-actions { padding:14px 0; border-bottom:1px solid #333; }
+.empty-actions button { font-size:12px; background:#303030; border:1px solid #555; border-radius:5px; padding:6px 10px; color:#ddd; cursor:default; }
+.connection-button { margin-top:12px; width:100%; padding:7px; border:1px solid #555; border-radius:5px; background:#303030; color:#ddd; cursor:pointer; }
 </style>

@@ -1,5 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { showToast } from '../../shared/components/toast'
+import { needsGenerationSetup } from '../../shared/settings-dialog'
+import { createGenerationJob, generationJobs, loadGenerationJobs, type LocalJob } from '../../shared/generation/jobs'
+import { snapshotGenerationConnection } from '../../shared/generation/request-snapshot'
+import { generationParametersFor } from '../../shared/generation/parameters'
+import { jobRunning } from '../../shared/generation/job-state'
 import SidebarSection from '../../shared/components/editor-shell/SidebarSection.vue'
 import { SliderRow } from '../../shared/components/editor-shell/sidebar-atoms'
 import SegmentedControl from '../../shared/components/SegmentedControl.vue'
@@ -23,6 +30,44 @@ import LightingViewport from './LightingViewport.vue'
 import LightSettings from './LightSettings.vue'
 
 const { t } = useI18n(), error = ref(''), busy = ref(false), importInput = ref<HTMLInputElement>()
+const router = useRouter(), generatingIds = ref(new Set<string>())
+async function viewGeneration(job: LocalJob, source: PartAsset) {
+  try {
+    const { generationTabs, generationInput, generationQueueExpanded } = await import('../model-generation/store')
+    const image = new Image(); image.src = job.image; await image.decode()
+    const input = clonePart(source)
+    input.image = { uri:job.image, width:image.naturalWidth, height:image.naturalHeight }
+    const entry = generationTabs.instances.value.find(tab => tab.jobId === job.localId)
+      ?? (!generationTabs.activeInstance.value?.part ? generationTabs.activeInstance.value : null)
+      ?? generationTabs.createTab()
+    entry.part = input; entry.jobId = job.localId
+    generationInput.value = clonePart(input)
+    generationTabs.switchTab(entry.id); generationQueueExpanded.value = true
+    await router.push('/model-generation')
+  } catch (e) { showToast(String(e), 'error') }
+}
+async function generatePart(part: PartAsset) {
+  if (generatingIds.value.has(part.id) || needsGenerationSetup('/model-generation')) return
+  generatingIds.value.add(part.id)
+  try {
+    const snapshot = clonePart(part), connection = snapshotGenerationConnection(generationParametersFor(part.id))
+    await loadGenerationJobs()
+    const existing = generationJobs.find(job => job.source?.assetId === snapshot.id && jobRunning(job))
+    if (existing) {
+      showToast(t('generation.alreadyQueuedNamed', { name:snapshot.name }), 'info', 2000,
+        { label:t('generation.viewTask'), onClick:()=>void viewGeneration(existing, snapshot) })
+      return
+    }
+    const input = await portablePart(snapshot)
+    const job = await createGenerationJob(snapshot.name, input.image.uri, connection, { assetId:snapshot.id, origin:'scene' })
+    showToast(t(job.remote ? 'generation.queuedNamed' : 'generation.submitFailedNamed', { name:snapshot.name }), job.remote ? 'success' : 'error', 2000,
+      { label:t('generation.viewTask'), onClick:()=>void viewGeneration(job, input) })
+  } catch (e) {
+    showToast(t('generation.submitFailedNamed', { name:part.name }) + ': ' + String(e), 'error', 2000)
+  } finally {
+    generatingIds.value.delete(part.id)
+  }
+}
 const search = ref(''), leftCollapsed = ref(false)
 const showShadowPoints = ref(false)
 const manager = useSceneTabs(), fallback = emptyScene()
@@ -100,7 +145,7 @@ onMounted(async()=>{try{await initializeScene()}catch(e){error.value=String(e)}}
       </SidebarSection>
       <SidebarSection :title="t('parts.library')" :collapsible="false">
         <input class="search" v-model="search" :placeholder="t('parts.search')" :aria-label="t('parts.search')"/>
-        <ScrollArea class="library-scroll" :label="t('parts.library')"><PartPalette :parts="library" :disabled="busy" @edit="edit" @add="add([$event])" @drop="dropPart" @import="importInput?.click()"/></ScrollArea>
+        <ScrollArea class="library-scroll" :label="t('parts.library')"><PartPalette :parts="library" :disabled="busy" :generating-ids="generatingIds" @edit="edit" @add="add([$event])" @generate="generatePart" @drop="dropPart" @import="importInput?.click()"/></ScrollArea>
         <p v-if="!library.length" class="note">{{t('parts.noMatches')}}</p>
         <input ref="importInput" hidden type="file" accept=".json,application/json" @change="importFile"/>
       </SidebarSection>

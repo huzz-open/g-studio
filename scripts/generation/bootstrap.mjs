@@ -5,17 +5,19 @@ import { resolve, join, relative, isAbsolute, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { cp } from 'node:fs/promises';
 import { root, resourcePaths, platformInfo, runtimePaths } from './paths.mjs';
-import { applyMirrorProfile } from './mirrors.mjs';
+import { applyMirrorProfile, torchIndexArgs } from './mirrors.mjs';
 import { withProgress } from './progress.mjs';
 import { installUv } from './uv-download.mjs';
 import { chooseProfile } from './profiles.mjs';
+import { downloadTorchWheels } from './torch-download.mjs';
+import { downloadDependencies } from './dependency-download.mjs';
 export { root };
 export const { home, dataHome } = resourcePaths();
 export const managedChildren = new Set();
 const info = platformInfo();
 const mirrorProfile = applyMirrorProfile(root);
 Object.assign(process.env, { GEN_HOME: home, GEN_DATA_HOME: dataHome, PYTHONIOENCODING: 'utf-8', PYTHONNOUSERSITE: '1', HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1', UV_CACHE_DIR: join(home, 'cache', info.tag), UV_LINK_MODE: 'copy' });
-if (mirrorProfile === 'cn') console.log('[generation] China preset: Tsinghua packages, ModelScope weights. uv prefers Tsinghua with GitHub fallback.');
+if (mirrorProfile === 'cn') console.log('[generation] China preset: Tsinghua PyPI, NJU PyTorch, ModelScope weights (explicit overrides take precedence). uv prefers Tsinghua with GitHub fallback. Node/Python runtime downloads may still use official sources.');
 export function run(command, args, options = {}) {
   const { progressLabel, ...spawnOptions } = options;
   if (progressLabel) return withProgress(progressLabel, () => run(command, args, spawnOptions));
@@ -144,10 +146,10 @@ export async function preparePython() {
     }
     const uv = await uvBinary(layout);
     const env = { ...process.env, UV_PYTHON_INSTALL_DIR: layout.pythonRoot, RUST_LOG: 'error' };
-    const uvRun = (args, label, torchIndex = false) => {
+    const uvRun = (args, label, torchIndex = false, timeout) => {
       const childEnv = { ...env };
       if (torchIndex) for (const name of ['UV_DEFAULT_INDEX', 'UV_INDEX_URL', 'UV_INDEX', 'UV_EXTRA_INDEX_URL']) delete childEnv[name];
-      return run(uv, ['--no-config', ...(process.env.GEN_OFFLINE === '1' ? ['--offline'] : []), ...args], { env: childEnv, progressLabel: label });
+      return run(uv, ['--no-config', ...(process.env.GEN_OFFLINE === '1' ? ['--offline'] : []), ...args], { env: childEnv, progressLabel: label, ...(timeout ? { timeout } : {}) });
     };
     python = interpreters(layout.pythonRoot).find(p => works(p, ['-I', '-c', 'import sys; assert sys.version_info[:2] == (3,12)']));
     if (!python) {
@@ -158,8 +160,16 @@ export async function preparePython() {
     }
     const issues = inspect(python, requirements, layout.variant).issues || [];
     const broken = [...new Set(issues.filter(i => !['python', 'torch', 'torchvision'].includes(i.package)).map(i => i.package))];
-    if (layout.variant !== 'base' && issues.some(i => ['torch', 'torchvision'].includes(i.package))) await uvRun(['pip', 'install', '--python', python, '--break-system-packages', 'torch==2.6.0', 'torchvision==0.21.0', '--default-index', `https://download.pytorch.org/whl/${layout.variant === 'mps' ? 'cpu' : layout.variant}`, '--reinstall-package', 'torch', '--reinstall-package', 'torchvision'], 'Preparing PyTorch', true);
-    if (broken.length) await uvRun(['pip', 'install', '--python', python, '--break-system-packages', '-r', requirements, ...broken.flatMap(p => ['--reinstall-package', p])], 'Preparing Python dependencies');
+    const needsTorch = layout.variant !== 'base' && issues.some(i => ['torch', 'torchvision'].includes(i.package));
+    if (process.env.GEN_OFFLINE !== '1' && (needsTorch || broken.length)) {
+      const indexes = torchIndexArgs(root, layout.variant);
+      const wheels = layout.variant === 'base' ? [] : await downloadTorchWheels(indexes[1], home, info.tag, layout.variant);
+      const dependencies = await downloadDependencies({ root, home, python, platform: info.tag, requirements, torchWheels: wheels, uvRun });
+      await uvRun(['pip', 'install', '--python', python, '--break-system-packages', '--offline', '--no-index', '--no-deps', ...wheels, ...dependencies, ...[...broken, ...(needsTorch ? ['torch', 'torchvision'] : [])].flatMap(p => ['--reinstall-package', p])], 'Installing verified local dependencies');
+    } else {
+      if (needsTorch) await uvRun(['pip', 'install', '--python', python, '--break-system-packages', 'torch==2.6.0', 'torchvision==0.21.0', ...torchIndexArgs(root, layout.variant), '--reinstall-package', 'torch', '--reinstall-package', 'torchvision'], 'Preparing cached PyTorch', true);
+      if (broken.length) await uvRun(['pip', 'install', '--python', python, '--break-system-packages', '-r', requirements, ...broken.flatMap(p => ['--reinstall-package', p])], 'Preparing cached Python dependencies');
+    }
     if (!ready(python, requirements, layout.variant)) throw Error('Python dependency validation failed after repair');
     return mark(python);
   } finally { unlinkSync(lock); }

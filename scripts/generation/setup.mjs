@@ -45,8 +45,9 @@ if (
   if (profile === "cn") {
     console.log("[setup] 国内预设已保存，仅影响当前项目。");
     console.log(
-      "[setup] npm: 阿里 npmmirror; Python 包: 清华; 模型权重: ModelScope 优先。",
+      "[setup] npm: 阿里 npmmirror; Python 包: 清华; PyTorch: 南大对应 CPU/CUDA 源; 模型权重: ModelScope 优先。",
     );
+    console.log("[setup] 国内预设不是全局代理：Node/Python 运行时及部分许可证仍可能访问官方源；显式环境变量优先。");
     console.log(
       "[setup] 模型版本、文件清单、断点续传与 SHA256 校验由项目自动管理。",
     );

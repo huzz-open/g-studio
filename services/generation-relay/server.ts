@@ -8,15 +8,12 @@ import {
   writeFileSync,
   existsSync,
   renameSync,
-  createReadStream,
-  createWriteStream,
-  statSync,
   unlinkSync,
 } from "node:fs";
 import { resolve, join } from "node:path";
 import { homedir } from "node:os";
-import { Transform } from "node:stream";
-import { pipeline } from "node:stream/promises";
+import { EphemeralFiles } from "./ephemeral-files.js";
+import { PairFailureGuard, clientAddress } from "./pair-security.js";
 
 const home = resolve(
   process.env.RELAY_HOME || join(homedir(), ".g-studio/relay"),
@@ -44,33 +41,41 @@ const connections = new Map<string, WebSocket>(),
   >();
 const codes = new Map<
     string,
-    { device: string; expires: number; attempts: number }
+    { device: string; expires: number }
   >(),
-  pairs = new Map<string, any>(),
+  usedCodes = new Map<string, number>(),
   rates = new Map<string, { count: number; reset: number }>();
 function fail(code: string, message: string, status = 400): never {
   throw Object.assign(Error(message), { code, status });
 }
-const storageLimit =
-  Number(process.env.RELAY_MAX_STORAGE_MB || 2048) * 1024 * 1024;
-if (!Number.isFinite(storageLimit) || storageLimit <= 0)
-  throw Error("Invalid RELAY_MAX_STORAGE_MB");
-let reservedBytes = 0;
+const storageLimit = Number(process.env.RELAY_MAX_MEMORY_MB || process.env.RELAY_MAX_STORAGE_MB || 512) * 1024 * 1024;
+const payloads = new EphemeralFiles(storageLimit);
+const pairFailures = new PairFailureGuard();
+const trustedProxies = (process.env.RELAY_TRUSTED_PROXIES || '').split(',').filter(Boolean);
 const outputTransfers = new Map<string, Promise<any>>();
 const uploading = new Set<string>();
-function reserveStorage(bytes: number) {
-  let used = 0;
-  for (const j of Object.values<any>(db.jobs))
-    for (const suffix of ["input", "output"]) {
-      const file = join(home, j.id + "." + suffix);
-      if (existsSync(file)) used += statSync(file).size;
-    }
-  if (used + reservedBytes + bytes > storageLimit)
-    fail("STORAGE_FULL", "Relay temporary storage quota reached", 507);
-  reservedBytes += bytes;
-  return () => {
-    reservedBytes -= bytes;
+// Remove only known legacy relay payloads when upgrading from disk transfers.
+for (const j of Object.values<any>(db.jobs)) {
+  if (!/^[a-f0-9-]{36}$/.test(j.id)) continue;
+  for (const suffix of ['input', 'output', 'output.tmp']) {
+    const file = join(home, j.id + '.' + suffix);
+    if (existsSync(file)) unlinkSync(file);
+  }
+}
+function clearPayloads(id: string) { payloads.delete(id+'.input'); payloads.delete(id+'.output'); }
+function sendPayload(res: http.ServerResponse, key: string, type: string, consume: boolean) {
+  const lease = payloads.acquire(key);
+  if (!lease) fail('TRANSFER_EXPIRED', 'Transfer buffer expired; retry the upload', 410);
+  let released = false;
+  const done = () => {
+    if (released) return;
+    released = true;
+    if (consume) payloads.delete(key);
+    lease.release();
   };
+  res.once('close', done);
+  res.writeHead(200, { 'Content-Type':type, 'Content-Length':lease.data.length, 'Cache-Control':'no-store', 'X-Accel-Buffering':'no' });
+  res.end(lease.data, done);
 }
 function rpc(device: string, method: string, args: any = {}): Promise<any> {
   const ws = connections.get(device);
@@ -154,6 +159,7 @@ async function dispatch(j: any) {
     relayJobId: j.id,
     request: j.request,
   });
+  payloads.delete(j.id + ".input");
   j.workerId = response.id;
   j.snapshot = response;
   save();
@@ -189,59 +195,31 @@ async function handler(req: http.IncomingMessage, res: http.ServerResponse) {
       return;
     }
     if (p === "/v1/pair" && req.method === "POST") {
-      limited("pair:" + req.socket.remoteAddress, 10);
+      const ip = clientAddress(req.socket.remoteAddress || '', typeof req.headers['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'] : undefined, trustedProxies);
+      pairFailures.check(ip);
+      limited("pair:" + ip, 10);
       limited("pair-global", 100);
-      const { code } = JSON.parse((await bytes(req, 4096)).toString()),
-        key = String(code || "").toUpperCase(),
-        entry = codes.get(key);
-      if (!entry || entry.expires < Date.now())
+      let key: string;
+      try { key = String(JSON.parse((await bytes(req, 4096)).toString()).code || '').trim().toUpperCase(); }
+      catch { pairFailures.failed(ip); fail('PAIR_INVALID', 'Invalid pairing request', 400); }
+      const entry = codes.get(key);
+      if (!/^[A-Z0-9]{10}$/.test(key) || !entry || entry.expires < Date.now()) {
+        pairFailures.failed(ip);
         fail("PAIR_INVALID", "Invalid or expired pairing code", 404);
-      if (++entry.attempts > 5) {
-        codes.delete(key);
-        fail("PAIR_INVALID", "Pairing code exhausted", 429);
       }
-      const id = randomUUID(),
-        pollToken = randomBytes(32).toString("base64url");
-      pairs.set(id, {
-        device: entry.device,
-        pollHash: hash(pollToken),
-        state: "pending",
-        expires: Date.now() + 300000,
-        code: key,
-      });
       const ws = connections.get(entry.device);
-      if (!ws) fail("DEVICE_OFFLINE", "Device offline", 503);
-      ws.send(
-        JSON.stringify({ type: "pair.request", id, display: id.slice(0, 8) }),
-      );
-      json(res, { id, pollToken, display: id.slice(0, 8) }, 202);
-      return;
-    }
-    const pairMatch = p.match(/^\/v1\/pair\/([a-f0-9-]+)$/);
-    if (pairMatch && req.method === "GET") {
-      const pair = pairs.get(pairMatch[1]);
-      if (
-        !pair ||
-        pair.expires < Date.now() ||
-        hash(bearer(req)) !== pair.pollHash
-      )
-        fail("PAIR_INVALID", "Invalid pair request", 401);
-      if (pair.state === "approved") {
-        if (!pair.token) {
-          pair.token = randomBytes(32).toString("base64url");
-          db.sessions[hash(pair.token)] = {
-            id: randomUUID(),
-            device: pair.device,
-            expires: Date.now() + 30 * 86400000,
-          };
-          save();
-        }
-        json(res, {
-          state: "approved",
-          token: pair.token,
-          deviceId: pair.device,
-        });
-      } else json(res, { state: pair.state });
+      if (!ws || ws.readyState !== WebSocket.OPEN) fail("DEVICE_OFFLINE", "Device offline", 503);
+      // Consuming a code and granting access happen without awaiting another task:
+      // two concurrent claimants cannot both use the same code.
+      codes.delete(key);
+      usedCodes.set(hash(key), entry.expires);
+      const token = randomBytes(32).toString("base64url");
+      db.sessions[hash(token)] = {
+        id: randomUUID(), device: entry.device, expires: Date.now() + 30 * 86400000,
+      };
+      save();
+      ws.send(JSON.stringify({ type: 'pair.used' }));
+      json(res, { state: 'approved', token, deviceId: entry.device });
       return;
     }
     if (p === "/v1/devices" && req.method === "GET") {
@@ -259,25 +237,24 @@ async function handler(req: http.IncomingMessage, res: http.ServerResponse) {
     );
     if (deviceMatch) {
       const [, id, action] = deviceMatch;
-      owner(req, id!);
+      const grant = owner(req, id!);
       if (req.method === "DELETE") {
         for (const [k, s] of Object.entries<any>(db.sessions))
-          if (s.device === id) delete db.sessions[k];
+          if (s.id === grant.id) delete db.sessions[k];
         for (const j of Object.values<any>(db.jobs))
-          if (j.device === id && j.workerId) {
+          if (j.session === grant.id && j.workerId) {
             j.cancelRequested = true;
+            j.revoked = true;
             void rpc(id!, "cancel", { id: j.workerId })
               .then((result) => {
                 j.snapshot = result;
                 j.cancelRequested = false;
+                if (j.revoked) delete db.jobs[j.id];
                 save();
               })
               .catch(() => {});
           }
-        for (const [k, pair] of pairs) if (pair.device === id) pairs.delete(k);
-        codes.forEach((v, k) => {
-          if (v.device === id) codes.delete(k);
-        });
+        for (const j of Object.values<any>(db.jobs)) if (j.session === grant.id) { clearPayloads(j.id); if (!j.cancelRequested) delete db.jobs[j.id]; }
         save();
         json(res, { ok: true });
         return;
@@ -295,60 +272,55 @@ async function handler(req: http.IncomingMessage, res: http.ServerResponse) {
     if (p === "/v1/jobs" && req.method === "POST") {
       const s = session(req);
       limited("jobs:" + s.id, 15);
-      const body = await bytes(req, 11 * 1024 * 1024),
-        form = await new Request("http://local", {
-          method: "POST",
-          headers: { "content-type": req.headers["content-type"] || "" },
-          body: new Uint8Array(body),
-        }).formData();
-      const request = JSON.parse(String(form.get("request"))),
-        image = form.get("image");
-      if (!(image instanceof File) || image.size > 10 * 1024 * 1024)
-        fail("INPUT_LIMIT", "Image required and must be <=10MiB", 413);
-      const imageBytes = Buffer.from(await image.arrayBuffer()),
-        fingerprint = hash(JSON.stringify(request) + hash(imageBytes));
-      let j = Object.values<any>(db.jobs).find(
-        (j) =>
-          j.session === s.id &&
-          j.request.clientRequestId === request.clientRequestId,
-      );
-      if (j && j.fingerprint !== fingerprint)
-        fail("IDEMPOTENCY_CONFLICT", "Request ID content differs", 409);
-      if (!j) {
-        if (
-          Object.values<any>(db.jobs).filter(
-            (j) => j.session === s.id && j.expires > Date.now(),
-          ).length >= 20
-        )
-          fail("QUEUE_FULL", "Temporary job quota reached", 429);
-        const id = randomUUID();
-        j = {
-          id,
-          session: s.id,
-          device: s.device,
-          request,
-          fingerprint,
-          expires: Date.now() + 86400000,
-        };
-        const release = reserveStorage(imageBytes.length);
-        try {
-          writeFileSync(join(home, id + ".input"), imageBytes);
-        } catch (error) {
-          const partial = join(home, id + ".input");
-          if (existsSync(partial)) unlinkSync(partial);
-          throw error;
-        } finally {
-          release();
+      const releaseInput = payloads.reserve(48 * 1024 * 1024);
+      try {
+        const body = await bytes(req, 11 * 1024 * 1024),
+          form = await new Request("http://local", {
+            method: "POST",
+            headers: { "content-type": req.headers["content-type"] || "" },
+            body: new Uint8Array(body),
+          }).formData();
+        const request = JSON.parse(String(form.get("request"))),
+          image = form.get("image");
+        if (!(image instanceof File) || image.size > 10 * 1024 * 1024)
+          fail("INPUT_LIMIT", "Image required and must be <=10MiB", 413);
+        const imageBytes = Buffer.from(await image.arrayBuffer()),
+          fingerprint = hash(JSON.stringify(request) + hash(imageBytes));
+        let j = Object.values<any>(db.jobs).find(
+          (j) =>
+            j.session === s.id &&
+            j.request.clientRequestId === request.clientRequestId,
+        );
+        if (j && j.fingerprint !== fingerprint)
+          fail("IDEMPOTENCY_CONFLICT", "Request ID content differs", 409);
+        if (!j) {
+          if (
+            Object.values<any>(db.jobs).filter(
+              (j) => j.session === s.id && j.expires > Date.now(),
+            ).length >= 20
+          )
+            fail("QUEUE_FULL", "Temporary job quota reached", 429);
+          const id = randomUUID();
+          j = {
+            id,
+            session: s.id,
+            device: s.device,
+            request,
+            fingerprint,
+            expires: Date.now() + 3600000,
+          };
+          db.jobs[id] = j;
+          save();
         }
-        db.jobs[id] = j;
-        save();
-      }
-      if (j.workerId) {
-        json(res, { ...j.snapshot, id: j.id }, 202);
+        releaseInput();
+        if (!j.workerId && !payloads.has(j.id + ".input")) payloads.set(j.id + ".input", imageBytes);
+        if (j.workerId) {
+          json(res, { ...j.snapshot, id: j.id }, 202);
+          return;
+        }
+        json(res, await dispatch(j), 202);
         return;
-      }
-      json(res, await dispatch(j), 202);
-      return;
+      } finally { releaseInput(); }
     }
     const jm = p.match(
       /^\/v1\/jobs\/([a-f0-9-]+)(?:\/(cancel|ack|outputs\/shadow))?$/,
@@ -359,7 +331,7 @@ async function handler(req: http.IncomingMessage, res: http.ServerResponse) {
       if (j.expires < Date.now())
         fail("EXPIRED", "Temporary result expired", 410);
       if (action === "outputs/shadow" && req.method === "GET") {
-        if (!existsSync(join(home, j.id + ".output"))) {
+        if (!payloads.has(j.id + ".output")) {
           if (!j.workerId) fail("NOT_READY", "No output", 409);
           let transfer = outputTransfers.get(j.id);
           if (!transfer) {
@@ -371,18 +343,14 @@ async function handler(req: http.IncomingMessage, res: http.ServerResponse) {
           }
           await transfer;
         }
-        const file = join(home, j.id + ".output");
-        if (!existsSync(file)) fail("NOT_READY", "Output not ready", 409);
-        res.writeHead(200, {
-          "Content-Type": "model/gltf-binary",
-          "Content-Length": statSync(file).size,
-        });
-        createReadStream(file).pipe(res);
+        if (res.destroyed) { payloads.delete(j.id + '.output'); return; }
+        sendPayload(res, j.id + '.output', 'model/gltf-binary', true);
         return;
       }
       if (action === "ack" && req.method === "POST") {
+        clearPayloads(j.id);
         if (j.workerId) await rpc(j.device, "ack", { id: j.workerId });
-        j.expires = Date.now() + 60000;
+        j.expires = Date.now();
         save();
         json(res, { ok: true });
         return;
@@ -391,6 +359,7 @@ async function handler(req: http.IncomingMessage, res: http.ServerResponse) {
         if (j.workerId)
           j.snapshot = await rpc(j.device, "cancel", { id: j.workerId });
         else j.snapshot = { status: "cancelled", phase: "cancelled" };
+        clearPayloads(j.id);
         save();
         json(res, { ...j.snapshot, id: j.id });
         return;
@@ -401,6 +370,8 @@ async function handler(req: http.IncomingMessage, res: http.ServerResponse) {
           return;
         }
         j.snapshot = await rpc(j.device, "status", { id: j.workerId });
+        if (!["succeeded", "failed", "cancelled", "expired"].includes(j.snapshot.status)) j.expires = Date.now() + 3600000;
+        if (["failed", "cancelled", "expired"].includes(j.snapshot.status)) clearPayloads(j.id);
         save();
         json(res, { ...j.snapshot, id: j.id });
         return;
@@ -412,36 +383,19 @@ async function handler(req: http.IncomingMessage, res: http.ServerResponse) {
       if (!j || j.expires < Date.now()) fail("NOT_FOUND", "Unknown job", 404);
       worker(req, j.device);
       if (fm[2] === "input" && req.method === "GET") {
-        res.writeHead(200, { "Content-Type": "application/octet-stream" });
-        createReadStream(join(home, j.id + ".input")).pipe(res);
+        sendPayload(res, j.id + ".input", "application/octet-stream", false);
         return;
       }
       if (fm[2] === "output" && req.method === "POST") {
         if (uploading.has(j.id))
           fail("TRANSFER_BUSY", "Output transfer already running", 409);
-        const file = join(home, j.id + ".output"),
-          temp = file + ".tmp";
-        let length = 0;
-        const release = reserveStorage(128 * 1024 * 1024);
+        // Reserve peak buffer space while concatenating incoming chunks.
+        const release = payloads.reserve(256 * 1024 * 1024);
         uploading.add(j.id);
         try {
-          await pipeline(
-            req,
-            new Transform({
-              transform(chunk, _, cb) {
-                length += chunk.length;
-                cb(
-                  length > 128 * 1024 * 1024 ? Error("Output too large") : null,
-                  chunk,
-                );
-              },
-            }),
-            createWriteStream(temp),
-          );
-          renameSync(temp, file);
-        } catch (e) {
-          if (existsSync(temp)) unlinkSync(temp);
-          throw e;
+          const data = await bytes(req, 128 * 1024 * 1024);
+          release();
+          payloads.set(j.id + '.output', data, 60000);
         } finally {
           release();
           uploading.delete(j.id);
@@ -452,6 +406,7 @@ async function handler(req: http.IncomingMessage, res: http.ServerResponse) {
     }
     fail("NOT_FOUND", "Route not found", 404);
   } catch (e: any) {
+    if (e.retryAfter) res.setHeader("Retry-After", String(e.retryAfter));
     if (!res.headersSent)
       json(
         res,
@@ -536,6 +491,7 @@ wss.on("connection", (ws, req) => {
               .then((result) => {
                 j.snapshot = result;
                 j.cancelRequested = false;
+                if (j.revoked) delete db.jobs[j.id];
                 save();
               })
               .catch(() => {});
@@ -543,28 +499,12 @@ wss.on("connection", (ws, req) => {
       }
       if (m.type === "pair.code") {
         const code = String(m.code).toUpperCase();
-        if (!/^[A-Z0-9]{8}$/.test(code) || codes.has(code))
+        if (!/^[A-Z0-9]{10}$/.test(code) || codes.has(code) || (usedCodes.get(hash(code)) || 0) > Date.now())
           fail("PAIR", "Invalid or occupied code");
-        codes.set(code, { device, expires: Date.now() + 300000, attempts: 0 });
+        // Only the newest outstanding code for a worker remains valid.
+        for (const [oldCode, entry] of codes) if (entry.device === device) codes.delete(oldCode);
+        codes.set(code, { device, expires: Date.now() + 300000 });
         ws.send(JSON.stringify({ type: "pair.ready", expiresIn: 300 }));
-        return;
-      }
-      if (m.type === "pair.confirm") {
-        const pair = pairs.get(m.id);
-        if (
-          !pair ||
-          pair.device !== device ||
-          pair.expires < Date.now() ||
-          pair.state !== "pending"
-        )
-          return;
-        if (m.accept && codes.has(pair.code)) {
-          pair.state = "approved";
-          codes.delete(pair.code);
-          for (const [id, p] of pairs)
-            if (id !== m.id && p.device === device && p.state === "pending")
-              p.state = "denied";
-        } else pair.state = "denied";
         return;
       }
       if (m.type === "rpc.result") {
@@ -596,21 +536,13 @@ setInterval(() => {
   let changed = false;
   for (const j of Object.values<any>(db.jobs))
     if (j.expires < Date.now()) {
-      let cleaned = true;
-      for (const suffix of ["input", "output", "output.tmp"]) {
-        const f = join(home, j.id + "." + suffix);
-        try {
-          if (existsSync(f)) unlinkSync(f);
-        } catch {
-          cleaned = false;
-        }
-      }
-      if (cleaned && j.expires < Date.now() - 86400000) {
-        delete db.jobs[j.id];
-        changed = true;
-      }
+      clearPayloads(j.id);
+      delete db.jobs[j.id];
+      changed = true;
     }
-  for (const [k, p] of pairs) if (p.expires < Date.now()) pairs.delete(k);
+  payloads.sweep();
+  pairFailures.sweep();
+  for (const [k, expiry] of usedCodes) if (expiry < Date.now()) usedCodes.delete(k);
   for (const [k, s] of Object.entries<any>(db.sessions))
     if (s.expires < Date.now()) {
       delete db.sessions[k];
@@ -619,7 +551,7 @@ setInterval(() => {
   for (const [k, c] of codes) if (c.expires < Date.now()) codes.delete(k);
   for (const [k, r] of rates) if (r.reset < Date.now()) rates.delete(k);
   if (changed) save();
-}, 60000).unref();
+}, 10000).unref();
 server.listen(
   Number(process.env.RELAY_PORT || 8787),
   process.env.RELAY_HOST || "127.0.0.1",

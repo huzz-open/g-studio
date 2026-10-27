@@ -136,7 +136,7 @@ All variables are optional for the default local workflow.
 | `GEN_SKIP_MODEL` | `1` prepares only the lightweight algorithm provider; no Hunyuan download |
 | `GEN_RELAY_URL` | Outbound `wss://.../generation/worker` endpoint |
 | `GEN_PAIR` | `1` enables a new five-minute pairing session at this launch |
-| `GEN_PAIR_CODE` | Optional eight-character alphanumeric code for that pairing session; never a permanent password |
+| `GEN_PAIR_CODE` | Optional ten-character code using uppercase A–Z and digits 0–9; possession grants access, valid for five minutes and one use |
 
 PowerShell example: `$env:GEN_HOME = 'D:\GStudioCache'`. POSIX example: `export GEN_HOME="$HOME/GStudioCache"`. Python also reads `relayUrl` from its private `config.json`.
 

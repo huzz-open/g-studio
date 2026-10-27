@@ -62,12 +62,13 @@ class GenerationIntegration(unittest.TestCase):
         cls.processes = []
         env = {
             **os.environ,
-            "GEN_HOME": str(cls.home / "worker"),
+            "GEN_HOME": str(cls.home / "resources"),
+            "GEN_DATA_HOME": str(cls.home / "worker"),
             "GEN_PORT": "18765",
             "GEN_SKIP_MODEL": "1",
             "GEN_RELAY_URL": "ws://127.0.0.1:18787/generation/worker",
             "GEN_PAIR": "1",
-            "GEN_PAIR_CODE": "TEST8765",
+            "GEN_PAIR_CODE": "TEST8765AB",
             "PYTHONIOENCODING": "utf-8",
             "RELAY_HOME": str(cls.home / "relay"),
             "RELAY_PORT": "18787",
@@ -265,22 +266,14 @@ class GenerationIntegration(unittest.TestCase):
         deadline = time.time() + 30
         while True:
             code, pair = call(
-                self.relay, "/v1/pair", method="POST", data={"code": "TEST8765"}
+                self.relay, "/v1/pair", method="POST", data={"code": "TEST8765AB"}
             )
-            if code == 202:
+            if code == 200:
                 break
             if time.time() > deadline:
                 self.fail(str(pair))
             time.sleep(1)
-        self.worker.stdin.write(b"y\n")
-        self.worker.stdin.flush()
-        while time.time() < deadline:
-            code, approval = call(
-                self.relay, "/v1/pair/" + pair["id"], pair["pollToken"]
-            )
-            if approval.get("state") == "approved":
-                break
-            time.sleep(0.2)
+        approval = pair
         self.assertEqual(approval["state"], "approved", approval)
         token = approval["token"]
         device = approval["deviceId"]
@@ -294,6 +287,9 @@ class GenerationIntegration(unittest.TestCase):
         code, job = call(self.relay, "/v1/jobs", token, "POST", payload, h)
         self.assertEqual(code, 202, job)
         done = self.wait_job(self.relay, token, job["id"])
+        self.assertFalse((self.home / "relay" / (job["id"] + ".input")).exists())
+        worker_secret = json.loads((self.home / "worker/config.json").read_text())["deviceSecret"]
+        self.assertEqual(call(self.relay, "/worker/files/" + job["id"] + "/input", worker_secret)[0], 410)
         self.assertEqual(done["status"], "succeeded", done)
         self.assertEqual(
             call(self.relay, "/v1/jobs/" + job["id"], "wrong-token")[0], 401
@@ -303,6 +299,11 @@ class GenerationIntegration(unittest.TestCase):
         )
         self.assertEqual(code, 200, binary)
         self.assertEqual(binary[:4], b"glTF")
+        self.assertFalse((self.home / "relay" / (job["id"] + ".output")).exists())
+        # Delivery releases the public buffer; retry re-fetches from the local worker.
+        again_code, again = call(self.relay, "/v1/jobs/" + job["id"] + "/outputs/shadow", token)
+        self.assertEqual(again_code, 200)
+        self.assertEqual(again, binary)
         self.assertEqual(
             hashlib.sha256(binary).hexdigest(), done["result"]["outputs"][0]["sha256"]
         )
@@ -377,6 +378,7 @@ class GenerationIntegration(unittest.TestCase):
         self.assertEqual(
             call(self.base, "/v1/jobs", self.token, "POST", body, h)[0], 400
         )
+
         body, h = multipart(
             {**self.request, "clientRequestId": "digest", "inputSha256": "0" * 64},
             self.image,
@@ -384,6 +386,18 @@ class GenerationIntegration(unittest.TestCase):
         self.assertEqual(
             call(self.base, "/v1/jobs", self.token, "POST", body, h)[0], 400
         )
+
+    def test_04_pair_failures_block_ip_and_ignore_untrusted_forwarded_header(self):
+        responses = []
+        for i in range(5):
+            code, data = call(self.relay, "/v1/pair", method="POST", data={"code": "INVALID!"})
+            responses.append((code, data))
+        self.assertEqual(responses[-1][0], 429)
+        self.assertEqual(responses[-1][1]["error"]["code"], "PAIR_BLOCKED")
+        code, data = call(self.relay, "/v1/pair", method="POST", data={"code":"TEST8765AB"}, headers={"X-Forwarded-For":"203.0.113.42"})
+        self.assertEqual(code, 429)
+        self.assertEqual(data["error"]["code"], "PAIR_BLOCKED")
+
 
 
 if __name__ == "__main__":

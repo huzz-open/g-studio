@@ -1,6 +1,7 @@
 import { computeNormals } from '../../modules/sprite-slicer/core/normal/client'
 import type { PartAsset } from './schema'
 import { clonePart } from './schema'
+import { resolvePartModels } from '../generation/models'
 
 export function partImageUrl(part: PartAsset) {
   return part.image.uri.startsWith('builtin:') ? `${import.meta.env.BASE_URL}scene-lighting/${part.image.uri.slice(8)}.png` : part.image.uri
@@ -33,7 +34,7 @@ export function normalImageUrl(part: PartAsset): Promise<string> {
   return promise
 }
 export async function portablePart(part: PartAsset): Promise<PartAsset> {
-  const copy = clonePart(part)
+  const copy = clonePart(resolvePartModels(part))
   if (copy.image.uri.startsWith('builtin:')) copy.image.uri = pixelsUrl((await partPixels(copy)).pixels)
   return copy
 }

@@ -4,15 +4,21 @@ const {createPart,clonePart}=require('../src/shared/parts/schema.ts')
 const {changePartGeometry,createPartPreview,fitPartPreview}=require('../src/shared/parts/preview-state.ts')
 const image={uri:'data:image/png;base64,pixels',width:1,height:1}
 test('shape choices preserve authored size, image alignment and the live preview pose',()=>{
-  const part=createPart('prop',image),preview=createPartPreview(part)
+  const part=require('../src/shared/parts/builtins.ts').createBuiltinParts()[0],preview=createPartPreview(part)
   part.geometry.size=[1.3,2.7,.8];part.alignment={anchor:[.4,.9],offset:[.2,-.1],scale:1.3}
   preview.zoom=9;preview.target=[1,2,3];preview.light=[-1,6,4];preview.items[0].x=2;preview.items[0].z=-2
   const before=clonePart(preview),alignment=clonePart(part.alignment)
-  for(const kind of ['box','cylinder','template:umbrella','silhouette']){
+  for(const kind of ['silhouette','template:umbrella','silhouette']){
     changePartGeometry(part,kind)
     assert.deepEqual(part.geometry.size,[1.3,2.7,.8]);assert.deepEqual(part.alignment,alignment)
     assert.deepEqual(preview,before)
   }
+})
+test('shape changes accept only silhouette or the built-in part own template',()=>{
+  const part=createPart('prop',image)
+  for(const choice of ['box','cylinder','compound','template:umbrella'])assert.throws(()=>changePartGeometry(part,choice))
+  const barrel=require('../src/shared/parts/builtins.ts').createBuiltinParts().find(p=>p.id==='example:barrel')
+  assert.throws(()=>changePartGeometry(barrel,'template:umbrella'))
 })
 test('explicit fit only changes the camera, preserving object and light adjustments',()=>{
   const part=createPart('prop',image),preview=createPartPreview(part)

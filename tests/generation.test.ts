@@ -76,6 +76,7 @@ test("third-party capabilities accept new provider IDs and reject malformed or u
 import { decodeMesh, meshDataUri } from "../src/shared/parts/mesh.ts";
 import { createPart, validatePart } from "../src/shared/parts/schema.ts";
 import { buildPartGeometry } from "../src/modules/scene-lighting/part-geometry.ts";
+import { partGeometryOptions, selectPartGeometry } from '../src/shared/parts/geometry-options.ts';
 
 function glb(mutate: (d: any) => void = () => {}) {
   const binary = new ArrayBuffer(36);
@@ -106,6 +107,28 @@ function glb(mutate: (d: any) => void = () => {}) {
   new Uint8Array(result, 28 + json.length).set(new Uint8Array(binary));
   return result;
 }
+test('selected models survive switching, asset serialization and loss of generation history', () => {
+  const part = createPart('model', { uri: 'data:image/png;base64,cGl4ZWxz', width: 1, height: 1 });
+  const model = { kind: 'mesh' as const, size: [1, 1, .02] as [number, number, number], mesh: {
+    uri: meshDataUri(glb()), sha256: 'a'.repeat(64), inputSha256: 'b'.repeat(64), providerId: 'test', warnings: [],
+  } };
+  selectPartGeometry(part, model);
+  part.geometry.size[0] = 1.4;
+  selectPartGeometry(part, partGeometryOptions(part).find(g => g.kind === 'silhouette')!);
+  const restored = JSON.parse(JSON.stringify(part));
+  validatePart(restored);
+  const available = partGeometryOptions(restored);
+  selectPartGeometry(restored, available.find(g => g.kind === 'mesh')!);
+  assert.equal(restored.geometry.mesh!.uri, model.mesh.uri);
+  assert.equal(restored.geometry.size[0], 1.4);
+  assert.equal(buildPartGeometry(restored, {width:1,height:1,data:new Uint8ClampedArray([255,255,255,255])}).triangles.length, 1);
+  const corrupt = JSON.parse(JSON.stringify(part));
+  corrupt.geometryAlternatives[0].mesh.uri = 'broken';
+  assert.throws(() => validatePart(corrupt));
+  const badBaseline = JSON.parse(JSON.stringify(part));
+  badBaseline.geometry.defaultSize = [-1, 2, 3];
+  assert.throws(() => validatePart(badBaseline));
+});
 test("GLB import preserves transforms and produces existing shadow-renderer triangles", () => {
   const mesh = decodeMesh(
     meshDataUri(

@@ -13,6 +13,9 @@ import { registerToast, showToast } from './shared/components/toast'
 import { registerConfirm } from './shared/components/confirm'
 import { registerPrompt } from './shared/components/prompt'
 import { loadSettings } from './shared/settings'
+import { checkGenerationConnection, generationConnection } from './shared/generation/connection'
+import { navigationItems } from './shared/navigation'
+import { settingsDialog, needsGenerationSetup } from './shared/settings-dialog'
 import PartEditorHost from './shared/parts/PartEditorHost.vue'
 
 const router = useRouter()
@@ -26,21 +29,17 @@ const isDashboard = computed(() => route.path === '/')
 const wsDropdownOpen = ref(false)
 const showDisconnectConfirm = ref(false)
 const appReady = ref(false)
-const showSettings = ref(false)
+const showSettings = computed({ get:()=>settingsDialog.visible, set:value=>settingsDialog.visible=value })
 const toastRef = ref<InstanceType<typeof AppToast> | null>(null)
 const confirmDialogRef = ref<InstanceType<typeof ConfirmDialog> | null>(null)
 const promptDialogRef = ref<InstanceType<typeof PromptDialog> | null>(null)
 
-const navItems = [
-  { route:'/model-generation',labelKey:'generation.title',icon:'wand' },
-  { route: '/resource-manager', labelKey: 'nav.resourceManager', icon: 'folder-open' },
-  { route: '/sprite-slicer', labelKey: 'nav.spriteSlicer', icon: 'scissors' },
-  { route: '/scene-lighting', labelKey: 'sceneLight.title', icon: 'layers' },
-  { route: '/tileset-maker', labelKey: 'nav.tilesetMaker', icon: 'grid' },
-  { route: '/scene-region-editor', labelKey: 'nav.sceneRegionEditor', icon: 'layers' },
-]
+const navItems = navigationItems
 
+let connectionTimer: ReturnType<typeof setInterval> | undefined
 onMounted(async () => {
+  void checkGenerationConnection({ background: true })
+  connectionTimer = setInterval(() => { if (!generationConnection.checking) void checkGenerationConnection({ background: true }) }, 15000)
   if (toastRef.value) registerToast(toastRef.value)
   if (confirmDialogRef.value) registerConfirm(confirmDialogRef.value)
   if (promptDialogRef.value) registerPrompt(promptDialogRef.value)
@@ -52,6 +51,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  if (connectionTimer) clearInterval(connectionTimer)
   document.removeEventListener('keydown', handleGlobalKeydown)
   document.removeEventListener('click', handleClickOutside)
 })
@@ -157,6 +157,7 @@ async function handleRemoveRecent(e: Event, ws: SavedWorkspace) {
               v-for="item in navItems"
               :key="item.route"
               :to="item.route"
+              @click.capture="event => { if(needsGenerationSetup(item.route)) { event.preventDefault(); event.stopImmediatePropagation() } }"
               class="nav-link"
               active-class="active"
             >
@@ -281,11 +282,12 @@ async function handleRemoveRecent(e: Event, ws: SavedWorkspace) {
     <ConfirmDialog ref="confirmDialogRef" />
     <PromptDialog ref="promptDialogRef" />
 
-    <SettingsDialog :visible="showSettings" @close="showSettings = false" />
+    <SettingsDialog :initial-category="settingsDialog.category" :visible="showSettings" @close="showSettings = false" />
   </div>
 </template>
 
 <style>
+.nav-link.nav-disabled, .nav-link.nav-disabled:hover { opacity: .4; cursor: pointer; background: transparent; }
 * {
   margin: 0;
   padding: 0;

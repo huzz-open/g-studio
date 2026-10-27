@@ -4,7 +4,6 @@ const { createPart, clonePart, validatePart, validateInstances, sameSource, part
 const { buildPartGeometry, meshExtents, alignedBounds } = require('../src/modules/scene-lighting/part-geometry.ts')
 const { createBuiltinParts, isBuiltinPart } = require('../src/shared/parts/builtins.ts')
 const { validateGsFile, validateSpriteData } = require('../src/shared/gs-format/schema.ts')
-const { rayHit } = require('../src/modules/scene-lighting/model.ts')
 const image = { uri: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==', width: 1, height: 1 }
 const make = () => createPart('custom seventh prop', image, 'custom:test')
 
@@ -48,11 +47,24 @@ test('two instances reference one asset while retaining separate transforms and 
   assert.throws(()=>validateInstances([a,a]));assert.throws(()=>validateInstances([{...a,scale:0}]))
   assert.throws(()=>validateInstances([{...a,assetId:'constructor'}]))
 })
-test('new compound geometry keeps holes between separated primitives', () => {
-  const p=make();p.geometry={kind:'compound',size:[3,2,.3],parts:[{shape:'box',position:[-1,0,0],size:[.3,2,.3]},{shape:'box',position:[1,0,0],size:[.3,2,.3]}]};validatePart(p)
-  const m=buildPartGeometry(p,{width:1,height:1,data:new Uint8ClampedArray([255,255,255,255])})
-  assert.equal(rayHit([0,1,3],[0,1,-3],m.triangles),null)
-  assert.notEqual(rayHit([1.3,1,3],[1.3,1,-3],m.triangles),null)
+test('unsupported geometry is rejected in current shapes, alternatives and rendering', () => {
+  const {partGeometryOptions,selectPartGeometry}=require('../src/shared/parts/geometry-options.ts')
+  const unsupported=['box','cylinder','compound'].map(kind=>({kind,size:[1,2,1]}))
+  unsupported.push({kind:'template',template:'umbrella',size:[1,2,1]})
+  for(const geometry of unsupported){
+    const part=make();part.geometry=geometry
+    assert.throws(()=>validatePart(part))
+    assert.throws(()=>buildPartGeometry(part,{width:1,height:1,data:new Uint8ClampedArray([255,255,255,255])}))
+    assert.deepEqual(partGeometryOptions(part).map(g=>g.kind),['silhouette'])
+    const clean=make();clean.geometryAlternatives=[geometry]
+    assert.throws(()=>validatePart(clean))
+    assert.deepEqual(partGeometryOptions(clean).map(g=>g.kind),['silhouette'])
+    assert.throws(()=>selectPartGeometry(make(),geometry))
+  }
+  const barrel=createBuiltinParts().find(p=>p.id==='example:barrel')
+  barrel.geometry={kind:'template',template:'umbrella',size:[1,2,1]}
+  assert.throws(()=>validatePart(barrel))
+  assert.deepEqual(partGeometryOptions(barrel).filter(g=>g.kind==='template').map(g=>g.template),['barrel'])
 })
 test('silhouette geometry follows arbitrary alpha and never substitutes a bonsai', () => {
   const p=make(),pixels={width:3,height:3,data:new Uint8ClampedArray(3*3*4)}

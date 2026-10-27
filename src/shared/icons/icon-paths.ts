@@ -1,4 +1,6 @@
 export const iconPaths: Record<string, string> = {
+  silhouette: 'M9 3h6v4l3 3 1 8-3 3H8l-3-3 1-8 3-3z M2 6V2h4 M18 2h4v4 M22 18v4h-4 M6 22H2v-4',
+  'model-generate': 'M9 6 2 10v8l7 4 7-4v-8z M2 10l7 4 7-4 M9 14v8 M19 2l1 3 3 1-3 1-1 3-1-3-3-1 3-1z',
   upload: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12',
   download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3',
   play: 'M5 3l14 9-14 9V3z',

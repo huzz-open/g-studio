@@ -5,12 +5,12 @@ export const PART_FORMAT = 'g-studio/part' as const
 export const TEMPLATE_IDS = ['umbrella', 'barrel', 'chair', 'vase', 'chest', 'bonsai'] as const
 export type TemplateId = typeof TEMPLATE_IDS[number]
 export type Triple = [number, number, number]
-export interface PrimitivePart { shape: 'box' | 'cylinder' | 'ellipsoid'; position: Triple; size: Triple }
 export interface PartGeometry {
-  kind: 'silhouette' | 'box' | 'cylinder' | 'template' | 'compound' | 'mesh'
+  kind: 'silhouette' | 'template' | 'mesh'
   size: Triple
+  /** Reset baseline retained when a shape change preserves the authored size. */
+  defaultSize?: Triple
   template?: TemplateId
-  parts?: PrimitivePart[]
   mesh?: MeshGeometry
 }
 export interface PartAsset {
@@ -22,10 +22,20 @@ export interface PartAsset {
   image: { uri: string; width: number; height: number }
   normal: NormalSettings
   geometry: PartGeometry
+  /** Previously selected shapes, including embedded models, for switching back. */
+  geometryAlternatives?: PartGeometry[]
   alignment: { anchor: [number, number]; offset: [number, number]; scale: number }
   source?: { sheetHash: string; pixelHash: string; fileName: string; rect: [number, number, number, number]; gsPath?: string }
 }
 export function clonePart<T>(value: T): T { return JSON.parse(JSON.stringify(value)) }
+export function partTemplate(part: Pick<PartAsset, 'id' | 'image'>): TemplateId | undefined {
+  return TEMPLATE_IDS.find(id => part.image.uri === `builtin:${id}`)
+    ?? TEMPLATE_IDS.find(id => part.id === `example:${id}`)
+}
+export function isPartGeometryAllowed(part: Pick<PartAsset, 'id' | 'image'>, geometry: PartGeometry): boolean {
+  return geometry.kind === 'silhouette' || geometry.kind === 'mesh'
+    || (geometry.kind === 'template' && geometry.template !== undefined && geometry.template === partTemplate(part))
+}
 export function nextPartRevision(incoming: number, current?: number): number {
   const revision = current === undefined ? incoming : current + 1
   if (!Number.isSafeInteger(revision) || revision < 1) throw new Error('Invalid part revision')
@@ -51,16 +61,14 @@ export function validatePart(value: unknown): asserts value is PartAsset {
   if (!object(v.normal) || !Object.keys(DEFAULT_NORMAL_SETTINGS).every(k => k in v.normal)) fail('normal settings')
   normalSettings(v.normal)
   const g = v.geometry
-  if (!object(g) || !['silhouette', 'box', 'cylinder', 'template', 'compound', 'mesh'].includes(g.kind) || !tuple(g.size, 3, .02, 8)) fail('geometry')
-  if (g.kind === 'template' && !TEMPLATE_IDS.includes(g.template)) fail('unknown template')
-  if (g.kind === 'mesh') {
-    if (v.version !== 2 || !object(g.mesh) || typeof g.mesh.uri !== 'string' || !/^[a-f0-9]{64}$/.test(g.mesh.sha256) || !/^[a-f0-9]{64}$/.test(g.mesh.inputSha256) || typeof g.mesh.providerId !== 'string' || !Array.isArray(g.mesh.warnings) || !g.mesh.warnings.every((s:unknown)=>typeof s==='string')) fail('mesh metadata')
-    decodeMesh(g.mesh.uri)
-  }
-  if (g.kind === 'compound') {
-    if (!Array.isArray(g.parts) || !g.parts.length || g.parts.length > 64) fail('compound requires 1–64 primitives')
-    for (const p of g.parts) if (!object(p) || !['box', 'cylinder', 'ellipsoid'].includes(p.shape)
-      || !tuple(p.position, 3, -8, 8) || !tuple(p.size, 3, .02, 8)) fail('primitive')
+  validateGeometry(g, v.version, fail)
+  if (!isPartGeometryAllowed(v as PartAsset, g)) fail('geometry does not belong to this part')
+  if (v.geometryAlternatives !== undefined) {
+    if (!Array.isArray(v.geometryAlternatives) || v.geometryAlternatives.length > 32) fail('geometry alternatives')
+    for (const alternative of v.geometryAlternatives) {
+      validateGeometry(alternative, v.version, fail)
+      if (!isPartGeometryAllowed(v as PartAsset, alternative)) fail('geometry does not belong to this part')
+    }
   }
   if (!object(v.alignment) || !tuple(v.alignment.anchor, 2, 0, 1) || !tuple(v.alignment.offset, 2, -4, 4) || !finite(v.alignment.scale, .25, 3)) fail('alignment')
   if (v.source !== undefined) {
@@ -68,6 +76,17 @@ export function validatePart(value: unknown): asserts value is PartAsset {
     if (!object(s) || !/^[a-f0-9]{64}$/.test(s.sheetHash) || !/^[a-f0-9]{64}$/.test(s.pixelHash)
       || typeof s.fileName !== 'string' || s.fileName.length > 512 || !tuple(s.rect, 4, 0, 100000)
       || !s.rect.every(Number.isInteger) || s.rect[2] < 1 || s.rect[3] < 1 || (s.gsPath !== undefined && typeof s.gsPath !== 'string')) fail('source')
+  }
+}
+function validateGeometry(g: any, version: number, fail: (message: string) => never) {
+  if (!object(g) || !['silhouette', 'template', 'mesh'].includes(g.kind) || !tuple(g.size, 3, .02, 8)) fail('geometry')
+  if (g.defaultSize !== undefined && !tuple(g.defaultSize, 3, .02, 8)) fail('geometry default size')
+  if (g.kind === 'template' && !TEMPLATE_IDS.includes(g.template)) fail('unknown template')
+  if (g.kind === 'mesh') {
+    if (version !== 2 || !object(g.mesh) || typeof g.mesh.uri !== 'string' || !/^[a-f0-9]{64}$/.test(g.mesh.sha256) || !/^[a-f0-9]{64}$/.test(g.mesh.inputSha256) || typeof g.mesh.providerId !== 'string' || !Array.isArray(g.mesh.warnings) || !g.mesh.warnings.every((s:unknown)=>typeof s==='string')) fail('mesh metadata')
+    decodeMesh(g.mesh.uri)
+    if (g.mesh.modelId !== undefined && !validId(g.mesh.modelId)) fail('model id')
+    if (g.mesh.modelRevision !== undefined && (!Number.isSafeInteger(g.mesh.modelRevision) || g.mesh.modelRevision < 1)) fail('model revision')
   }
 }
 export function createPart(name: string, image: PartAsset['image'], id: string = crypto.randomUUID()): PartAsset {

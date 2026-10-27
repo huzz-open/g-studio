@@ -1,31 +1,32 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "../i18n";
+import { generationConnection, checkGenerationConnection } from "./connection";
+import ConnectionStatus from './ConnectionStatus.vue';
+import InfoHint from '../components/InfoHint.vue';
+import NumberRow from '../components/editor-shell/sidebar-atoms/NumberRow.vue';
+import { showToast, dismissToast } from '../components/toast';
 import SegmentedControl from "../components/SegmentedControl.vue";
 import {
   generationSettings as settings,
   snapshotConnection,
-  useDevelopmentConnection,
+  generationDefaults,
 } from "./settings";
 import { GenerationClient, endpoint } from "./client";
-import type { Capabilities } from "../../../packages/generation-protocol/types";
 import { forgetJobCredentials } from "./jobs";
+import type { GenerationParameters } from './parameters';
 const props = withDefaults(
-  defineProps<{ section?: "connection" | "defaults" }>(),
+  defineProps<{ section?: "connection" | "defaults"; disabled?: boolean; parameters?: GenerationParameters }>(),
   { section: "connection" },
 );
 const { t } = useI18n(),
   busy = ref(false),
-  status = ref(""),
-  error = ref(""),
-  device = ref(""),
-  capabilities = ref<Capabilities>(),
-  code = ref(""),
-  pairDisplay = ref("");
-let pairTimer: ReturnType<typeof setTimeout> | undefined,
-  disposed = false;
-let refreshTimer: ReturnType<typeof setTimeout> | undefined;
-let connectionEpoch = 0;
+  code = ref("");
+let disposed = false;
+let actionEpoch = 0;
+let feedbackToast: number | undefined;
+const capabilities = computed(() => generationConnection.capabilities);
+const parameters = computed(() => props.parameters ?? settings);
 watch(
   () => [
     settings.mode,
@@ -37,19 +38,13 @@ watch(
     settings.providerId,
   ],
   () => {
-    connectionEpoch++;
-    device.value = "";
-    status.value = "";
-    error.value = "";
-    if (pairTimer) clearTimeout(pairTimer);
-    if (refreshTimer) clearTimeout(refreshTimer);
-    pairDisplay.value = "";
+    actionEpoch++;
     busy.value = false;
   },
   { flush: "sync" },
 );
 const modes = computed(() =>
-  (["silhouette", "direct", "relay"] as const).map((value) => ({
+  (["direct", "relay"] as const).map((value) => ({
     value,
     label: t("generation.mode." + value),
   })),
@@ -60,103 +55,52 @@ const providerParameters = computed(
       (p) => p.providerId === settings.providerId,
     )?.parameters || {},
 );
-function setParameter(key: string, event: Event) {
-  (settings.parametersByProvider[settings.providerId] ??= {})[key] = Number(
-    (event.target as HTMLInputElement).value,
-  );
+function friendlyError(value: unknown) {
+  const message = String(value);
+  if (/Failed to fetch|NetworkError|fetch failed|TimeoutError|aborted|OFFLINE/i.test(message)) return t('generation.connectionFailedHint');
+  if (/401|Access token|UNAUTHORIZED/i.test(message)) return t('generation.credentialsInvalid');
+  if (/Invalid URL|Invalid service URL/i.test(message)) return t('generation.invalidAddress');
+  if (/PAIR_BLOCKED|Too many invalid|Too many attempts/i.test(message)) return t('generation.pairBlocked');
+  if (/Invalid or expired pairing|Invalid pairing/i.test(message)) return t('generation.pairExpired');
+  return message.replace(/^(TypeError|Error):\s*/, '');
 }
-async function connect() {
-  if (refreshTimer) clearTimeout(refreshTimer);
-  busy.value = true;
-  error.value = "";
-  status.value = "";
-  device.value = "";
-  let epoch = ++connectionEpoch;
+function feedback(message: string, success = false) {
+  if (feedbackToast !== undefined) dismissToast(feedbackToast);
+  feedbackToast = showToast(message, success ? 'success' : 'error', success ? 3000 : 5000);
+}
+async function connect(manual = true) {
+  if (settings.mode === 'direct' && !settings.baseUrl.trim()) settings.baseUrl = generationDefaults.baseUrl;
+  actionEpoch++;
+  if (manual && feedbackToast !== undefined) { dismissToast(feedbackToast); feedbackToast = undefined; }
+  if (manual) busy.value = true;
   try {
-    if (settings.mode === "direct" && !settings.token)
-      await useDevelopmentConnection();
-    epoch = ++connectionEpoch;
-    busy.value = true;
-    const c = new GenerationClient(snapshotConnection()),
-      caps = await c.capabilities();
-    if (epoch !== connectionEpoch || disposed) return;
-    capabilities.value = caps;
-    if (!caps.providers.some((p) => p.providerId === settings.providerId)) {
-      settings.providerId = (
-        caps.providers.find((p) => p.state === "ready") || caps.providers[0]!
-      ).providerId;
-      epoch = ++connectionEpoch;
-      busy.value = true;
+    await checkGenerationConnection({ background: !manual });
+    if (disposed) return;
+    if (manual && (generationConnection.connected || generationConnection.error)) {
+      feedback(generationConnection.connected ? t('generation.connected') : friendlyError(generationConnection.error || t('generation.connectionFailed')), generationConnection.connected);
     }
-    status.value = t("generation.connected");
-    try {
-      const info = await new GenerationClient(snapshotConnection()).info();
-      if (epoch === connectionEpoch)
-        device.value = info.backend === 'cuda' ? 'GPU · NVIDIA CUDA' : info.backend === 'mps' ? 'GPU · Apple MPS' : info.deviceType.toUpperCase();
-    } catch {
-      if (epoch === connectionEpoch) device.value = t("generation.unknown");
-    }
-  } catch (e) {
-    if (epoch === connectionEpoch) error.value = String(e);
-  } finally {
-    if (epoch === connectionEpoch) {
-      busy.value = false;
-      if (
-        !disposed &&
-        !error.value &&
-        capabilities.value?.providers.some((p) => p.state === "preparing")
-      )
-        refreshTimer = setTimeout(() => void connect(), 5000);
-    }
-  }
+  } finally { if (manual && !disposed) busy.value = false; }
 }
 async function pair() {
+  const attempted = ++actionEpoch;
+  const base = settings.relayUrl.trim();
+  if (!base) { feedback(t('generation.relayAddressRequired')); return; }
   busy.value = true;
-  error.value = "";
-  pairDisplay.value = "";
-  if (pairTimer) clearTimeout(pairTimer);
   try {
-    const base = endpoint(settings.relayUrl),
-      r = await fetch(base + "/v1/pair", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: code.value }),
-        signal: AbortSignal.timeout(15000),
-      }),
-      data = await r.json();
-    if (!r.ok) throw Error(data.error?.message || r.statusText);
-    pairDisplay.value = data.display;
-    const deadline = Date.now() + 300000;
-    const poll = async () => {
-      if (disposed) return;
-      try {
-        if (Date.now() > deadline) throw Error(t("generation.pairExpired"));
-        const rr = await fetch(base + "/v1/pair/" + data.id, {
-            headers: { Authorization: "Bearer " + data.pollToken },
-            signal: AbortSignal.timeout(15000),
-          }),
-          v = await rr.json();
-        if (!rr.ok) throw Error(v.error?.message || rr.statusText);
-        if (v.state === "approved") {
-          settings.relayToken = v.token;
-          settings.deviceId = v.deviceId;
-          pairDisplay.value = "";
-          busy.value = false;
-          await connect();
-          return;
-        }
-        if (v.state === "denied") throw Error(t("generation.pairDenied"));
-        pairTimer = setTimeout(() => void poll(), 2000);
-      } catch (e) {
-        error.value = String(e);
-        busy.value = false;
-      }
-    };
-    void poll();
-  } catch (e) {
-    error.value = String(e);
-    busy.value = false;
-  }
+    const response = await fetch(endpoint(base) + '/v1/pair', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: code.value.trim().toUpperCase() }), signal: AbortSignal.timeout(10000),
+    });
+    const data = await response.json();
+    if (!response.ok) throw Error(data.error?.message || response.statusText);
+    if (disposed || attempted !== actionEpoch) return;
+    if (data.state !== 'approved' || typeof data.token !== 'string' || typeof data.deviceId !== 'string') throw Error(t('generation.pairServiceOutdated'));
+    settings.relayToken = data.token;
+    settings.deviceId = data.deviceId;
+    code.value = '';
+    await connect();
+  } catch (error) { if (!disposed && attempted === actionEpoch) feedback(friendlyError(error)); }
+  finally { if (!disposed) busy.value = false; }
 }
 async function forget() {
   try {
@@ -167,22 +111,18 @@ async function forget() {
         { method: "DELETE" },
       );
     await forgetJobCredentials(connection);
-    settings.token = "";
     settings.relayToken = "";
     settings.deviceId = "";
-    device.value = "";
-    status.value = "";
   } catch (e) {
-    error.value = String(e);
+    feedback(friendlyError(e));
   }
 }
 onMounted(() => {
-  if (settings.mode === "direct" || (settings.mode === "relay" && settings.deviceId)) void connect();
+  if (props.section === "connection" && (settings.mode === "direct" || (settings.mode === "relay" && settings.deviceId))) void connect(false);
 });
 onUnmounted(() => {
   disposed = true;
-  if (pairTimer) clearTimeout(pairTimer);
-  if (refreshTimer) clearTimeout(refreshTimer);
+  actionEpoch++;
 });
 </script>
 <template>
@@ -195,54 +135,60 @@ onUnmounted(() => {
           :options="modes"
           :disabled="busy"
         />
-        <p>{{ t("generation.connectionHint") }}</p>
+
       </div>
       <template v-if="settings.mode === 'direct'">
         <div class="gs-row">
-          <label for="generation-url">{{ t("generation.apiUrl") }}</label
-          ><input
+          <div class="gs-label-actions">
+            <label for="generation-url">{{ t("generation.apiUrl") }}</label>
+            <ConnectionStatus />
+            <span v-if="generationConnection.device" class="device-tag">{{ generationConnection.device }}</span>
+            <button class="test-connection" :disabled="busy || generationConnection.checking" @click="connect(true)">{{ t(busy ? 'common.loading' : 'generation.testConnection') }}</button>
+          </div><input
             id="generation-url"
             v-model.trim="settings.baseUrl"
             placeholder="http://127.0.0.1:8765"
           />
         </div>
         <div class="gs-row">
-          <label for="generation-token">{{ t("generation.token") }}</label
-          ><input
+          <div class="gs-label-actions"><label for="generation-token">{{ t("generation.token") }}</label><InfoHint :label="t('generation.token')" :text="t('generation.tokenHint')" /></div><input
             id="generation-token"
             v-model.trim="settings.token"
             type="password"
             autocomplete="off"
           />
-          <p>{{ t("generation.tokenHint") }}</p>
+
         </div>
       </template>
       <template v-if="settings.mode === 'relay'">
         <div class="gs-row">
-          <label for="generation-relay">{{ t("generation.relayUrl") }}</label
-          ><input
+          <div class="gs-label-actions">
+            <label for="generation-relay">{{ t("generation.relayUrl") }}</label><InfoHint :label="t('generation.relayUrl')" :text="t('generation.relayPrivacy')" />
+            <ConnectionStatus />
+            <span v-if="generationConnection.device" class="device-tag">{{ generationConnection.device }}</span>
+            <button class="test-connection" :disabled="busy || generationConnection.checking || !settings.deviceId" @click="connect(true)">{{ t(busy ? 'common.loading' : 'generation.testConnection') }}</button>
+          </div><input
             id="generation-relay"
             v-model.trim="settings.relayUrl"
             :disabled="busy"
             placeholder="https://example.com"
           />
-          <p>{{ t("generation.relayPrivacy") }}</p>
+          <p>{{ t("generation.relayPurpose") }}</p>
         </div>
         <div v-if="!settings.deviceId" class="gs-row">
-          <label for="generation-pair">{{ t("generation.pairCode") }}</label>
+          <div class="gs-label-actions"><label for="generation-pair">{{ t("generation.pairCode") }}</label><InfoHint :label="t('generation.pairCode')" :text="t('generation.pairSecurity')" /></div>
           <div class="gs-actions">
             <input
               id="generation-pair"
               v-model.trim="code"
-              maxlength="8"
+              maxlength="10"
+              @input="code = code.toUpperCase().replace(/[^A-Z0-9]/g, '')"
               autocomplete="off"
-            /><button :disabled="busy || code.length !== 8" @click="pair">
+            /><button :disabled="busy || !/^[A-Z0-9]{10}$/.test(code)" @click="pair">
               {{ t("generation.pair") }}
             </button>
           </div>
-          <p v-if="pairDisplay">
-            {{ t("generation.confirmPair", { id: pairDisplay }) }}
-          </p>
+
         </div>
         <p v-else>
           {{ t("generation.boundDevice") }} ·
@@ -250,101 +196,48 @@ onUnmounted(() => {
         </p>
       </template>
       <template v-if="settings.mode !== 'silhouette'">
-        <div class="gs-actions">
-          <button :disabled="busy || (settings.mode === 'relay' && !settings.deviceId)" @click="connect">
-            {{
-              t(busy ? "common.loading" : "generation.testConnection")
-            }}</button
-          ><button
-            v-if="settings.token || settings.deviceId"
-            :disabled="busy"
-            @click="forget"
-          >
-            {{ t("generation.forget") }}
-          </button>
-        </div>
-        <p role="status">{{ status }}</p>
-        <div class="gs-device">
-          {{ t("generation.device") }}
-          <strong>{{ device || t("generation.unknown") }}</strong>
+        <div v-if="settings.mode === 'relay' && settings.deviceId" class="gs-actions">
+          <button :disabled="busy" :title="t('generation.forgetHint')" @click="forget">{{ t('generation.forget') }}</button>
         </div>
         <div v-if="capabilities" class="gs-row">
           <label for="generation-provider">{{ t("generation.provider") }}</label
           ><select
             id="generation-provider"
             v-model="settings.providerId"
-            @change="connect"
+            @change="connect(false)"
           >
             <option
-              v-for="p in capabilities.providers"
+              v-for="p in capabilities.providers.filter(p => p.providerId !== 'silhouette')"
               :key="p.providerId"
               :value="p.providerId"
             >
               {{ p.name }} · {{ t("generation.providerState." + p.state) }}
             </option>
           </select>
-          <p
-            v-for="p in capabilities.providers.filter((p) => p.error)"
-            :key="p.providerId"
-          >
-            {{ p.error }}
-          </p>
         </div>
       </template>
     </template>
-    <template v-else>
-      <div class="gs-row">
-        <label>{{ t("generation.targetFaces") }}</label
-        ><input
-          v-model.number="settings.targetFaces"
-          type="number"
-          min="1000"
-          max="40000"
-          step="1000"
-        />
-        <p>{{ t("generation.newTasksOnly") }}</p>
-      </div>
-      <div class="gs-row">
-        <label>{{ t("generation.seed") }}</label
-        ><input
-          v-model.number="settings.seed"
-          type="number"
-          min="0"
-          max="2147483647"
-          step="1"
-        />
-      </div>
-      <details v-if="Object.keys(providerParameters).length" class="gs-row">
-        <summary>{{ t("generation.advanced") }}</summary>
-        <div
-          v-for="(range, key) in providerParameters"
-          :key="key"
-          class="gs-row"
-        >
-          <label :for="'generation-param-' + key">{{
-            t("generation.parameter." + key) === "generation.parameter." + key
-              ? key
-              : t("generation.parameter." + key)
-          }}</label
-          ><input
-            :id="'generation-param-' + key"
-            type="number"
-            :min="range.min"
-            :max="range.max"
-            :step="range.step ?? (range.integer ? 1 : 'any')"
-            :value="
-              settings.parametersByProvider[settings.providerId]?.[key] ??
-              range.default
-            "
-            @input="setParameter(key, $event)"
-          />
-        </div>
-      </details>
-    </template>
-    <p v-if="error" class="gs-error" role="alert">{{ error }}</p>
+    <div v-else class="generation-parameters" role="group" :aria-label="t(props.parameters ? 'generation.parameters' : 'generation.defaults')">
+      <NumberRow v-model="parameters.targetFaces" :label="t('generation.targetFaces')" :hint="t(props.parameters ? 'generation.inputParametersHint' : 'generation.newTasksOnly')" :default-value="generationDefaults.targetFaces" :min="1000" :max="40000" :step="1000" :disabled="props.disabled" />
+      <NumberRow v-model="parameters.seed" :label="t('generation.seed')" :default-value="generationDefaults.seed" :min="0" :max="2147483647" :step="1" :disabled="props.disabled" />
+      <NumberRow v-for="(range,key) in providerParameters" :key="key" :label="t('generation.parameter.'+key) === 'generation.parameter.'+key ? key : t('generation.parameter.'+key)" :model-value="parameters.parametersByProvider[settings.providerId]?.[key] ?? range.default" :default-value="range.default" :min="range.min" :max="range.max" :step="range.step ?? (range.integer ? 1 : 0.1)" :disabled="props.disabled" @update:model-value="value=>(parameters.parametersByProvider[settings.providerId] ??= {})[key]=value" />
+    </div>
+
   </div>
 </template>
 <style scoped>
+.generation-parameters { display:flex; flex-direction:column; gap:12px; padding:14px 0; border-bottom:1px solid #2f2f2f; }
+.generation-parameters :deep(.number-row) { margin-bottom:0; }
+.generation-settings :deep(.number-label) { white-space:normal; }
+.generation-settings :deep(.number-input) { width:104px; }
+.generation-settings :deep(.number-row) { flex-wrap:wrap; }
+.generation-settings :deep(.number-input-wrap) { margin-left:auto; }
+.gs-label-actions { display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+.gs-label-actions label { color:#ddd; }
+.test-connection { margin-left:auto; background:transparent; color:#bbb; border:1px solid #555; border-radius:5px; padding:4px 8px; font:inherit; cursor:pointer; }
+.test-connection:disabled { opacity:.45; cursor:default; }
+.device-tag { color:#a8c6b3; background:#26372e; border:1px solid #3a5445; padding:2px 6px; border-radius:4px; font-size:10px; }
+
 .generation-settings {
   font-size: 12px;
   color: #ccc;
@@ -409,19 +302,5 @@ p {
 .gs-actions button:disabled {
   opacity: 0.45;
   cursor: default;
-}
-.gs-device {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  font-size: 12px;
-  color: #999;
-}
-.gs-device strong {
-  font-weight: 500;
-  color: #ddd;
-}
-.gs-error {
-  color: #efad99;
 }
 </style>

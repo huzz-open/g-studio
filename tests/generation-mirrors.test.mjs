@@ -13,6 +13,7 @@ import { configureProject } from "../scripts/generation/setup.mjs";
 import {
   applyMirrorProfile,
   readMirrorProfile,
+  torchIndexArgs,
 } from "../scripts/generation/mirrors.mjs";
 
 test("China preset is local, idempotent and reversible without installing dependencies", () => {
@@ -31,6 +32,15 @@ test("China preset is local, idempotent and reversible without installing depend
     assert.equal(applyMirrorProfile(root, env), "cn");
     assert.equal(env.GEN_MODEL_SOURCE, "modelscope");
     assert.match(env.UV_DEFAULT_INDEX, /tuna.tsinghua.edu.cn/);
+    assert.deepEqual(torchIndexArgs(root, 'cu124', {}), [
+      '--index', 'https://mirrors.nju.edu.cn/pytorch/whl/cu124',
+      '--default-index', 'https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple',
+    ]);
+    assert.equal(torchIndexArgs(root, 'mps', {})[1], 'https://mirrors.nju.edu.cn/pytorch/whl/cpu');
+    assert.equal(torchIndexArgs(root, 'cpu', {})[1], 'https://mirrors.nju.edu.cn/pytorch/whl/cpu');
+    assert.deepEqual(torchIndexArgs(root, 'cu124', { GEN_TORCH_INDEX: 'https://custom.example/cu124', UV_INDEX_URL: 'https://custom.example/simple' }), [
+      '--index', 'https://custom.example/cu124', '--default-index', 'https://custom.example/simple',
+    ]);
     const custom = {
       UV_DEFAULT_INDEX: "https://custom.example/simple",
       GEN_MODEL_SOURCE: "huggingface",
@@ -44,6 +54,7 @@ test("China preset is local, idempotent and reversible without installing depend
     ]);
     configureProject(root, "default");
     assert.equal(readMirrorProfile(root), "default");
+    assert.equal(torchIndexArgs(root, 'cu124', {})[1], 'https://download.pytorch.org/whl/cu124');
     assert.equal(readFileSync(join(root, ".npmrc"), "utf8"), original);
     const after = {};
     applyMirrorProfile(root, after);

@@ -4,6 +4,8 @@ import { meshBuilder } from "../../modules/scene-lighting/model";
 import type { Vec3 } from "../../modules/experiments/umbrella/math";
 
 export interface MeshGeometry {
+  modelId?: string;
+  modelRevision?: number;
   providerVersion?: string;
   generation?: {
     seed?: number;

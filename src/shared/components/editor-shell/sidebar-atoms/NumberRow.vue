@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import ParameterReset from '../../ParameterReset.vue'
+import InfoHint from '../../InfoHint.vue'
 import { useId } from 'vue'
 const inputId = useId()
 const props = withDefaults(defineProps<{
   label: string
+  hint?: string
   defaultValue?: number
   modelValue: number
   min?: number
@@ -42,7 +44,7 @@ function onInput(e: Event) {
 
 <template>
   <div class="number-row" :class="{ disabled, stacked, compact }">
-    <label :for="inputId" class="number-label">{{ label }}</label>
+    <div class="number-heading"><label :for="inputId" class="number-label">{{ label }}</label><InfoHint v-if="hint" :text="hint" :label="label" /></div>
     <div class="number-input-wrap">
       <ParameterReset v-if="defaultValue !== undefined" :model-value="modelValue" :default-value="defaultValue" :label="label" :disabled="disabled" @reset="emit('update:modelValue', defaultValue!); emit('commit', defaultValue!)" />
       <input :id="inputId"
@@ -63,6 +65,7 @@ function onInput(e: Event) {
 </template>
 
 <style scoped>
+.number-heading { display:flex; align-items:center; gap:4px; }
 .number-row {
   display: flex;
   align-items: center;
@@ -76,12 +79,13 @@ function onInput(e: Event) {
   white-space: nowrap;
 }
 .number-input-wrap {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 4px;
 }
 .number-input {
-  width: 60px;
+  width: 92px;
   padding: 3px 6px;
   font-size: 11px;
   background: #2a2a2a;
@@ -106,6 +110,6 @@ function onInput(e: Event) {
 .stacked .number-input { width: 100%; min-width: 0; }
 .number-row.compact { flex-direction: row; align-items: center; flex-wrap: nowrap; gap: 4px; margin: 0; min-width: 0; }
 .compact .number-label { flex-shrink: 0; }
-.compact .number-input-wrap { flex: 1; min-width: 0; justify-content: flex-end; gap: 2px; }
+.compact .number-input-wrap { flex-shrink:1; flex: 1; min-width: 0; justify-content: flex-end; gap: 2px; }
 .compact .number-input { width: 48px; min-width: 48px; padding: 3px 4px; }
 </style>

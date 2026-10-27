@@ -172,10 +172,18 @@ class DownloadTests(unittest.TestCase):
 
             def capture(message, **kwargs):
                 messages.append(message)
-                if "Connecting to" in message and ": running" in message:
+                if "Connecting to" in message and message.startswith("\r"):
                     connected.set()
-                if "Downloading progress.bin: running" in message:
+                if "MiB/s" in message and message.startswith("\r"):
                     receiving.set()
+
+            class Terminal(io.StringIO):
+                def isatty(self):
+                    return True
+
+                def write(self, message):
+                    capture(message)
+                    return super().write(message)
 
             class Response(io.BytesIO):
                 status = 206
@@ -194,12 +202,14 @@ class DownloadTests(unittest.TestCase):
             with (
                 patch.object(download, "PROGRESS_INTERVAL", 0.01),
                 patch("builtins.print", side_effect=capture),
+                patch("sys.stderr", Terminal()),
                 patch("download.urllib.request.urlopen", side_effect=fetch) as network,
             ):
                 download.download(item)
             self.assertEqual(network.call_count, 1)
             self.assertEqual(target.read_bytes(), payload)
-            self.assertTrue(any("waiting for data" in m for m in messages))
+            self.assertTrue(any(m.startswith("\r\x1b[2K") for m in messages))
+            self.assertFalse(any(": running" in m for m in messages))
             self.assertTrue(any("100.0%" in m and "ETA 0s" in m for m in messages))
             self.assertTrue(any("SHA256 progress.bin.part: verified" in m for m in messages))
 
@@ -213,18 +223,49 @@ class DownloadTests(unittest.TestCase):
             import download
             importlib.reload(download)
             output = io.StringIO()
-            with patch("sys.stdout", output):
+            with patch("sys.stderr", output), patch.dict(os.environ, {"GEN_PROGRESS": "0"}):
                 with self.assertRaisesRegex(OSError, "read failed"):
                     with download.Progress("network stage") as progress:
                         raise OSError("read failed")
-                self.assertFalse(progress.thread.is_alive())
+                self.assertTrue(progress.thread is None or not progress.thread.is_alive())
                 with patch.object(download.time, "monotonic", side_effect=[0, 1, 1]):
                     progress = download.Progress("resume", 10 * 1024**2, 9 * 1024**2)
                     progress.advance(1024**2)
-                    progress.report()
+                    progress.report("complete")
             self.assertIn("network stage: failed", output.getvalue())
             self.assertNotIn("network stage: complete", output.getvalue())
             self.assertIn("1.00 MiB/s", output.getvalue())
+
+    def test_progress_plain_logs_and_stalled_speed(self):
+        import download
+        output = io.StringIO()
+        with patch.dict(os.environ, {"GEN_PROGRESS": "0"}):
+            with download.Progress("plain log", stream=output) as progress:
+                progress.report()
+                progress.report()
+                self.assertIsNone(progress.thread)
+        self.assertEqual(len(output.getvalue().splitlines()), 2)
+        self.assertNotIn("\x1b", output.getvalue())
+        self.assertNotIn("\r", output.getvalue())
+
+        class Terminal(io.StringIO):
+            def isatty(self):
+                return True
+
+        output = Terminal()
+        with patch.object(download.time, "monotonic", return_value=0):
+            progress = download.Progress("download", 10 * 1024**2, stream=output)
+        with patch.object(download.time, "monotonic", return_value=1):
+            progress.advance(1024**2)
+            progress.report()
+        self.assertIn("1.00 MiB/s", output.getvalue())
+        output.seek(0)
+        output.truncate()
+        with patch.object(download.time, "monotonic", return_value=6):
+            progress.report()
+        self.assertIn("0.00 MiB/s", output.getvalue())
+        self.assertIn("waiting 5s", output.getvalue())
+        self.assertNotIn("\n", output.getvalue())
 
     def test_modelscope_priority_and_checksum_fallback(self):
         with (

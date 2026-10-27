@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import GenerationSettings from '../generation/GenerationSettings.vue'
 import { resetGenerationPreferences } from '../generation/settings'
 import { useI18n } from '../i18n'
@@ -9,7 +9,7 @@ import SegmentedControl from './SegmentedControl.vue'
 import InlineSwitch from './InlineSwitch.vue'
 import GridSizeInput from './GridSizeInput.vue'
 
-const props = defineProps<{ visible: boolean }>()
+const props = defineProps<{ visible: boolean; initialCategory?: string }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
 
 const { t } = useI18n()
@@ -296,6 +296,9 @@ function onResetAll() {
   resetSettings()
   resetGenerationPreferences()
 }
+watch(() => [props.visible, props.initialCategory], () => {
+  if (props.visible && props.initialCategory) selectCat(props.initialCategory)
+}, { immediate: true })
 
 function isModified(item: SettingItem): boolean {
   if (item.get() !== item.defaultVal) return true

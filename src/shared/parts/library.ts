@@ -1,4 +1,5 @@
-import { shallowReactive, ref, type Ref } from 'vue'
+import { shallowReactive, ref, watch, type Ref } from 'vue'
+import { generatedModels, loadGeneratedModels, resolvePartModels } from '../generation/models'
 import { clonePart, validatePart, sameSource, nextPartRevision, type PartAsset } from './schema'
 import { createBuiltinParts } from './builtins'
 
@@ -9,6 +10,9 @@ export const libraryError: Ref<string> = hotState?.libraryError ?? ref('')
 let loading: Promise<void> | undefined = hotState?.loading, database: Promise<IDBDatabase> | undefined
 let writes: Promise<unknown> = Promise.resolve()
 if(import.meta.hot)import.meta.hot.dispose(data=>Object.assign(data,{partLibrary,libraryReady,libraryError,loading}))
+watch(() => [...generatedModels.values()], () => {
+  for (const [id, part] of Object.entries(partLibrary)) partLibrary[id] = resolvePartModels(part)
+}, { flush:'sync' })
 function db() {
   return database ??= new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open('g-studio-parts-v1', 1)
@@ -40,15 +44,16 @@ async function put(parts: PartAsset[]) {
 }
 export function loadPartLibrary() {
   return loading ??= (async () => {
+    await loadGeneratedModels()
     for (const part of createBuiltinParts()) partLibrary[part.id] = part
     try {
-      for (const part of await readAll()) { try { validatePart(part); partLibrary[part.id] = part } catch { /* Reject only the damaged entry. */ } }
+      for (const part of await readAll()) { try { validatePart(part); partLibrary[part.id] = resolvePartModels(part) } catch { /* Reject only the damaged entry. */ } }
     } catch (e) { libraryError.value = String(e) }
     libraryReady.value = true
   })()
 }
 export async function savePart(part: PartAsset, expectedRevision?: number): Promise<PartAsset> {
-  await loadPartLibrary(); validatePart(part)
+  await loadPartLibrary(); part = resolvePartModels(part); validatePart(part)
   const operation = writes.then(async () => {
     const current = partLibrary[part.id]
     if (expectedRevision !== undefined && current?.revision !== expectedRevision) throw new Error('部件已在其他编辑中更新，请关闭并重新打开后再修改。')
@@ -81,7 +86,7 @@ export async function hydrateParts(parts: PartAsset[]) {
   const operation = writes.then(async () => {
     const incoming = parts.filter(p => !partLibrary[p.id] || p.revision > partLibrary[p.id].revision).map(clonePart)
     if (!incoming.length) return
-    const resolved=await put(incoming); resolved.forEach(p => { partLibrary[p.id] = p })
+    const resolved=await put(incoming); resolved.forEach(p => { partLibrary[p.id] = resolvePartModels(p) })
   })
   writes = operation.catch(() => undefined); return operation
 }

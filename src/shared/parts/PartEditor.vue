@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import GenerationPanel from '../generation/GenerationPanel.vue'
+import { generatedModels, resolvePartModels } from '../generation/models'
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from '../i18n'
 import { NORMAL_RANGES } from '../types/normal-settings'
-import { clonePart, validatePart, TEMPLATE_IDS, type PartAsset } from './schema'
+import { clonePart, validatePart, type PartAsset, type PartGeometry } from './schema'
 import { partLibrary, savePart } from './library'
 import { partImageUrl, normalImageUrl, portablePart } from './images'
 import { closePartEditor, openPartEditor } from './editor-session'
@@ -13,7 +14,10 @@ import { createLatestTask } from '../utils/latest-task'
 import { downloadBlob } from '../utils/download'
 import { confirm } from '../components/confirm'
 import { partParameterDefaults } from './parameter-defaults'
-import { createPartPreview, fitPartPreview, changePartGeometry } from './preview-state'
+import { createPartPreview, fitPartPreview } from './preview-state'
+import { geometryKey, matchingModelJobs, partGeometryOptions, selectPartGeometry } from './geometry-options'
+import { generationJobs, loadGenerationJobs } from '../generation/jobs'
+import { sha256 } from '../generation/client'
 import ImageCanvas from '../components/ImageCanvas.vue'
 import SegmentedControl from '../components/SegmentedControl.vue'
 import SceneViewControls from '../../modules/scene-lighting/SceneViewControls.vue'
@@ -25,16 +29,40 @@ import { SliderRow } from '../components/editor-shell/sidebar-atoms'
 import InlineSwitch from '../components/InlineSwitch.vue'
 import ScrollArea from '../components/ScrollArea.vue'
 import InfoHint from '../components/InfoHint.vue'
+import GeometrySelect from './GeometrySelect.vue'
 
 const props=defineProps<{asset:PartAsset;origin:'slicer'|'scene'}>()
 const {t}=useI18n(),router=useRouter(),draft=ref(clonePart(props.asset)),baseline=ref(clonePart(props.asset))
+watch(() => [...generatedModels.values()], () => {
+  draft.value = resolvePartModels(draft.value)
+  baseline.value = resolvePartModels(baseline.value)
+}, { flush:'sync' })
 const saving=ref(false),error=ref(''),view=ref<'original'|'normal'|'preview'>('preview'),normalUrl=ref(''),normalBusy=ref(false)
 const confirming=ref(false),showGeneration=ref(false)
-function applyGenerated(part:PartAsset){draft.value=clonePart(part);showGeneration.value=false;framePreview()}
+const geometrySelect=ref<InstanceType<typeof GeometrySelect>>()
+function applyGenerated(part:PartAsset){geometryChosen.value=true;selectPartGeometry(draft.value,part.geometry);showGeneration.value=false;framePreview()}
 const panel=ref<HTMLElement>(),previewAutoFit=ref(true)
 const dirty=computed(()=>JSON.stringify(draft.value)!==JSON.stringify(baseline.value))
 const conflict=computed(()=>partLibrary[props.asset.id]?.revision!==baseline.value.revision)
-const geometryChoice=computed(()=>draft.value.geometry.kind==='template'?'template:'+draft.value.geometry.template:draft.value.geometry.kind)
+const geometryChosen=ref(false),inputHash=ref('')
+const modelJobs=computed(()=>matchingModelJobs(generationJobs,inputHash.value))
+const geometryOptions=computed(()=>partGeometryOptions(draft.value,modelJobs.value))
+const geometryChoice=computed(()=>geometryKey(draft.value.geometry))
+const hoveredGeometry=ref<string|null>(null)
+// Viewport-only data: hover never changes draft, alternatives, dirty state or saved assets.
+const previewPart=computed<PartAsset>(()=>{
+  const geometry=geometryOptions.value.find(option=>geometryKey(option)===hoveredGeometry.value)
+  if(!geometry||geometryKey(geometry)===geometryChoice.value)return draft.value
+  return {...draft.value,version:geometry.kind==='mesh'?2:draft.value.version,geometry:clonePart(geometry)}
+})
+function geometryLabel(geometry:PartGeometry){
+  if(geometry.kind==='template')return t('sceneLight.'+geometry.template)+' · '+t('parts.template')
+  if(geometry.kind==='mesh'){
+    const models=geometryOptions.value.filter(option=>option.kind==='mesh')
+    return t('generation.mesh')+(models.length>1?' '+(models.findIndex(option=>geometryKey(option)===geometryKey(geometry))+1):'')
+  }
+  return t('parts.'+geometry.kind)
+}
 const previewDefaults=createPartPreview(props.asset)
 const preview=reactive(clonePart(previewDefaults))
 const parameterDefaults=computed(()=>partParameterDefaults(draft.value))
@@ -42,14 +70,28 @@ function framePreview(){
   previewAutoFit.value=true
   const canvas=panel.value?.querySelector('.part-preview canvas')
   const rect=canvas?.getBoundingClientRect()
-  fitPartPreview(preview,draft.value,rect&&rect.height>0?rect.width/rect.height:1)
+  fitPartPreview(preview,previewPart.value,rect&&rect.height>0?rect.width/rect.height:1)
 }
 const normals=createLatestTask<PartAsset,string>({interval:160,acceptIntermediate:true,onBusy:v=>{normalBusy.value=v},onError:e=>{error.value=String(e)},run:part=>normalImageUrl(part),apply:(url,part)=>{if(JSON.stringify(part.image)===JSON.stringify(draft.value.image))normalUrl.value=url}})
 watch(()=>[view.value,draft.value.image,draft.value.normal],()=>{if(view.value==='normal')normals.request(clonePart(draft.value))},{deep:true})
-function chooseGeometry(event:Event){
-  const value=(event.target as HTMLSelectElement).value
-  changePartGeometry(draft.value,value)
+function chooseGeometry(value:string){
+  const geometry=geometryOptions.value.find(option=>geometryKey(option)===value)
+  if(geometry){geometryChosen.value=true;selectPartGeometry(draft.value,geometry)}
 }
+watch(()=>draft.value.image,async(image,_,onCleanup)=>{
+  let current=true;onCleanup(()=>{current=false});inputHash.value=''
+  try{
+    const input=await portablePart({...draft.value,image})
+    const hash=await sha256(await(await fetch(input.image.uri)).arrayBuffer())
+    if(current)inputHash.value=hash
+  }catch(e){if(current)error.value=String(e)}
+},{immediate:true})
+watch(()=>modelJobs.value[0],job=>{
+  // Respect an explicit choice, including one saved in a previous editing session.
+  if(job?.geometry&&!geometryChosen.value&&draft.value.geometry.kind!=='mesh'&&draft.value.geometryAlternatives===undefined){
+    selectPartGeometry(draft.value,job.geometry);framePreview()
+  }
+},{immediate:true})
 async function save():Promise<PartAsset|undefined>{
   if(saving.value)return
   saving.value=true;error.value=''
@@ -78,6 +120,7 @@ async function exportPackage(){
   }catch(e){error.value=String(e)}finally{saving.value=false}
 }
 function captureKey(event:KeyboardEvent){
+  if(event.key==='Escape'&&geometrySelect.value?.close()){event.preventDefault();event.stopImmediatePropagation();return}
   if(showGeneration.value){if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();showGeneration.value=false}return}
   if(confirming.value)return
   if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();void leave()}
@@ -85,7 +128,7 @@ function captureKey(event:KeyboardEvent){
   else if(event.key==='Tab'&&panel.value){const elements=[...panel.value.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]')].filter(el=>el.offsetParent!==null);const first=elements[0],last=elements.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus()}}
 }
 const normalKeys=['normalStrength','shapeStrength','detailStrength','detailScale','shapeRadius','shapeSoftness','alphaThreshold'] as const
-onMounted(()=>{framePreview();panel.value?.focus();document.addEventListener('keydown',captureKey,true)})
+onMounted(()=>{framePreview();panel.value?.focus();document.addEventListener('keydown',captureKey,true);void loadGenerationJobs().catch(e=>{error.value=String(e)})})
 onUnmounted(()=>{normals.dispose();document.removeEventListener('keydown',captureKey,true)})
 </script>
 <template>
@@ -100,9 +143,7 @@ onUnmounted(()=>{normals.dispose();document.removeEventListener('keydown',captur
       <ScrollArea class="part-properties-scroll" :label="t('parts.properties')"><fieldset class="part-properties" :disabled="saving">
       <SidebarSection :title="t('parts.asset')" :collapsible="false"><label class="name-field">{{t('parts.name')}}<input v-model="draft.name" maxlength="120" :aria-label="t('parts.name')"/></label></SidebarSection>
       <SidebarSection v-if="view==='preview'" :title="t('parts.geometry')" :collapsible="false">
-        <select :value="geometryChoice" :aria-label="t('parts.geometryType')" @change="chooseGeometry"><option value="silhouette">{{t('parts.silhouette')}}</option><option value="box">{{t('parts.box')}}</option><option value="cylinder">{{t('parts.cylinder')}}</option><option v-for="id in TEMPLATE_IDS" :key="id" :value="'template:'+id">{{t('sceneLight.'+id)}} · {{t('parts.template')}}</option><option v-if="draft.geometry.kind==='mesh'" value="mesh">{{t('generation.mesh')}}</option><option v-if="draft.geometry.kind==='compound'" value="compound">{{t('parts.compound')}}</option></select>
-        <button class="wide" @click="showGeneration=true">{{t('generation.fromImage')}}</button>
-        <InfoHint :label="t('parts.geometry')" :text="t(draft.geometry.kind==='silhouette'?'parts.silhouetteNote':'parts.geometryHint')"/>
+        <GeometrySelect ref="geometrySelect" :part="draft" :model-value="geometryChoice" :options="geometryOptions.map(geometry=>({value:geometryKey(geometry),label:geometryLabel(geometry),geometry}))" :disabled="saving" @update:model-value="chooseGeometry" @preview="hoveredGeometry=$event" @generate="showGeneration=true"/>
         <SliderRow v-for="(label,i) in ['parts.width','parts.height','parts.depth']" :key="label" v-model="draft.geometry.size[i]" :default-value="parameterDefaults.geometry.size[i]" :label="t(label)" :min="0.02" :max="8" :step="0.01" :precision="2"/>
       </SidebarSection>
       <SidebarSection v-if="view==='preview'&&preview.mode==='sprites'" :title="t('parts.alignment')">
@@ -124,10 +165,10 @@ onUnmounted(()=>{normals.dispose();document.removeEventListener('keydown',captur
         <ImageCanvas :src="view==='original'?partImageUrl(draft):normalUrl" :fullscreen-toggle="false" keep-view-on-src-change controls-position="bottom-left"/>
         <span v-if="view==='normal'&&normalBusy" class="preview-status" role="status">{{t('normal.generating')}}</span>
       </div>
-      <LightingViewport v-else :state="preview" :assets="[draft]" compact :editable="false" :controls="false" :fit-view="framePreview" :auto-fit="previewAutoFit" @zoom="previewAutoFit=false" @pan="previewAutoFit=false"/>
+      <LightingViewport v-else :state="preview" :assets="[previewPart]" compact :editable="false" :controls="false" :fit-view="framePreview" :auto-fit="previewAutoFit" @zoom="previewAutoFit=false" @pan="previewAutoFit=false"/>
     </main></div>
     <footer><div class="button-row"><button :disabled="saving" @click="exportAsset">{{t('parts.exportAsset')}}</button><button :disabled="saving" @click="exportPackage">{{t('parts.exportPackage')}}</button><button v-if="origin==='scene'" :disabled="saving" @click="locate">{{t('parts.locateSlicer')}}</button></div><div class="button-row"><button :disabled="saving" @click="addToScene">{{t('parts.addOne')}}</button><button :disabled="saving" @click="leave">{{t(origin==='scene'?'parts.backScene':'parts.backSlicer')}}</button><button class="primary" :disabled="saving||conflict" @click="saveAndClose">{{t(saving?'common.loading':'parts.saveReturn')}}</button></div></footer>
-  </section></div><div v-if="showGeneration" class="generation-overlay"><GenerationPanel :part="draft" @apply="applyGenerated" @close="showGeneration=false"/></div></Teleport>
+  </section></div><div v-if="showGeneration" class="generation-overlay"><GenerationPanel :part="draft" :origin="origin" @apply="applyGenerated" @close="showGeneration=false"/></div></Teleport>
 </template>
 <style scoped>
 .generation-overlay{position:fixed;inset:4vh 3vw;z-index:1800;border:1px solid #555;border-radius:9px;overflow:hidden;box-shadow:0 0 0 100vmax #0009}

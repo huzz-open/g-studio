@@ -1,5 +1,6 @@
 import { decodeMesh } from '../../shared/parts/mesh'
-import { type PartAsset, type PartGeometry, type TemplateId, type Triple } from '../../shared/parts/schema'
+import { resolveModelGeometry } from '../../shared/generation/models'
+import { isPartGeometryAllowed, type PartAsset, type PartGeometry, type TemplateId, type Triple } from '../../shared/parts/schema'
 import { buildItem, meshBuilder, roomBounds, type RoomSize, spriteBounds, YAW, type Mesh } from './model'
 import { normalize, type Vec3 } from '../experiments/umbrella/math'
 
@@ -23,40 +24,26 @@ function resize(mesh: Mesh, size: Triple): Mesh {
 }
 export function templateGeometry(id: TemplateId): PartGeometry { return { kind: 'template', template: id, size: meshExtents(buildItem(id)).size } }
 export function buildPartGeometry(part: PartAsset, pixels: { width: number; height: number; data: Uint8ClampedArray }): Mesh {
-  const g = part.geometry, color: Vec3 = [.56, .58, .53]
+  const g = resolveModelGeometry(part.geometry), color: Vec3 = [.56, .58, .53]
+  if (!isPartGeometryAllowed(part, g)) throw new Error('Unsupported part geometry')
   if (g.kind === 'mesh') return resize(decodeMesh(g.mesh!.uri), g.size)
   if (g.kind === 'template') return resize(buildItem(g.template!), g.size)
   const builder = meshBuilder()
-  if (g.kind === 'box') builder.box(0, 0, 0, 1, 1, 1, color)
-  else if (g.kind === 'cylinder') builder.lathe([[0, 0], [.5, 0], [.5, 1], [0, 1]], color)
-  else if (g.kind === 'compound') {
-    for (const p of g.parts!) {
-      if (p.shape === 'box') builder.box(...p.position, ...p.size, color)
-      else if (p.shape === 'ellipsoid') builder.ellipsoid([p.position[0], p.position[1] + p.size[1] / 2, p.position[2]], p.size.map(v => v / 2) as Vec3, color)
-      else {
-        const unit = meshBuilder(); unit.lathe([[0, 0], [.5, 0], [.5, 1], [0, 1]], color)
-        const mesh = resize(unit.build(), p.size)
-        for (const [a, b, c] of mesh.triangles) builder.tri(...[a, b, c].map(v => v.map((n, i) => n + p.position[i]) as Vec3) as [Vec3, Vec3, Vec3], color)
-      }
+  // Explicitly approximate: an upright thin silhouette, not an inferred solid object.
+  const ratio = Math.min(1, 64 / Math.max(pixels.width, pixels.height))
+  const w = Math.max(1, Math.ceil(pixels.width * ratio)), h = Math.max(1, Math.ceil(pixels.height * ratio)), mask = new Uint8Array(w * h)
+  for (let y = 0; y < pixels.height; y++) for (let x = 0; x < pixels.width; x++) if (pixels.data[(y * pixels.width + x) * 4 + 3] >= 60) mask[Math.min(h - 1, Math.floor(y * ratio)) * w + Math.min(w - 1, Math.floor(x * ratio))] = 1
+  for (let y = 0; y < h; y++) {
+    let start = -1
+    for (let x = 0; x <= w; x++) {
+      if (x < w && mask[y * w + x]) { if (start < 0) start = x }
+      else if (start >= 0) { builder.box((start + x) / 2 / w - .5, (h - y - 1) / h, 0, (x - start) / w, 1 / h, .04, color); start = -1 }
     }
-  } else {
-    // Explicitly approximate: an upright thin silhouette, not an inferred solid object.
-    const ratio = Math.min(1, 64 / Math.max(pixels.width, pixels.height))
-    const w = Math.max(1, Math.ceil(pixels.width * ratio)), h = Math.max(1, Math.ceil(pixels.height * ratio)), mask = new Uint8Array(w * h)
-    for (let y = 0; y < pixels.height; y++) for (let x = 0; x < pixels.width; x++) if (pixels.data[(y * pixels.width + x) * 4 + 3] >= 60) mask[Math.min(h - 1, Math.floor(y * ratio)) * w + Math.min(w - 1, Math.floor(x * ratio))] = 1
-    for (let y = 0; y < h; y++) {
-      let start = -1
-      for (let x = 0; x <= w; x++) {
-        if (x < w && mask[y * w + x]) { if (start < 0) start = x }
-        else if (start >= 0) { builder.box((start + x) / 2 / w - .5, (h - y - 1) / h, 0, (x - start) / w, 1 / h, .04, color); start = -1 }
-      }
-    }
-    const mesh = resize(builder.build(), g.size), angle = YAW * Math.PI / 180
-    const rotate = (v: Vec3): Vec3 => [v[0] * Math.cos(angle) + v[2] * Math.sin(angle), v[1], -v[0] * Math.sin(angle) + v[2] * Math.cos(angle)]
-    for (let i = 0; i < mesh.vertices.length; i += 9) for (const offset of [0, 3]) mesh.vertices.set(rotate(Array.from(mesh.vertices.slice(i + offset, i + offset + 3)) as Vec3), i + offset)
-    mesh.triangles = mesh.triangles.map(tri => tri.map(rotate)); return mesh
   }
-  return resize(builder.build(), g.size)
+  const mesh = resize(builder.build(), g.size), angle = YAW * Math.PI / 180
+  const rotate = (v: Vec3): Vec3 => [v[0] * Math.cos(angle) + v[2] * Math.sin(angle), v[1], -v[0] * Math.sin(angle) + v[2] * Math.cos(angle)]
+  for (let i = 0; i < mesh.vertices.length; i += 9) for (const offset of [0, 3]) mesh.vertices.set(rotate(Array.from(mesh.vertices.slice(i + offset, i + offset + 3)) as Vec3), i + offset)
+  mesh.triangles = mesh.triangles.map(tri => tri.map(rotate)); return mesh
 }
 export function alignedBounds(part: PartAsset, mesh: Mesh) {
   const base = spriteBounds(mesh, part.image.width / part.image.height)

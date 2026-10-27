@@ -75,6 +75,7 @@ const altOverlayText = computed(() => props.altDropOverlayText ?? t('common.drop
 
       <!-- Actual viewport content -->
       <slot v-if="!showEmpty || loading" />
+      <slot name="overlay" />
     </div>
   </DropTarget>
 </template>

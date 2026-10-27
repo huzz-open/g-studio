@@ -19,7 +19,7 @@ function show(message: string, type: ToastItem['type'] = 'info', duration = 3000
   const id = ++nextId
   toasts.value.push({ id, message, type, leaving: false, action })
 
-  const timer = setTimeout(() => dismiss(id), action ? Math.max(duration, 6000) : duration)
+  const timer = setTimeout(() => dismiss(id), duration)
   timers.set(id, timer)
   return id
 }

@@ -5,8 +5,18 @@ export const MIRROR_CONFIG = ".generation-mirrors.local.json";
 export const CN_MIRRORS = Object.freeze({
   npmRegistry: "https://registry.npmmirror.com",
   pythonIndex: "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple",
+  torchIndex: "https://mirrors.nju.edu.cn/pytorch/whl",
   modelSource: "modelscope",
 });
+
+export function torchIndexArgs(root, variant, env = process.env) {
+  const channel = variant === 'mps' ? 'cpu' : variant;
+  const cn = readMirrorProfile(root) === 'cn';
+  const index = env.GEN_TORCH_INDEX || `${cn ? CN_MIRRORS.torchIndex : 'https://download.pytorch.org/whl'}/${channel}`;
+  // Keep the CUDA/CPU index first: generic PyPI wheels are not interchangeable.
+  // Missing ordinary dependencies can be resolved from the selected PyPI mirror.
+  return ['--index', index, '--default-index', env.UV_DEFAULT_INDEX || env.UV_INDEX_URL || (cn ? CN_MIRRORS.pythonIndex : 'https://pypi.org/simple')];
+}
 
 export function readMirrorProfile(root) {
   const file = join(root, MIRROR_CONFIG);

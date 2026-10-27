@@ -120,6 +120,7 @@ function onViewportDrop(files: File[], modifiers: DropModifiers) {
         @drop="onViewportDrop"
       >
         <slot name="viewport" />
+        <template #overlay><slot name="viewport-overlay" /></template>
       </ViewportArea>
     </div>
 

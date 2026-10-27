@@ -8,7 +8,7 @@ import secrets
 import socket
 from urllib.parse import urlparse
 from aiohttp import ClientSession, ClientTimeout, WSMsgType
-from config import config, HOME
+from config import config, DATA_HOME
 
 
 async def run_relay(service):
@@ -40,21 +40,6 @@ async def run_relay(service):
                     tasks = set()
 
                     async def handle(m):
-                        nonlocal paired
-                        if m["type"] == "pair.request":
-                            prompt = f"[relay] Pair request {m['display']}. Check this matches your browser. Approve? [y/N]: "
-                            answer = await asyncio.to_thread(input, prompt)
-                            accept = answer.strip().lower() == "y"
-                            await ws.send_json(
-                                {
-                                    "type": "pair.confirm",
-                                    "id": m["id"],
-                                    "accept": accept,
-                                }
-                            )
-                            if accept:
-                                paired = True
-                            return
                         args = m.get("args", {})
                         method = m.get("method")
                         try:
@@ -100,7 +85,7 @@ async def run_relay(service):
                                 service.save(job)
                                 result = {"ok": True}
                             elif method == "upload":
-                                JOBS = HOME / "jobs"
+                                JOBS = DATA_HOME / "jobs"
                                 job = service.get(args["id"])
                                 if job["status"] != "succeeded":
                                     raise ValueError("Output not ready")
@@ -145,19 +130,22 @@ async def run_relay(service):
                                     os.environ.get("GEN_PAIR_CODE")
                                     or "".join(
                                         secrets.choice(
-                                            "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+                                            "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
                                         )
-                                        for _ in range(8)
+                                        for _ in range(10)
                                     )
                                 ).upper()
                                 await ws.send_json({"type": "pair.code", "code": code})
                                 print(
-                                    "[relay] Pairing code (5 minutes): " + code,
+                                    "[relay] Pairing code (5 minutes, one use; grants access to this worker): " + code,
                                     flush=True,
                                 )
                         elif m["type"] == "error":
                             print("[relay] " + m["message"], flush=True)
-                        elif m["type"] in ("rpc", "pair.request"):
+                        elif m["type"] == "pair.used":
+                            paired = True
+                            print("[relay] Browser connected. The pairing code has been used.", flush=True)
+                        elif m["type"] == "rpc":
                             t = asyncio.create_task(handle(m))
                             tasks.add(t)
                             t.add_done_callback(tasks.discard)

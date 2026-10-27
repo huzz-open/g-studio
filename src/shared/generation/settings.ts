@@ -12,7 +12,7 @@ export interface GenerationConnection {
   parametersByProvider: Record<string, Record<string, number>>;
 }
 const defaults: GenerationConnection = {
-  mode: "silhouette",
+  mode: "direct",
   baseUrl: "http://127.0.0.1:8765",
   token: "",
   relayUrl: "",
@@ -23,6 +23,7 @@ const defaults: GenerationConnection = {
   seed: 12345,
   parametersByProvider: {},
 };
+export { defaults as generationDefaults };
 function read() {
   try {
     return {
@@ -37,6 +38,9 @@ function read() {
 }
 /** Device-private, deliberately outside the workspace settings/export. */
 export const generationSettings = reactive<GenerationConnection>(read());
+// Migrate the former shadow-proxy fallback out of the model-generation workflow.
+if (generationSettings.mode === 'silhouette') generationSettings.mode = 'direct';
+if (generationSettings.providerId === 'silhouette') generationSettings.providerId = 'hunyuan-mini';
 watch(
   generationSettings,
   () =>
@@ -48,7 +52,7 @@ watch(
 );
 export function resetGenerationPreferences() {
   Object.assign(generationSettings, {
-    mode: "silhouette",
+    mode: "direct",
     providerId: defaults.providerId,
     targetFaces: defaults.targetFaces,
     seed: defaults.seed,
@@ -60,9 +64,11 @@ export function snapshotConnection(): GenerationConnection {
 }
 export async function useDevelopmentConnection() {
   if (!import.meta.env.DEV) return false;
-  const r = await fetch("/__generation/connection");
+  const before = { baseUrl: generationSettings.baseUrl, token: generationSettings.token };
+  const r = await fetch("/__generation/connection", { signal: AbortSignal.timeout(5000) });
   if (!r.ok) return false;
   const v = await r.json();
+  if (generationSettings.baseUrl !== before.baseUrl || generationSettings.token !== before.token) return false;
   if (typeof v.baseUrl !== "string" || typeof v.token !== "string")
     return false;
   if (

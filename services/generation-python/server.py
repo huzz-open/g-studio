@@ -152,10 +152,20 @@ class Service:
                         "Model preparation failed; retry after resolving download errors"
                     )
                 state["state"] = "ready"
+                print(f"[generation] Provider ready: {provider.name}", flush=True)
             except Exception as e:
                 state.update(state="failed", error=str(e))
+                print(f"[generation] Provider preparation failed: {provider.name}: {e}", flush=True)
             finally:
                 self.preparation_process = None
+        ready = [p.name for p in PROVIDERS.values() if self.provider_states[p.id]["state"] == "ready"]
+        print(
+            f"\n[generation] Preparation complete | device: {self.backend.upper()} | ready: {', '.join(ready) or 'none'}\n"
+            f"[generation] Local service: http://127.0.0.1:{os.environ.get('GEN_PORT', '8765')}\n"
+            "[generation] Waiting for generation requests. Connect from the app's model generation settings.\n"
+            "[generation] Keep this terminal open; press Ctrl+C to stop the service.",
+            flush=True,
+        )
 
     async def submit(self, request, image):
         if not isinstance(request, dict):

@@ -1,6 +1,5 @@
 import { createPart, clonePart, type PartAsset } from './schema'
 import { createBuiltinParts } from './builtins'
-import { buildItem, spriteBounds } from '../../modules/scene-lighting/model'
 import { templateGeometry, meshExtents } from '../../modules/scene-lighting/part-geometry'
 import { decodeMesh } from './mesh'
 
@@ -15,12 +14,10 @@ export function partParameterDefaults(part: PartAsset) {
   } else if (part.geometry.kind === 'template') {
     const id = part.geometry.template!
     defaults.geometry = templateGeometry(id)
-    const b = spriteBounds(buildItem(id), part.image.width / part.image.height)
-    defaults.alignment = {anchor:[Math.max(0,Math.min(1,-b.left/b.width)),Math.max(0,Math.min(1,1+b.bottom/b.height))],offset:[0,0],scale:1}
   } else if (builtin) {
     const generic = createPart('Part defaults', part.image, part.id)
     defaults.geometry = generic.geometry
-    defaults.alignment = generic.alignment
   }
+  if (part.geometry.defaultSize) defaults.geometry.size = [...part.geometry.defaultSize]
   return defaults
 }

@@ -63,4 +63,13 @@ else
 fi
 if [ "$#" -eq 0 ]; then set -- start; fi
 case "$1" in --*) set -- start "$@" ;; esac
+# MinTTY exposes MSYS pipes to native Windows programs. Give Node and uv a
+# console so uv can draw its native byte progress instead of plain log lines.
+# Pipes/redirection must stay non-interactive; never wrap those with winpty.
+if [ -t 2 ]; then export GEN_PROGRESS=1; fi
+if [ "$platform" = win32 ] && [ -t 0 ] && [ -t 1 ] && [ -t 2 ] && command -v winpty >/dev/null 2>&1; then
+  if ! "$NODE" -e 'process.exit(process.stderr.isTTY ? 0 : 1)'; then
+    exec winpty "$NODE" "$PROJECT_ROOT/scripts/generation/start.mjs" "$@"
+  fi
+fi
 exec "$NODE" "$PROJECT_ROOT/scripts/generation/start.mjs" "$@"

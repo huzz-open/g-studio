@@ -5,6 +5,8 @@ import json
 import os
 from pathlib import Path
 import shutil
+import sys
+from collections import deque
 import threading
 import time
 import urllib.request
@@ -15,34 +17,68 @@ from source_wheel import prepare_source
 MANIFEST = json.loads(
     Path(__file__).with_name("model-manifest.json").read_text("utf-8")
 )
-PROGRESS_INTERVAL = 5
+PROGRESS_INTERVAL = 0.2
+
+
+def duration(seconds):
+    seconds = max(0, round(seconds))
+    return f"{seconds // 60}m {seconds % 60:02d}s" if seconds >= 60 else f"{seconds}s"
 
 
 class Progress:
-    """A heartbeat independent of blocking network reads, hashing or file copies."""
+    """One terminal line; redirected logs only record stage boundaries."""
 
-    def __init__(self, label, total=None, initial=0):
+    def __init__(self, label, total=None, initial=0, stream=None):
         self.label, self.total = label, total
         self.initial = self.count = initial
         self.result = "complete"
         self.started = self.updated = time.monotonic()
+        self.samples = deque([(self.started, initial)])
         self.stopped = threading.Event()
+        self.stream = stream if stream is not None else sys.stderr
+        self.interactive = self.stream.isatty() or os.environ.get("GEN_PROGRESS") == "1"
+        self.thread = None
 
     def report(self, status="running"):
+        if status == "running" and not self.interactive:
+            return
         now = time.monotonic()
         elapsed = max(now - self.started, 0.001)
-        detail = f"elapsed {elapsed:.0f}s"
+        count = self.count
+        self.samples.append((now, count))
+        while len(self.samples) > 2 and self.samples[1][0] <= now - 2:
+            self.samples.popleft()
+        first_time, first_count = self.samples[0]
+        rate = (count - first_count) / max(now - first_time, 0.001)
+        final = status not in ("running", "starting")
+        if final:
+            rate = (count - self.initial) / elapsed
         if self.total is not None:
-            rate = (self.count - self.initial) / elapsed
-            percent = self.count / self.total * 100 if self.total else 100
-            eta = f"{(self.total - self.count) / rate:.0f}s" if rate > 0 else "--"
-            detail = (
-                f"{percent:.1f}% | {self.count / 1024**2:.2f}/{self.total / 1024**2:.2f} MiB"
-                f" | {rate / 1024**2:.2f} MiB/s | ETA {eta} | {detail}"
-            )
-            if status == "running" and now - self.updated >= PROGRESS_INTERVAL:
-                detail += f" | waiting for data, no progress for {now - self.updated:.0f}s"
-        print(f"[generation] {self.label}: {status} | {detail}", flush=True)
+            fraction = min(1, count / self.total) if self.total else 1
+            eta = duration((self.total - count) / rate) if rate > 0 else "--"
+            if count >= self.total:
+                eta = "0s"
+            detail = f"{fraction * 100:5.1f}% | {count / 1024**2:.2f}/{self.total / 1024**2:.2f} MiB | {rate / 1024**2:.2f} MiB/s | ETA {eta}"
+            bar = "#" * int(fraction * 16)
+            bar = f"[{bar.ljust(16, '-')}] "
+            if now - self.updated >= 5 and not final:
+                detail += f" | waiting {duration(now - self.updated)}"
+        else:
+            bar, detail = "", f"{self.label} | {duration(elapsed)}"
+        if status == "starting":
+            self.stream.write(f"[generation] {self.label}: starting\n")
+        elif final:
+            if self.interactive:
+                self.stream.write("\r\x1b[2K")
+            summary = f" | {detail}" if self.total is not None else ""
+            self.stream.write(f"[generation] {self.label}: {status}{summary} | {duration(elapsed)}\n")
+        else:
+            width = max(1, shutil.get_terminal_size((100, 24)).columns - 1)
+            line = "  " + bar + detail
+            if len(line) > width:
+                line = "  " + detail
+            self.stream.write("\r\x1b[2K" + line[:width])
+        self.stream.flush()
 
     def advance(self, size):
         self.count += size
@@ -50,8 +86,9 @@ class Progress:
 
     def __enter__(self):
         self.report("starting")
-        self.thread = threading.Thread(target=self._heartbeat, daemon=True)
-        self.thread.start()
+        if self.interactive:
+            self.thread = threading.Thread(target=self._heartbeat, daemon=True)
+            self.thread.start()
         return self
 
     def _heartbeat(self):
@@ -60,7 +97,8 @@ class Progress:
 
     def __exit__(self, exc_type, exc, traceback):
         self.stopped.set()
-        self.thread.join()
+        if self.thread:
+            self.thread.join()
         self.report("failed" if exc_type else self.result)
 
 
@@ -107,7 +145,6 @@ def valid(path, item):
 def download(item):
     dest = HOME / item["path"]
     dest.parent.mkdir(parents=True, exist_ok=True)
-    print("[generation] Checking local cache: " + item["path"], flush=True)
     if valid(dest, item):
         print("[generation] Cached file verified; skipping download: " + item["path"], flush=True)
         return
@@ -145,12 +182,6 @@ def download(item):
     if os.environ.get("GEN_OFFLINE") == "1":
         raise RuntimeError("Offline: missing or invalid resource: " + item["path"])
     part = dest.with_suffix(dest.suffix + ".part")
-    print(
-        "[generation] download "
-        + item["path"]
-        + f" ({item['size'] / 1024**2:.1f} MiB)",
-        flush=True,
-    )
     error = None
     urls = ordered_urls(item) * 2
     for attempt, url in enumerate(urls, 1):
@@ -188,7 +219,7 @@ def download(item):
                     Progress("Downloading " + dest.name, item["size"], count) as progress,
                     part.open("ab" if append else "wb") as out,
                 ):
-                    while chunk := response.read(1024 * 1024):
+                    while chunk := response.read(64 * 1024):
                         count += len(chunk)
                         if count > item["size"]:
                             raise ValueError("Download exceeds manifest size")
@@ -199,9 +230,7 @@ def download(item):
             if not valid(part, item):
                 part.unlink(missing_ok=True)
                 raise ValueError("SHA256/size verification failed")
-            print("[generation] Saving verified file: " + item["path"], flush=True)
             part.replace(dest)
-            print("[generation] File ready: " + item["path"], flush=True)
             return
         except Exception as e:
             error = e
@@ -219,23 +248,24 @@ def main():
         lock.write(b"0")
         lock.flush()
     acquired = False
-    for waiting in range(120):
-        try:
-            lock.seek(0)
-            if os.name == "nt":
-                import msvcrt
+    with Progress("Waiting for model download lock (120s limit)") as lock_progress:
+        for waiting in range(120):
+            try:
+                lock.seek(0)
+                if os.name == "nt":
+                    import msvcrt
 
-                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
-            else:
-                import fcntl
+                    msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
 
-                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            acquired = True
-            break
-        except OSError:
-            if waiting % 5 == 0:
-                print(f"[generation] Waiting for another download to release the lock ({waiting}/120s)", flush=True)
-            time.sleep(1)
+                    fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                acquired = True
+                break
+            except OSError:
+                time.sleep(1)
+        if not acquired:
+            lock_progress.result = "timeout"
     if not acquired:
         lock.close()
         raise RuntimeError("Another download is running; retry later")
@@ -250,7 +280,7 @@ def main():
         if free < missing + 512 * 1024**2:
             raise RuntimeError("Insufficient disk space for model preparation")
         for index, item in enumerate(MANIFEST["files"], 1):
-            print(f"[generation] File {index}/{len(MANIFEST['files'])}: {item['path']}", flush=True)
+            print(f"\n[generation] File {index}/{len(MANIFEST['files'])}: {item['path']}", flush=True)
             download(item)
         print(f"[generation] model source and weights verified (elapsed {time.monotonic() - started:.0f}s)", flush=True)
     finally:

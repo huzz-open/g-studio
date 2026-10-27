@@ -56,11 +56,11 @@ export class GenerationClient {
       ? `/v1/devices/${encodeURIComponent(this.config.deviceId)}/${name}`
       : `/v1/${name}`;
   }
-  async info(): Promise<ServiceInfo> {
+  async info(signal?: AbortSignal): Promise<ServiceInfo> {
     const v = await this.call(
       this.devicePath("info") +
         "?providerId=" +
-        encodeURIComponent(this.config.providerId),
+        encodeURIComponent(this.config.providerId), { signal },
     );
     if (!["cpu", "gpu"].includes(v.deviceType))
       throw Error("Unknown device type");
@@ -70,8 +70,8 @@ export class GenerationClient {
       throw Error("Invalid device reason");
     return v;
   }
-  capabilities(): Promise<Capabilities> {
-    return this.call(this.devicePath("capabilities")).then(parseCapabilities);
+  capabilities(signal?: AbortSignal): Promise<Capabilities> {
+    return this.call(this.devicePath("capabilities"), { signal }).then(parseCapabilities);
   }
   submit(request: GenerationRequest, image: Blob): Promise<GenerationJob> {
     const data = new FormData();

@@ -12,6 +12,7 @@
 | `image` | PNG URI、宽高；内置素材可暂用已知 `builtin:` ID，便携导出嵌入像素 |
 | `normal` | 法线生成参数，默认值和归一化见 [normal-settings.ts](../../src/shared/types/normal-settings.ts) |
 | `geometry` | 类型、整体尺寸及类型专属数据 |
+| `geometryAlternatives` | 可选，最多 32 个曾使用的几何，包含可切换回来的嵌入模型 |
 | `alignment` | 图像锚点、偏移和投影缩放 |
 | `source` | 可选来源：原图/裁剪图 SHA256、文件名、裁剪矩形及 `.gs` 路径 |
 
@@ -22,12 +23,12 @@
 | `geometry.kind` | 数据与限制 |
 | --- | --- |
 | `silhouette` | 从图像轮廓近似 |
-| `box`、`cylinder` | 基础形体与 `size` |
-| `template` | 已知模板 ID：umbrella、barrel、chair、vase、chest、bonsai |
-| `compound` | 1～64 个 box/cylinder/ellipsoid 子形体，含位置和尺寸 |
+| `template` | 内置物品自身对应的模板：umbrella、barrel、chair、vase、chest、bonsai |
 | `mesh` | v2 部件中的嵌入 GLB 及来源元数据 |
 
-组合形体整体居中、落地，并按资产尺寸调整。图像锚点相对于左上角归一化；偏移采用相机右/上方向，alignment 的缩放只影响图像投影。
+几何整体居中、落地，并按资产尺寸调整。图像锚点相对于左上角归一化；偏移采用相机右/上方向，alignment 的缩放只影响图像投影。
+
+几何可携带 `defaultSize`，记录保留尺寸切换形状时的重置基准，范围同 `size`。旧资产缺少此字段时按原有工厂默认值计算。备用几何使用与当前几何相同的校验规则，包含网格时部件仍为 v2；备用几何不参与当前场景渲染。
 
 网格字段由 [mesh.ts](../../src/shared/parts/mesh.ts) 定义：
 

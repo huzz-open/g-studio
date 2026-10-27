@@ -1,17 +1,18 @@
 import { createScene, RIGHT, UP, YAW, type SceneState } from '../../modules/scene-lighting/model'
 import { add, dot, scale, type Vec3 } from '../../modules/experiments/umbrella/math'
-import { TEMPLATE_IDS, type PartAsset, type TemplateId } from './schema'
+import { partTemplate, type PartAsset } from './schema'
+import { partParameterDefaults } from './parameter-defaults'
 
 /** A shape choice changes the proxy, not the authored dimensions or alignment. */
 export function changePartGeometry(part: PartAsset, choice: string) {
   const size: PartAsset['geometry']['size'] = [...part.geometry.size]
-  if (choice.startsWith('template:')) {
-    const template = choice.slice(9) as TemplateId
-    if (!TEMPLATE_IDS.includes(template)) throw new Error('Unknown geometry template')
-    part.geometry = { kind: 'template', template, size }
-  } else if (choice === 'silhouette' || choice === 'box' || choice === 'cylinder') {
-    part.geometry = { kind: choice, size }
-  }
+  const defaultSize = partParameterDefaults(part).geometry.size
+  const template = partTemplate(part)
+  if (template && choice === `template:${template}`) {
+    part.geometry = { kind: 'template', template, size, defaultSize }
+  } else if (choice === 'silhouette') {
+    part.geometry = { kind: choice, size, defaultSize }
+  } else throw new Error('Unsupported geometry choice')
 }
 
 export function createPartPreview(part: PartAsset): SceneState {

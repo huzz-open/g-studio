@@ -110,7 +110,7 @@ defineExpose({ triggerPicker })
 
       <template v-if="compact">
         <div class="compact-content">
-          <SvgIcon :name="fileName ? 'upload' : icon" :size="14" />
+          <slot name="icon"><SvgIcon :name="fileName ? 'upload' : icon" :size="14" /></slot>
           <span v-if="isLoading" class="compact-text loading">
             {{ loadingText }}<span class="dot-anim" />
           </span>

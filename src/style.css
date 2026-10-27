@@ -1,1 +1,5 @@
 /* Global styles handled in App.vue */
+/* Keep native keyboard stepping without browser spin buttons covering numeric text. */
+input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
