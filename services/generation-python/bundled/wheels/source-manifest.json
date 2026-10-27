@@ -1,0 +1,182 @@
+{
+  "repository": "https://github.com/Tencent-Hunyuan/Hunyuan3D-2",
+  "revision": "f8db63096c8282cb27354314d896feba5ba6ff8a",
+  "files": [
+    {
+      "path": "vendor/Hunyuan3D-2/LICENSE",
+      "size": 17829,
+      "sha256": "94259df223918a5733677965c1bfe1774a2dba25042d9c3b47a3418ea6c1f324",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/LICENSE"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/__init__.py",
+      "size": 920,
+      "sha256": "e1a0f10f65a41667fadafc1fa2fe31a5b2c7f5dea7a659b3039e029d75ce1db0",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/__init__.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/pipelines.py",
+      "size": 31934,
+      "sha256": "3eb438997fca59f682866f529f1984d4852d717577c24743e5d9bfd5566fa467",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/shapegen/pipelines.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/postprocessors.py",
+      "size": 7060,
+      "sha256": "3899ef49fbc7453553d264d16c14305a9ee9c6f8a3341a8850b960f018640a17",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/shapegen/postprocessors.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/preprocessors.py",
+      "size": 5992,
+      "sha256": "284dc24fabbf974bd6793ebd58e95b7700550d90371cacb96ad0889ec558de1e",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/shapegen/preprocessors.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/schedulers.py",
+      "size": 18997,
+      "sha256": "d3b25b84dac26f0e862cfc866da08df2d6592f01a0aaeda965782ab0fc1d8bba",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/shapegen/schedulers.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/surface_loaders.py",
+      "size": 6182,
+      "sha256": "59498b96540d3915c1afbdb52fa125b6e4564c6261a54de2d402a729b0ffc624",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/shapegen/surface_loaders.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/utils.py",
+      "size": 4526,
+      "sha256": "434987747ec07c734b64cc933f7829bf6d10800a7c5e97f649547aa5979c1fbd",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/shapegen/utils.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/__init__.py",
+      "size": 1181,
+      "sha256": "d233d923a912621c986201e482b1c7b9a5fc014974e6bb952ceb7b36f3c4020f",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/shapegen/__init__.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/conditioner.py",
+      "size": 9192,
+      "sha256": "c735ef7abbdd0fad089e684a237ef30a6cb7616c2faa49a30571d3640c2865c9",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/shapegen/models/conditioner.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/__init__.py",
+      "size": 1665,
+      "sha256": "2f56106c91dfc126f3e20551e8a7a48f049be7b33eda814ae1c184bc979328fe",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/shapegen/models/__init__.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/attention_blocks.py",
+      "size": 26121,
+      "sha256": "86590fe6b7dae1e3250d08df8291bc2825f754663a2335f31887c5f8065b6ed0",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/shapegen/models/autoencoders/attention_blocks.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/attention_processors.py",
+      "size": 3913,
+      "sha256": "9a461ddde9a2bf5ca0cd3961c3c1b86f9c81772066fe5b815bc497e0b5a8f053",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/shapegen/models/autoencoders/attention_processors.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/model.py",
+      "size": 10461,
+      "sha256": "22ea23cb832017e628f139b06743de5ef54c4fcb298f532f94c99a4a25996893",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/shapegen/models/autoencoders/model.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/surface_extractors.py",
+      "size": 3895,
+      "sha256": "4b53ab319955b22957963e7d9872de46e2c47b2aa5d5d897d62ede64aecc13cd",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/shapegen/models/autoencoders/surface_extractors.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/volume_decoders.py",
+      "size": 18300,
+      "sha256": "95ffab6bd0a11034bc2b7415fef1379e27c4d2238638f831a0456019d90484eb",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/shapegen/models/autoencoders/volume_decoders.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/__init__.py",
+      "size": 1360,
+      "sha256": "f1c91751fa8db7ecf531189aae33a59b5b9e3e10aa0d524edf33f6857eea8cfd",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/shapegen/models/autoencoders/__init__.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/hunyuan3ddit.py",
+      "size": 14984,
+      "sha256": "0288db52767927a03bbbd687eba253f4567493d3d6c24c97b289ea7a1acd13c3",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/shapegen/models/denoisers/hunyuan3ddit.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/hunyuandit.py",
+      "size": 21440,
+      "sha256": "b9a51ac5338c6f886f4312a5967933a23969fb293cfc5c0b9c40236207cf89b5",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/shapegen/models/denoisers/hunyuandit.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/moe_layers.py",
+      "size": 6352,
+      "sha256": "afd9ca7511c2cd028d220f18c4b4e31a457cda19a1de34bfb925af663a24f3af",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/shapegen/models/denoisers/moe_layers.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/__init__.py",
+      "size": 961,
+      "sha256": "8ab24870a628fb94a3d903d7d149d3eb3d20b32cadf8f6680c6e457562384a41",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/hy3dgen/shapegen/models/denoisers/__init__.py"
+      ]
+    },
+    {
+      "path": "vendor/Hunyuan3D-2/NOTICE",
+      "size": 32065,
+      "sha256": "9ef89c88faf6fa97a7cc9ffc15deec7a8c27fb7ac9bca1f57e2884a5f8d48f42",
+      "urls": [
+        "https://raw.githubusercontent.com/Tencent-Hunyuan/Hunyuan3D-2/f8db63096c8282cb27354314d896feba5ba6ff8a/NOTICE"
+      ]
+    }
+  ]
+}

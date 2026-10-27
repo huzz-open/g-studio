@@ -10,6 +10,7 @@ import time
 import urllib.request
 from urllib.parse import urlparse
 from config import HOME
+from source_wheel import prepare_source
 
 MANIFEST = json.loads(
     Path(__file__).with_name("model-manifest.json").read_text("utf-8")
@@ -240,6 +241,7 @@ def main():
         raise RuntimeError("Another download is running; retry later")
     try:
         print("[generation] Download lock acquired; checking disk space", flush=True)
+        prepare_source(HOME)
         missing = sum(
             i["size"] for i in MANIFEST["files"] if not (HOME / i["path"]).exists()
         )
