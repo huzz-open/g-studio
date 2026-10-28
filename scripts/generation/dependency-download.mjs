@@ -68,8 +68,12 @@ export async function downloadDependencies({ root, home, python, platform, requi
   let resolved = false;
   for (const source of sources) {
     try {
-      console.log(`[generation] Resolving complete dependency list: ${source} (60s limit)`);
-      await uvRun(['pip', 'compile', input, '--python', python, '--python-version', '3.12', ...(platform === 'darwin-arm64' ? ['--python-platform', 'aarch64-apple-darwin'] : []), '--only-binary', ':all:', '--format', 'pylock.toml', '-o', lock, '--default-index', source, '--quiet'], 'Resolving Python dependencies', true, 60000);
+      // uv also prepares the verified local torch wheels before resolving the
+      // index. Cold Windows disk work exceeded 60s in the from-zero CPU test;
+      // killing it on each mirror discarded that progress without testing the
+      // mirror at all. Keep a bounded overall limit separate from HTTP waits.
+      console.log(`[generation] Resolving complete dependency list: ${source} (5 minute limit, including local wheel preparation)`);
+      await uvRun(['pip', 'compile', input, '--python', python, '--python-version', '3.12', ...(platform === 'darwin-arm64' ? ['--python-platform', 'aarch64-apple-darwin'] : []), '--only-binary', ':all:', '--format', 'pylock.toml', '-o', lock, '--default-index', source, '--quiet'], 'Resolving Python dependencies', true, 300000);
       sources.splice(0, sources.length, source, ...sources.filter(item => item !== source));
       resolved = true; break;
     } catch (error) { failure = error; console.warn(`[generation] Resolver source failed: ${error.message}; trying next source`); }

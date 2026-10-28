@@ -1,0 +1,137 @@
+{
+  "date": "2026-10-28",
+  "baseCommit": "b11988f62c184b9e6a72022e15374039c44e4a1a",
+  "localFix": {
+    "file": "scripts/generation/dependency-download.mjs",
+    "sha256": "165d2d3dc8e7364a93093569fd024288c07917cb5ab8da9e6a6bdcc66903ebbb",
+    "change": "Dependency resolution total limit 60s -> 300s, including local PyTorch wheel preparation.",
+    "evidence": "Original three 60s attempts failed; independent cold resolver succeeded in 107.17s; the fixed fresh run resolved in 1m55s."
+  },
+  "environment": {
+    "os": "Windows 11 Pro 10.0.26200",
+    "cpu": "Intel Core i5-10500",
+    "memoryGB": 32,
+    "cpuThreads": 4,
+    "python": "3.12.12",
+    "torch": "2.6.0+cpu"
+  },
+  "method": {
+    "command": "sh start-generation.sh --cpu",
+    "mirror": "cn",
+    "initialResourcesAbsent": true,
+    "systemNodePythonUvHidden": true,
+    "legacyUserCacheIsolated": true,
+    "existingProjectResourcesAndCredentialsUntouched": true,
+    "sources": [
+      "nodejs.org / Python official runtime",
+      "Tsinghua PyPI",
+      "NJU PyTorch CPU wheels",
+      "ModelScope weights",
+      "repository-bundled Hunyuan source wheel"
+    ],
+    "transport": "authenticated local HTTP API",
+    "input": "public/scene-lighting/vase.png",
+    "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826"
+  },
+  "parameters": {
+    "steps": 5,
+    "resolution": 256,
+    "seed": 12345,
+    "targetFaces": 12000
+  },
+  "device": {
+    "deviceType": "cpu",
+    "backend": "cpu",
+    "reason": "CPU explicitly configured"
+  },
+  "status": "passed",
+  "setupSeconds": 2617.72,
+  "serverGenerationSeconds": 303.78056931495667,
+  "apiGenerationSecondsIncludingPolling": 305.81,
+  "totalSeconds": 2923.59,
+  "phaseStats": [
+    {
+      "phase": "encode",
+      "elapsed_seconds": 122.72513699997216,
+      "rss_bytes": 5364219904,
+      "peak_working_set_bytes": 7246282752,
+      "input_size": [
+        1,
+        3,
+        1022,
+        1022
+      ]
+    },
+    {
+      "phase": "sample",
+      "elapsed_seconds": 142.77895549999084,
+      "rss_bytes": 3055136768,
+      "peak_working_set_bytes": 3759992832,
+      "steps": 5,
+      "seed": 12345,
+      "latent_shape": [
+        1,
+        512,
+        64
+      ],
+      "guidance_scale": 5.0
+    },
+    {
+      "phase": "mesh",
+      "elapsed_seconds": 31.348666400066577,
+      "rss_bytes": 1772752896,
+      "peak_working_set_bytes": 2275606528,
+      "resolution": 256,
+      "faces": 678644,
+      "vertices": 177773,
+      "bounds": [
+        [
+          -0.6769645810127258,
+          -0.9983205795288086,
+          -0.6877139806747437
+        ],
+        [
+          0.6372858881950378,
+          0.9592656493186951,
+          0.6484241485595703
+        ]
+      ]
+    }
+  ],
+  "model": {
+    "bytes": 289164,
+    "sha256": "84ab6b22b7787b1b991398a2d383ffe52fff533600d77b659adcb6e7c5fe7739",
+    "vertices": 6006,
+    "triangles": 12000,
+    "finite": true,
+    "bounds": [
+      [
+        -0.6720550656318665,
+        0.0,
+        -0.6830692291259766
+      ],
+      [
+        0.6720550656318665,
+        1.999556541442871,
+        0.6830692291259766
+      ]
+    ],
+    "watertight": false
+  },
+  "visualCheck": "Four shaded geometry views show a recognizable vase. Mouth is capped. Watertight check is false; no claim of exact reconstruction or closed topology.",
+  "checks": {
+    "nodeTests": 18,
+    "pythonTests": 22,
+    "postFixRelatedNodeTests": 11,
+    "glbHeaderAndDigest": "passed",
+    "nonemptyFiniteGeometry": "passed",
+    "temporaryServiceStopped": true
+  },
+  "notes": [
+    "One successful fresh start after the timeout fix, without reusing the failed attempt cache.",
+    "Cold preparation includes all first-time runtime/dependency/model downloads and installation; it is not normal cached startup latency.",
+    "Timing is specific to this machine and network, not a controlled cross-platform benchmark.",
+    "Previous resource-only packaging work was retained in Git stash and was not reapplied; no archives built in this task."
+  ],
+  "localEvidenceDirectory": "output/fresh-cpu-20261028-fixed"
+}

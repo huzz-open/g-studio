@@ -18,7 +18,7 @@
 | --- | --- |
 | 精灵切图 | 自动或手动切割精灵图，导出散件和合成图 |
 | 部件与场景光影 | 编辑共享部件、法线和几何，预览点光源与方向光 |
-| 模型生成 | 使用轮廓近似或本地 AI 生成几何，预览后保存为部件 |
+| 模型生成 | 使用轮廓近似或本地 AI 生成几何，保存生成记录，并在部件编辑器中选用 |
 | Tileset 生成 | 生成 47-tile 自动地形图集，导出 Godot `.tres` |
 | 场景区域编辑 | 绘制碰撞和遮挡区域，导出 Godot `.tscn` |
 | 资源管理 | 浏览本地工作区，管理图片及工程文件 |
@@ -41,7 +41,7 @@ npm run dev
 
 国内下载预设及恢复方法见[后端部署说明](./services/generation-python/README.md#download-sources)。
 
-## AI 硬件与离线包
+## AI 硬件与启动
 
 支持 **CPU、兼容的 NVIDIA CUDA 显卡、Apple Silicon Mac（MPS）**。不推荐普通 Windows 笔记本核显作为本项目的 GPU 推理方案：可能比 CPU 慢，或受驱动与算子兼容性限制无法完成任务；台式机 CPU 也可能明显快于核显。
 
@@ -51,19 +51,22 @@ npm run dev
 | 同机 Intel UHD 630，实验性 DirectML | 分块适配后约 **868 秒**，耗时为同机 CPU 的 **3.8 倍**；正式版本使用 CPU |
 | 笔记本 AMD Radeon 780M | 小算子通过，模型推理报错；当前使用 CPU |
 | Apple M5，24 GB，MPS | 生成 **84.5 秒**，无 CPU 回退；完整离线启动、API 和花瓶外形检查通过 |
-| NVIDIA CUDA | 已提供运行路径和离线包；尚无完整 GPU 推理实测成绩，当前模型不支持 MX150 2 GB 的 GPU 推理，请使用 CPU |
+| NVIDIA CUDA | 已实现运行路径；尚无完整 GPU 推理实测成绩，当前模型不支持 MX150 2 GB 的 GPU 推理，请使用 CPU |
 
 Windows Intel/CPU 使用 **1 步、128 分辨率**，GPU 耗时累计自成功阶段，未验证外形质量。Mac 正式 API 使用推荐的 **5 步、256 分辨率**，包含提交与轮询共 86.5 秒；仅改为 1 步就出现花瓶变形，耗时也更长。这不是严格的跨平台性能排名，也不代表其他设备的表现。[测试条件与结果](./docs/history/model-generation-validation.md#2026-10-27设备实测汇总)。
 
-离线后端包位于本地 `runtime/bundles/`（不随 Git 仓库分发）：
+当前推荐从最新项目源码启动，使用镜像自动准备环境。在项目根目录执行：
 
-| 包名 | 适用范围 / 复用 |
-| --- | --- |
-| `g-studio-generation-win32-x64-cu124.zip` | Windows NVIDIA + CPU 共用，约 9.68 GB；`--cpu` 无需另下环境 |
-| `g-studio-generation-win32-x64-cpu.zip` | Windows 纯 CPU，可选较小包，约 6.18 GB |
-| `g-studio-generation-darwin-arm64-mps.zip` | Apple Silicon MPS + CPU 共用，约 5.29 GB |
+```sh
+npm run setup:cn                  # 可选，已有 Node/npm 时设置一次国内镜像
+sh start-generation.sh --cpu     # 一条命令准备资源并启动 CPU 后端
+```
 
-解压后运行 `sh start-generation.sh --offline`（Windows 使用 Git Bash，Mac 使用终端）。包内含 Node、Python、依赖和权重，无需另装这些运行时；不包含网页前端。不同系统的二进制环境分开，模型权重与推理源码共用同一版本。详见[离线包与启动说明](./services/generation-python/README.md#portable-packages)。
+Windows 使用 Git Bash，Mac 使用终端。只启动后端无需 `npm install` 或预装 Python；没有可用 Node 时脚本会下载。国内预设使用清华 PyPI、南大 PyTorch 对应 CPU/CUDA 源、ModelScope 权重；Node/Python 运行时仍可能访问官方源。Hunyuan 推理源码以仓库内已校验的 wheel 提供，不再逐文件联网下载。
+
+首次联网准备完成后，重复启动会复用缓存；`--offline` 只适合资源已齐全的环境。服务启动后还需通过网页或 API 提交图片，才会生成模型。详见[后端启动说明](./services/generation-python/README.md#start)。
+
+2026-10-28 已完成本机 CPU 从空运行目录到正式 API 生成的验证：默认 5 步 / 256 分辨率生成约 **5 分 6 秒**，输出 12,000 面花瓶。首次准备包含约 4.23GB 权重下载，本次约 43 分 38 秒，不代表缓存启动耗时。[完整条件、修复点与结果](./docs/history/model-generation-validation.md)。
 
 ## 常用命令
 
@@ -75,7 +78,7 @@ Windows Intel/CPU 使用 **1 步、128 分辨率**，GPU 耗时累计自成功�
 | `npm run preview` | 本地预览构建产物 |
 | `sh start-generation.sh` | 单独启动后端；Windows 使用 Git Bash |
 
-AI 连接操作见[模型生成指南](./docs/guides/model-generation.md)；缓存、GPU、离线运行和分发包见[后端部署](./services/generation-python/README.md)。日常清理请保留 [`runtime/generation/`](./runtime/README.md)，删除后会重新准备所需资源。
+AI 连接操作见[模型生成指南](./docs/guides/model-generation.md)；缓存、GPU 和离线运行见[后端部署](./services/generation-python/README.md)。日常清理请保留 [`runtime/generation/`](./runtime/README.md)，删除后会重新准备所需资源。
 
 ## 文档与开发
 

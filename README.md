@@ -18,7 +18,7 @@ Core editing requires no login and keeps assets local. Optional AI geometry gene
 | --- | --- |
 | Sprite slicing | Automatically or manually slice sheets and export individual sprites or atlases |
 | Parts and scene lighting | Edit shared parts, normals and geometry; preview point and directional lights |
-| Model generation | Generate silhouette or local AI geometry, then preview and save it as a part |
+| Model generation | Generate silhouette or local AI geometry, retain results, and apply them in the part editor |
 | Tileset generation | Build 47-tile terrain atlases and export Godot `.tres` files |
 | Scene regions | Draw collision and occlusion regions and export Godot `.tscn` files |
 | Resource management | Browse a local workspace and manage images and project files |
@@ -41,7 +41,7 @@ Open <http://localhost:5173>. `npm run dev` starts the web app and AI backend; t
 
 See [download sources](./services/generation-python/README.md#download-sources) for the China preset and how to reset it.
 
-## AI hardware and offline packages
+## AI hardware and startup
 
 Supported execution paths are **CPU, compatible NVIDIA CUDA GPUs, and Apple Silicon Macs (MPS)**. Ordinary Windows laptop integrated GPUs are not recommended for this model: inference can be slower than CPU or fail on backend/driver compatibility. A desktop CPU can outperform its integrated GPU.
 
@@ -51,19 +51,22 @@ Supported execution paths are **CPU, compatible NVIDIA CUDA GPUs, and Apple Sili
 | Same desktop, Intel UHD 630, experimental DirectML | About **868 seconds** after chunking adaptations: **3.8× the CPU time**; production uses CPU |
 | Laptop AMD Radeon 780M | Small operations passed; model inference failed. Use CPU |
 | Apple M5, 24 GB, MPS | **84.5 seconds** for generation, no CPU fallback; full offline startup, API and vase geometry inspection passed |
-| NVIDIA CUDA | Execution path and offline package available; no complete GPU inference benchmark yet. MX150 2 GB GPU inference is not supported for this model; use CPU |
+| NVIDIA CUDA | Execution path implemented; no complete GPU inference benchmark yet. MX150 2 GB GPU inference is not supported for this model; use CPU |
 
 Windows Intel/CPU trials used **1 step, resolution 128**; GPU time aggregates successful phases and visual quality was not validated. The Mac API trial used the recommended **5 steps, resolution 256** (86.5 seconds including submission/polling). Reducing only the steps to 1 distorted the vase and was slower. These are not a controlled cross-platform ranking or a guarantee for other devices. See the [conditions and results](./docs/history/model-generation-validation.md#2026-10-27设备实测汇总) (Chinese).
 
-Offline backend archives are prepared locally in `runtime/bundles/` (not distributed through Git):
+The startup workflow uses current project source and automatic downloads through mirrors. From the project root:
 
-| Archive | Use / reuse |
-| --- | --- |
-| `g-studio-generation-win32-x64-cu124.zip` | Windows NVIDIA + CPU, about 9.68 GB; `--cpu` reuses the included environment |
-| `g-studio-generation-win32-x64-cpu.zip` | Optional smaller Windows CPU package, about 6.18 GB |
-| `g-studio-generation-darwin-arm64-mps.zip` | Apple Silicon MPS + CPU in one package, about 5.29 GB |
+```sh
+npm run setup:cn                  # Optional, one-time China preset when Node/npm is available
+sh start-generation.sh --cpu     # Prepare resources and start the CPU backend
+```
 
-Extract and run `sh start-generation.sh --offline` (Git Bash on Windows; Terminal on Mac). Node, Python, dependencies and weights are included; the web frontend is separate. OS binaries require separate packages, while model weights and inference source use the same versions. See [portable packages](./services/generation-python/README.md#portable-packages).
+Use Git Bash on Windows or Terminal on Mac. Backend-only startup needs neither `npm install` nor preinstalled Python; the script downloads Node if needed. The China preset uses Tsinghua PyPI, NJU's matching PyTorch CPU/CUDA channel and ModelScope weights; Node/Python runtimes may still use official sources. Pinned Hunyuan inference source ships as a verified repository wheel instead of individual network downloads.
+
+Subsequent starts reuse complete resources. Use `--offline` only after preparation; starting the service does not generate a model until an image is submitted through the UI or API. See [backend startup](./services/generation-python/README.md#start).
+
+On 2026-10-28, CPU startup from an empty runtime directory through real API generation passed locally. A 5-step / resolution-256 vase took about **5 min 6 sec**, producing 12,000 faces. First-time preparation took about 43 min 38 sec on this network, including roughly 4.23GB of weights; this is not cached startup latency. See [conditions, fixes and results](./docs/history/model-generation-validation.md) (Chinese).
 
 ## Common commands
 
@@ -75,7 +78,7 @@ Extract and run `sh start-generation.sh --offline` (Git Bash on Windows; Termina
 | `npm run preview` | Preview the production build locally |
 | `sh start-generation.sh` | Start only the backend; use Git Bash on Windows |
 
-See the [model generation guide](./docs/guides/model-generation.md) (Chinese) for connection steps, and [backend deployment](./services/generation-python/README.md) for caching, GPU selection, offline operation and portable packages. Keep [`runtime/generation/`](./runtime/README.md) during cleanup; deleting it triggers resource preparation again.
+See the [model generation guide](./docs/guides/model-generation.md) (Chinese) for connection steps, and [backend deployment](./services/generation-python/README.md) for caching, GPU selection and offline operation. Keep [`runtime/generation/`](./runtime/README.md) during cleanup; deleting it triggers resource preparation again.
 
 ## Documentation and development
 

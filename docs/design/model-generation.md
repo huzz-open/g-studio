@@ -32,7 +32,7 @@
 
 | 内容 | 唯一详细说明 |
 | --- | --- |
-| 启动、缓存、下载、GPU、打包 | [后端部署](../../services/generation-python/README.md) |
+| 启动、缓存、下载、GPU | [后端部署](../../services/generation-python/README.md) |
 | HTTPS/WSS、授权与传输保留 | [中转部署](../../services/generation-relay/README.md) |
 | 接口、请求、结果、扩展 | [生成协议](../../packages/generation-protocol/README.md) |
 | 网页操作 | [模型生成指南](../guides/model-generation.md) |

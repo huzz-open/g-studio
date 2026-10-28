@@ -1,6 +1,6 @@
 # 使用模型生成
 
-返回[文档索引](../README.md)。本页说明网页操作；安装、硬件和打包见[后端部署](../../services/generation-python/README.md)。
+返回[文档索引](../README.md)。本页说明网页操作；安装、硬件和缓存见[后端部署](../../services/generation-python/README.md)。
 
 ## 选择运行方式
 
@@ -11,7 +11,7 @@
 | 已有网页，只启动 AI | `sh start-generation.sh` | 直连接口 |
 | 在线网页通过服务器使用本机算力 | 服务器部署中转，本机启动带 `--relay` 的后端 | 连接本地设备 |
 
-首次 AI 启动会下载运行环境和模型；已有完整资源会复用。启动服务不会自动上传图片，也不会把默认轮廓近似切换成 AI。
+首次 AI 启动会下载运行环境和模型；已有完整资源会复用。当前使用最新源码加镜像启动。只使用本机 CPU 时，在项目目录执行 `sh start-generation.sh --cpu`，会完成准备并启动服务；已有 Node/npm 时可先执行一次 `npm run setup:cn` 使用国内镜像。首次准备不要加 `--offline`。启动服务不会自动上传图片，也不会把默认轮廓近似切换成 AI。
 
 ## 连接本机服务
 
@@ -26,16 +26,16 @@
 
 | 设备 | 当前行为 | 验证范围 |
 | --- | --- | --- |
-| Windows x64 CPU | 完整 CPU 推理与离线包 | 已完成真实生成和搬移验证 |
-| Windows NVIDIA | 使用 CUDA 12.4 / PyTorch 2.6.0；探测或运算不兼容时回退 CPU | 可在 CPU 电脑组装完整 CUDA 依赖包，实际显卡推理需对应硬件验证 |
-| Mac M 系列 ARM64，目标 macOS 14+ | 优先 MPS；探测不可用或遇到已识别的算子兼容、内存错误时回退 CPU | Apple M5（24 GB、macOS 26.5.2）已通过完整离线包启动、API 生成和外形检查；其他 Mac 待验证 |
-| Windows Intel / AMD 显卡 | 使用 CPU | 暂不支持 XPU / ROCm 加速，不提供以其 GPU 支持命名的包 |
+| Windows x64 CPU | 完整 CPU 推理与缓存启动 | 已完成真实生成和搬移验证 |
+| Windows NVIDIA | 使用 CUDA 12.4 / PyTorch 2.6.0；探测或运算不兼容时回退 CPU | 可在 CPU 电脑准备 CUDA 依赖，实际显卡推理需对应硬件验证 |
+| Mac M 系列 ARM64，目标 macOS 14+ | 优先 MPS；探测不可用或遇到已识别的算子兼容、内存错误时回退 CPU | Apple M5（24 GB、macOS 26.5.2）已通过离线启动、API 生成和外形检查；其他 Mac 待验证 |
+| Windows Intel / AMD 显卡 | 使用 CPU | 暂不支持 XPU / ROCm 加速 |
 
 当前模型不支持 NVIDIA GeForce MX150（2 GB）的 GPU 推理，请使用 `--cpu`。
 
 连接成功后，界面会显示实际使用的 `CPU`、`GPU · NVIDIA CUDA` 或 `GPU · Apple MPS`。普通“有显卡”不等于当前模型能使用该显卡；驱动、PyTorch 构建和具体算子都要匹配。模型权重没有改变，适配的是执行这些权重所需的运算后端。GPU 任务回退时会保留原始上传图片，从头在 CPU 重试一次。
 
-离线包包含对应平台的 Python 和依赖；目标电脑仍需有兼容的系统与显卡驱动。打包和强制设备选择见[后端部署](../../services/generation-python/README.md#portable-packages)。
+Hunyuan 推理源码由仓库内已校验的 wheel 提供，权重和依赖由启动器准备。资源已准备完整时仍可用 `--offline` 禁止下载。硬件和强制设备选择见[后端部署](../../services/generation-python/README.md#gpu-and-platform-support)。
 
 ## 通过公网中转
 

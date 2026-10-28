@@ -14,7 +14,7 @@
 | 文档 | 用途 | 语言 |
 | --- | --- | --- |
 | [开发指南](../CONTRIBUTING.md) | 开发环境、代码导航、测试和文档维护 | ZH |
-| [生成后端](../services/generation-python/README.md) | sh 启动、下载、GPU、缓存、打包、环境变量 | EN |
+| [生成后端](../services/generation-python/README.md) | sh 启动、下载、GPU、缓存、环境变量 | EN |
 | [公网中转](../services/generation-relay/README.md) | HTTPS/WSS 部署和服务器配置 | EN |
 | [运行资源目录](../runtime/README.md) | 本地文件保留、私有数据和清理边界 | EN |
 | [随附模型文件来源](../services/generation-python/bundled/README.md) | 配置与许可证的版本、来源及校验 | EN |

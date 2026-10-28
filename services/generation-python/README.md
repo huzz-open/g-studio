@@ -1,41 +1,46 @@
 # Generation backend deployment
 
-Run commands from the repository root or an extracted backend package. For browser operations see the [model generation guide](../../docs/guides/model-generation.md) (Chinese); for code changes see the [development guide](../../CONTRIBUTING.md).
+Run commands from the current repository root. Source checkout plus automatic mirror downloads is the supported startup workflow. For browser operations see the [model generation guide](../../docs/guides/model-generation.md) (Chinese); for code changes see the [development guide](../../CONTRIBUTING.md).
 
 ## Start
 
 ```sh
-sh start-generation.sh
+sh start-generation.sh --cpu
 ```
 
 Use Git Bash on Windows, a terminal on macOS/Linux. WSL uses Linux resources. The launcher uses bundled Node, then a compatible installed Node, or downloads a verified runtime.
 
-First launch prepares Python 3.12, dependencies, pinned inference source and about **4.23GB of model weights**. Complete compatible resources are reused; missing or incompatible resources are repaired. Ctrl+C stops the processes launched by this command.
+For the default device policy omit `--cpu`. First launch prepares Python 3.12, dependencies, pinned inference source and about **4.23GB of model weights**, then starts the service. Complete compatible resources are reused; missing or incompatible resources are repaired. Ctrl+C stops the processes launched by this command. Do not use `--offline` on a fresh installation: that flag forbids required downloads.
 
 | Task | Command |
 | --- | --- |
 | Web app and backend, after `npm install` | `npm run dev` |
 | Web app only | `npm run dev:web` |
 | Backend only | `sh start-generation.sh` |
+| Prepare and start the real model on CPU in one command | `sh start-generation.sh --cpu` |
 | Prepare CPU resources without serving | `sh start-generation.sh prepare --cpu` |
 | Prepare NVIDIA CUDA resources (also works on a CPU build host) | `sh start-generation.sh prepare --cuda` |
 | Prepare Apple Silicon MPS/CPU resources on a Mac | `sh start-generation.sh prepare --mps` |
 | Check environment and connectivity | `sh start-generation.sh doctor --cpu` |
 | Lightweight algorithm backend, no model | `sh start-generation.sh --base` |
 
-The backend launcher does not install frontend npm dependencies. Development Vite supplies the local direct token to the browser; production builds do not embed it. Starting the backend does not upload an image or select AI automatically.
+The backend launcher does not need or install frontend npm dependencies. Wait for the `hunyuan-mini` provider to become `ready`, then upload an image through the web app or authenticated API. `/health` alone does not prove model preparation is finished. Normal model parameters are 5 steps, resolution 256 and 12,000 target faces; a one-step trial is not a quality check. Development Vite supplies the local direct token to the browser; production builds do not embed it. Starting the backend does not upload an image or select AI automatically.
 
 ## Download sources
 
-Before `npm install`, optionally run:
+If Node/npm is available, optionally set the project preset once before starting (no frontend installation is required for backend-only use):
 
 ```sh
 npm run setup:cn
 ```
 
-This project-local preset configures npm to use npmmirror, ordinary Python packages to use Tsinghua, and model weights to prefer ModelScope. It persists across terminals and does not modify global configuration. Run `npm run setup:default` to restore the previous project npm settings and remove the preset; cached models remain.
+This project-local preset configures npm to use npmmirror, ordinary Python packages to prefer Tsinghua, PyTorch to use NJU's matching CPU/CUDA channel, and model weights to prefer ModelScope. It persists across terminals and does not modify global configuration. Explicit environment overrides take precedence. Run `npm run setup:default` to restore the previous project npm settings and remove the preset; cached models remain.
 
-uv always tries Tsinghua's mirror of the official PyPI prebuilt wheel first, then the official GitHub release. Version, filenames, sizes and SHA256 values are pinned in `scripts/generation/uv-wheels.json`; extracting the native executable does not require Python. A valid cached uv remains first choice. Python, PyTorch and upstream source retain their configured official sources. GitHub-based npm dependencies are unaffected by npm registry settings.
+uv tries Tsinghua's mirror of the official PyPI prebuilt wheel first, then the official GitHub release. Version, filenames, sizes and SHA256 values are pinned in `scripts/generation/uv-wheels.json`; extracting the native executable does not require Python. A valid cached uv remains first choice. PyTorch wheel resolution can fall back to SJTU and official PyTorch sources; ordinary wheels use exact filename/SHA256 matching across the configured, Aliyun and PyPI sources. Downloaded wheels are installed locally after verification. Node/Python runtime downloads and some license fetches can still use official sources; the preset is not a global proxy. GitHub-based npm dependencies are unaffected by npm registry settings.
+
+Hunyuan shape inference code ships as the small, pinned [source wheel](./bundled/wheels/README.md) committed to this repository. Startup verifies its size/SHA256 and materializes it under `runtime/generation/vendor/Hunyuan3D-2/`, without fetching individual source files from GitHub. It is a G-Studio source distribution, not an official Tencent wheel or the full upstream texture pipeline. Model weights remain separately downloaded and verified.
+
+The first dependency-resolution pass also prepares local PyTorch wheels, so cold disk/cache work can take more than a minute before index resolution. Each source attempt has a five-minute overall limit; HTTP requests retain their own timeouts. A resolution wait does not by itself mean a mirror is unavailable.
 
 Model versions, file URLs, resume and SHA256 verification are built in; no user-selected hashes, ModelScope SDK or token are needed for these public weights. Verified configurations and notices ship in [bundled/](./bundled/README.md). Switching download mirrors does not substitute ModelScope's differing model configuration.
 
@@ -45,7 +50,6 @@ Model versions, file URLs, resume and SHA256 verification are built in; no user-
 | --- | --- | --- |
 | `runtime/generation/` | Shared models/source, platform runtimes and download caches | Keep during routine cleanup; excluded from Git |
 | `runtime/generation-data/` | Device credentials and temporary jobs | Private; do not distribute |
-| `runtime/bundles/` | Portable archives | Distributable; excluded from Git |
 | `runtime/archives/` | Retired local experiments | Historical only; not a runtime dependency |
 
 Within the resource root, `models/` and `vendor/` are shared. Node, uv and Python live under `platforms/<os>-<arch>/`; Python variants are `base`, `cpu`, `cu124` and `mps`. Python is a self-contained interpreter tree, not a venv tied to a user's original path. Intel XPU and AMD ROCm are not advertised as supported variants.
@@ -54,45 +58,15 @@ If `GEN_HOME` is set without `GEN_DATA_HOME`, private data also uses the custom 
 
 Use `GEN_IMPORT_CACHE` for an existing directory containing matching `models/` and `vendor/`. Imports are verified; legacy credentials are not imported. Model hashing may take time even when no download is needed.
 
-## Portable packages
+## Reusing resources offline
 
-Three archives are prepared under local `runtime/bundles/`: Windows `win32-x64-cu124` (NVIDIA + CPU, about 9.68 GB), optional smaller `win32-x64-cpu` (about 6.18 GB), and Mac `darwin-arm64-mps` (MPS + CPU, about 5.29 GB). Full filenames follow `g-studio-generation-<platform>-<variant>.zip`. These are backend packages; connect the separately hosted web app. They are not Git-hosted downloads.
-
-For distribution, one CUDA archive covers both compatible NVIDIA and CPU execution on Windows; one MPS archive covers MPS and CPU on Apple Silicon. Recipients do not need both Windows packages. Platform binaries remain separate; builds reuse the same model weights and upstream inference source from the resource root. The standalone CPU archive is retained to reduce download size on CPU-only machines.
-
-On the target platform:
+After online preparation succeeds, keep `runtime/generation/` and run the project's script:
 
 ```sh
-sh start-generation.sh pack --cpu
-sh start-generation.sh pack --cuda
-# Run on an Apple Silicon Mac:
-sh start-generation.sh pack --mps
+sh start-generation.sh --offline --cpu
 ```
 
-The launcher prepares resources and writes `runtime/bundles/g-studio-generation-<platform>-<variant>.zip`. CUDA preparation does not require a GPU on the build host: all CUDA Python dependencies can be assembled and imported there, but real CUDA inference requires compatible NVIDIA hardware and drivers. The package contains backend code, Node, Python, dependencies, model files, source and notices; credentials, jobs, download caches and other platforms are excluded.
-
-`sh start-generation.sh pack-mac` can also assemble a Mac ARM64 package from official prebuilt distributions on another OS. It checks dependency versions, wheel platform tags and ARM64 Mach-O executables; it cannot execute Mac code on Windows. Such a package is explicitly marked `cross-platform-static` in `bundle.json`. A Mac startup and real MPS generation check remain required before claiming hardware validation.
-
-Recipients extract it and run:
-
-```sh
-sh start-generation.sh
-```
-
-Add `--offline` to prohibit setup downloads: `sh start-generation.sh --offline`. Use Git Bash on Windows and Terminal on Mac; the archive includes Node and Python, not a Windows shell. Windows CPU relocation and real HTTP inference have passed; the CUDA runtime is checked but GPU inference remains unverified. The complete Mac package passed offline startup, API generation and visual inspection on Apple M5 (24 GB, macOS 26.5.2).
-
-A complete compatible package selects its packaged CPU/CUDA/MPS profile and requires no preinstalled Python, Node or uv and no setup downloads. Explicit `--cpu`, `--cuda` or `--mps` overrides that preference. Missing resources still trigger normal repair. For an explicit offline completeness check:
-
-On Mac ARM64, CPU and MPS share the same `python-mps` distribution. In a packaged NVIDIA bundle, CPU can also use the included CUDA distribution. In both cases, `--cpu` changes the execution preference without downloading another environment. Packages record this preference separately from the dependency variant.
-
-```sh
-GEN_OFFLINE=1 sh start-generation.sh prepare
-```
-
-- Build separate packages for each OS/architecture. Shared model weights do not make binary dependencies portable across platforms.
-- ZIP64 archives exceed 4GB; avoid FAT32. On Windows use a short extraction path such as `E:\GStudio` to avoid older extractors' path-length limits. Spaces are supported.
-- Do not extract a package inside another copy's `runtime/`.
-- OS libraries and NVIDIA drivers remain host requirements.
+This reuses installed dependencies and verified models; missing resources fail clearly in offline mode. CPU, CUDA and MPS environments are selected from the requested device and platform, not archive metadata. Mac ARM64 uses the same environment for MPS and CPU. Packaging and cross-platform archive assembly commands have been removed.
 
 ## GPU and platform support
 
@@ -102,10 +76,10 @@ Force CPU with `--cpu`; use `--cuda` or `--mps` to prepare a specific environmen
 
 | Platform / device | Implemented behavior | Verification boundary |
 | --- | --- | --- |
-| Windows x64 CPU | Full local inference and portable package | Real inference and relocation tested |
-| Windows x64 NVIDIA | PyTorch 2.6.0 + CUDA 12.4, FP16; device failure falls back to CPU | Runtime package can be built on CPU; NVIDIA GPU inference needs compatible-device validation. Not every new/old NVIDIA architecture is guaranteed by this pinned build |
-| Apple Silicon, target macOS 14+ | ARM64 PyTorch 2.6.0, MPS preferred, FP32 and CPU noise generator; unsupported MPS operations/OOM can retry the complete task on CPU | Full offline package startup, API generation and vase geometry inspection passed on Apple M5 (24 GB, macOS 26.5.2); other Macs remain unvalidated |
-| Windows Intel/AMD GPUs | Production uses CPU; no integrated-GPU package | Experimental UHD 630 DirectML required adaptations and took 868 s versus 228 s CPU; Radeon 780M model inference failed. This does not establish that all Intel/AMD hardware is incapable |
+| Windows x64 CPU | Full local inference and cached offline startup | Real inference and relocation tested |
+| Windows x64 NVIDIA | PyTorch 2.6.0 + CUDA 12.4, FP16; device failure falls back to CPU | CUDA dependencies can be prepared on CPU; NVIDIA GPU inference needs compatible-device validation. Not every new/old NVIDIA architecture is guaranteed by this pinned build |
+| Apple Silicon, target macOS 14+ | ARM64 PyTorch 2.6.0, MPS preferred, FP32 and CPU noise generator; unsupported MPS operations/OOM can retry the complete task on CPU | Offline startup, API generation and vase geometry inspection passed on Apple M5 (24 GB, macOS 26.5.2); other Macs remain unvalidated |
+| Windows Intel/AMD GPUs | Production uses CPU | Experimental UHD 630 DirectML required adaptations and took 868 s versus 228 s CPU; Radeon 780M model inference failed. This does not establish that all Intel/AMD hardware is incapable |
 | Intel macOS | Lightweight `--base` only | Pinned full-model PyTorch does not support macOS x64 |
 | Linux x64/ARM64 | Preparation paths retained | Not validated on Linux hardware here |
 

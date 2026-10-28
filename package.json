@@ -20,7 +20,6 @@
     "dev:web": "vite",
     "generation:start": "node scripts/generation/start.mjs start",
     "generation:download": "node scripts/generation/start.mjs download",
-    "generation:pack": "node scripts/generation/start.mjs pack",
     "test:runtime": "node --test tests/generation-bootstrap.test.mjs",
     "test:uv-mirror": "node --test tests/uv-mirror.test.mjs",
     "generation:doctor": "node scripts/generation/start.mjs doctor",

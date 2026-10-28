@@ -65,11 +65,8 @@ function ready(python, requirements, variant) {
   return report.ok && resolve(report.base) === resolve(report.prefix);
 }
 export function selectRuntime() {
-  const bundlePath = join(root, 'bundle.json');
-  const bundle = existsSync(bundlePath) ? JSON.parse(readFileSync(bundlePath, 'utf8')) : undefined;
   const profile = chooseProfile({ platform: info.tag, requested: process.env.GEN_DEVICE || 'auto', skip: process.env.GEN_SKIP_MODEL === '1',
-    nvidia: process.platform !== 'darwin' && works('nvidia-smi', ['--query-gpu=name', '--format=csv,noheader']),
-    bundle: bundle?.format === 'g-studio/generation-bundle' && bundle.version === 1 ? bundle : undefined });
+    nvidia: process.platform !== 'darwin' && works('nvidia-smi', ['--query-gpu=name', '--format=csv,noheader']) });
   process.env.GEN_DEVICE = profile.requested;
   if (profile.reason) process.env.GEN_DEVICE_REASON = profile.reason;
   else delete process.env.GEN_DEVICE_REASON;

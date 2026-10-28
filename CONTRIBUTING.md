@@ -35,7 +35,7 @@ npm run preview
 | `services/generation-python/` | Python 推理服务和 Provider |
 | `services/generation-relay/` | Node/TypeScript 公网中转 |
 | `packages/generation-protocol/` | 协议类型、JSON Schema、OpenAPI |
-| `scripts/generation/` | 环境准备、下载、镜像和打包 |
+| `scripts/generation/` | 环境准备、下载和镜像 |
 | `tests/` | 单元、集成及浏览器检查 |
 | `runtime/` | 本地运行资源、私有数据和分发包；见[清理边界](./runtime/README.md) |
 
@@ -84,9 +84,15 @@ node tests/sidebar-controls.e2e.cjs
 
 ### Python 与真实推理
 
-使用生成服务的 Python 3.12 环境执行 `tests/generation_runtime_test.py`、`tests/generation_service_test.py` 和 `tests/generation_bundle_test.py`。解释器位置记录在 `runtime/generation/platforms/<os>-<arch>/python-<variant>/environment.json`，其中 `python` 相对于该文件所在目录。
+使用生成服务的 Python 3.12 环境执行 `tests/generation_runtime_test.py`、`tests/generation_service_test.py` 和 `tests/generation_source_wheel_test.py`。解释器位置记录在 `runtime/generation/platforms/<os>-<arch>/python-<variant>/environment.json`，其中 `python` 相对于该文件所在目录。
 
-TLS 集成测试设置 `GENERATION_TEST_TLS=1`，并准备 OpenSSL。`tests/generation_portable_e2e.py` 是分发包运行检查，运行前阅读其参数。真实 Hunyuan 推理需要模型和较长时间，轻量算法测试不能代替它；硬件实测见[验证记录](./docs/history/model-generation-validation.md)。
+TLS 集成测试设置 `GENERATION_TEST_TLS=1`，并准备 OpenSSL。`tests/generation_fresh_e2e.py` 用全新目录、隐藏系统运行时和隔离旧缓存的方式，验证 CPU 在线准备、服务启动及 5 步/256 分辨率的真实模型生成；仅用于 Windows/Git Bash，会下载数 GB，目标目录必须不存在。例如：
+
+```sh
+python tests/generation_fresh_e2e.py E:/GStudioFreshCheck --bash "D:/Program Files/Git/bin/bash.exe" --output output/fresh-cpu-check
+```
+
+测试脚本的 Python 是控制端工具，不会作为被测服务的解释器。真实 Hunyuan 推理需要模型和较长时间，轻量算法测试不能代替它；硬件实测见[验证记录](./docs/history/model-generation-validation.md)。
 
 旧 `height-lab` 和部分 `*-evaluation.test.py` 脚本涉及已归档实验或机器路径，不属于干净检出即可运行的常规测试入口。重新使用前先核对依赖。
 

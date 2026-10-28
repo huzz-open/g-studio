@@ -17,8 +17,7 @@ if (flags.includes("--mps")) process.env.GEN_DEVICE = "mps";
 if (flags.filter(f => ['--cpu','--cuda','--mps'].includes(f)).length > 1) throw Error('Choose only one of --cpu, --cuda, --mps');
 if (flags.includes("--offline")) process.env.GEN_OFFLINE = "1";
 if (flags.includes("--base")) process.env.GEN_SKIP_MODEL = "1";
-if (!["start", "dev", "download", "prepare", "doctor", "pack", "pack-mac"].includes(mode)) throw Error("Use start, dev, prepare, doctor, pack or pack-mac");
-if (mode === "pack-mac") { process.env.GEN_DEVICE="cpu"; process.env.GEN_SKIP_MODEL="1"; }
+if (!["start", "dev", "download", "prepare", "doctor"].includes(mode)) throw Error("Use start, dev, download, prepare or doctor");
 const relayIndex = flags.indexOf("--relay");
 if (relayIndex >= 0) {
   if (!flags[relayIndex + 1]) throw Error("--relay requires a WSS URL");
@@ -90,10 +89,7 @@ try {
       );
   }
   const python = await preparePython();
-  if (mode === "pack-mac") {
-    const { buildMacPackage } = await import('./cross-mac.mjs');
-    await buildMacPackage(python);
-  } else if (["download", "prepare", "pack"].includes(mode)) {
+  if (["download", "prepare"].includes(mode)) {
     if (process.env.GEN_SKIP_MODEL === "1") console.log("[generation] Lightweight runtime verified");
     else {
       console.log("[generation] Preparing model files: download, resume and SHA256 verification");
@@ -101,10 +97,6 @@ try {
         env: { ...process.env, GEN_HOME: home, PYTHONIOENCODING: "utf-8" },
       });
       console.log("[generation] Download preparation complete; model files are ready");
-    }
-    if (mode === "pack") {
-      const { pack } = await import('./pack.mjs');
-      await pack(python);
     }
   } else if (mode === "doctor") {
     await run(python, [join(root, "services/generation-python/device.py")]);
