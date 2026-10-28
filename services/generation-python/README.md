@@ -8,9 +8,9 @@ Run commands from the current repository root. Source checkout plus automatic mi
 sh start-generation.sh --cpu
 ```
 
-Use Git Bash on Windows, a terminal on macOS/Linux. WSL uses Linux resources. The launcher uses bundled Node, then a compatible installed Node, or downloads a verified runtime.
+Use Git Bash on Windows, a terminal on macOS/Linux. WSL uses Linux resources. The launcher uses a compatible installed Node in its original location first. If none is available, it reuses the launcher's cached Node or downloads a verified official runtime. System Node executables are never copied into the project; Homebrew and other package-manager builds can depend on libraries in their original installation.
 
-When reusing resources copied from another computer, the bootstrap restores the managed Node executable's Unix permissions and replaces an unusable binary from the currently running Node. If the replacement cannot start, the error includes its path, process exit status or signal, and captured output. Older launchers reported these execution failures as `Invalid bundled Node version`; that message alone does not establish a version mismatch.
+Backend preparation manages Python, dependencies and models independently of Node installation. Both `sh start-generation.sh` and the npm commands use their working Node directly, without preparing a portable Node copy or fetching its license. Old Node files under `runtime/generation/platforms/` are ignored when a compatible installed Node is available; no cache cleanup is required after updating the source.
 
 For the default device policy omit `--cpu`. First launch prepares Python 3.12, dependencies, pinned inference source and about **4.23GB of model weights**, then starts the service. Complete compatible resources are reused; missing or incompatible resources are repaired. Ctrl+C stops the processes launched by this command. Do not use `--offline` on a fresh installation: that flag forbids required downloads.
 
@@ -54,7 +54,7 @@ Model versions, file URLs, resume and SHA256 verification are built in; no user-
 | `runtime/generation-data/` | Device credentials and temporary jobs | Private; do not distribute |
 | `runtime/archives/` | Retired local experiments | Historical only; not a runtime dependency |
 
-Within the resource root, `models/` and `vendor/` are shared. Node, uv and Python live under `platforms/<os>-<arch>/`; Python variants are `base`, `cpu`, `cu124` and `mps`. Python is a self-contained interpreter tree, not a venv tied to a user's original path. Intel XPU and AMD ROCm are not advertised as supported variants.
+Within the resource root, `models/` and `vendor/` are shared. uv, Python and the launcher's optional Node download cache live under `platforms/<os>-<arch>/`; Python variants are `base`, `cpu`, `cu124` and `mps`. Python is a self-contained interpreter tree, not a venv tied to a user's original path. Intel XPU and AMD ROCm are not advertised as supported variants.
 
 If `GEN_HOME` is set without `GEN_DATA_HOME`, private data also uses the custom resource root for compatibility. Set both explicitly when separating a migrated installation. See [runtime directory notes](../../runtime/README.md).
 

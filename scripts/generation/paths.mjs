@@ -24,6 +24,5 @@ export function runtimePaths(home, variant, info = platformInfo()) {
   const platformHome = join(home, 'platforms', info.tag);
   const runtime = join(platformHome, `python-${variant}`);
   return { platformHome, runtime, pythonRoot: join(runtime, 'python'), marker: join(runtime, 'environment.json'),
-    uv: join(platformHome, 'tools', info.windows ? 'uv.exe' : 'uv'),
-    node: join(platformHome, 'node', info.windows ? 'node.exe' : 'node') };
+    uv: join(platformHome, 'tools', info.windows ? 'uv.exe' : 'uv') };
 }

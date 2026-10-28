@@ -22,11 +22,12 @@ NODE_DIR="$RESOURCE_HOME/platforms/$platform-$arch/node"
 NODE="$NODE_DIR/node"
 if [ "$platform" = win32 ]; then NODE="$NODE_DIR/node.exe"; fi
 node_ok() { "$1" -e 'const [a,b]=process.versions.node.split(".").map(Number);process.exit(a>22||(a===22&&b>=12)?0:1)' >/dev/null 2>&1; }
-if [ -f "$NODE" ]; then chmod +x "$NODE"; fi
-if [ -f "$NODE" ] && node_ok "$NODE"; then
-  :
-elif command -v node >/dev/null 2>&1 && node_ok "$(command -v node)"; then
+# Use an installed Node in place. Package-manager builds can depend on libraries
+# beside their original executable and must never be copied into this project.
+if command -v node >/dev/null 2>&1 && node_ok "$(command -v node)"; then
   NODE=$(command -v node)
+elif [ -f "$NODE" ] && chmod +x "$NODE" && node_ok "$NODE"; then
+  :
 else
   if [ "${GEN_OFFLINE:-0}" = 1 ]; then echo "Offline: a working bundled Node runtime is missing." >&2; exit 1; fi
   command -v curl >/dev/null 2>&1 || { echo "curl is required for first-time setup." >&2; exit 1; }

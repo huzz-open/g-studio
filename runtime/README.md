@@ -1,7 +1,9 @@
 # Local runtime storage — retain when cleaning the project
 
 `generation/` contains reusable model weights, upstream source, and platform-specific
-Node, uv, Python and installed packages. It is deliberately excluded from Git.
+uv, Python and installed packages. The launcher may also cache an official Node
+download when no compatible installed Node is available; installed Node is used
+in place and is never copied here. This directory is deliberately excluded from Git.
 Keep this directory: deleting required files causes the next normal start to
 download them again. `sh start-generation.sh` validates and reuses complete resources.
 

@@ -62,7 +62,7 @@ npm run setup:cn                  # 可选，已有 Node/npm 时设置一次国�
 sh start-generation.sh --cpu     # 一条命令准备资源并启动 CPU 后端
 ```
 
-Windows 使用 Git Bash，Mac 使用终端。只启动后端无需 `npm install` 或预装 Python；没有可用 Node 时脚本会下载。国内预设使用清华 PyPI、南大 PyTorch 对应 CPU/CUDA 源、ModelScope 权重；Node/Python 运行时仍可能访问官方源。Hunyuan 推理源码以仓库内已校验的 wheel 提供，不再逐文件联网下载。
+Windows 使用 Git Bash，Mac 使用终端。只启动后端无需 `npm install` 或预装 Python；脚本直接使用已安装且兼容的 Node，本地没有可用 Node 时才下载官方运行时。国内预设使用清华 PyPI、南大 PyTorch 对应 CPU/CUDA 源、ModelScope 权重；运行时下载仍可能访问官方源。Hunyuan 推理源码以仓库内已校验的 wheel 提供，不再逐文件联网下载。
 
 首次联网准备完成后，重复启动会复用缓存；`--offline` 只适合资源已齐全的环境。服务启动后还需通过网页或 API 提交图片，才会生成模型。详见[后端启动说明](./services/generation-python/README.md#start)。
 

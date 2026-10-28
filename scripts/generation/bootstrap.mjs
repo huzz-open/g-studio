@@ -11,7 +11,6 @@ import { installUv } from './uv-download.mjs';
 import { chooseProfile } from './profiles.mjs';
 import { downloadTorchWheels } from './torch-download.mjs';
 import { downloadDependencies } from './dependency-download.mjs';
-import { prepareBundledNode } from './node-runtime.mjs';
 export { root };
 export const { home, dataHome } = resourcePaths();
 export const managedChildren = new Set();
@@ -31,22 +30,6 @@ export function run(command, args, options = {}) {
 }
 function works(command, args = ['--version']) { return spawnSync(command, args, { stdio: 'ignore', windowsHide: true, timeout: 15000 }).status === 0; }
 function assertOnline(resource) { if (process.env.GEN_OFFLINE === '1') throw Error(`Offline: ${resource} is missing or incompatible. Prepare resources on a connected machine first.`); }
-async function retainNodeLicense(layout, version) {
-  const license = join(dirname(layout.node), 'LICENSE'), marker = join(dirname(layout.node), 'license-version.txt');
-  if (existsSync(license) && existsSync(marker) && readFileSync(marker, 'utf8').trim() === version) return;
-  assertOnline('Node distribution license');
-  let failure;
-  for (let i = 0; i < 3; i++) {
-    try {
-      const response = await fetch(`https://raw.githubusercontent.com/nodejs/node/${version}/LICENSE`, { signal: AbortSignal.timeout(30000) });
-      if (!response.ok) throw Error(`Node license HTTP ${response.status}`);
-      const text = await response.text();
-      if (!text.includes('Copyright')) throw Error('Invalid Node license response');
-      writeFileSync(license, text); writeFileSync(marker, version); return;
-    } catch (error) { failure = error; }
-  }
-  throw failure;
-}
 function pythonIn(directory) { return join(directory, info.windows ? 'python.exe' : 'bin/python3'); }
 function interpreters(directory) {
   const found = existsSync(directory) ? readdirSync(directory, { withFileTypes: true }).filter(e => e.isDirectory()).map(e => pythonIn(join(directory, e.name))).filter(existsSync) : [];
@@ -104,8 +87,6 @@ export async function preparePython() {
   if (process.env.GEN_PYTHON) return resolve(process.env.GEN_PYTHON);
   const layout = selectRuntime();
   mkdirSync(layout.runtime, { recursive: true }); mkdirSync(dataHome, { recursive: true });
-  const nodeVersion = prepareBundledNode(layout.node);
-  await retainNodeLicense(layout, nodeVersion);
   const lock = join(layout.runtime, 'environment.lock');
   if (existsSync(lock)) {
     const pid = Number(readFileSync(lock, 'utf8')); let alive = false;

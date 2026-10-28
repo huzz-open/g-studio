@@ -62,7 +62,7 @@ npm run setup:cn                  # Optional, one-time China preset when Node/np
 sh start-generation.sh --cpu     # Prepare resources and start the CPU backend
 ```
 
-Use Git Bash on Windows or Terminal on Mac. Backend-only startup needs neither `npm install` nor preinstalled Python; the script downloads Node if needed. The China preset uses Tsinghua PyPI, NJU's matching PyTorch CPU/CUDA channel and ModelScope weights; Node/Python runtimes may still use official sources. Pinned Hunyuan inference source ships as a verified repository wheel instead of individual network downloads.
+Use Git Bash on Windows or Terminal on Mac. Backend-only startup needs neither `npm install` nor preinstalled Python; the script uses a compatible installed Node in place and downloads an official runtime only if no working Node is available locally. The China preset uses Tsinghua PyPI, NJU's matching PyTorch CPU/CUDA channel and ModelScope weights; runtime downloads may still use official sources. Pinned Hunyuan inference source ships as a verified repository wheel instead of individual network downloads.
 
 Subsequent starts reuse complete resources. Use `--offline` only after preparation; starting the service does not generate a model until an image is submitted through the UI or API. See [backend startup](./services/generation-python/README.md#start).
 
