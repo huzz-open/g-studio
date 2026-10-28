@@ -238,9 +238,11 @@ def download(item):
     raise RuntimeError(f"Download failed: {item['path']}: {error}")
 
 
-def main():
+def prepare_model(model):
+    filename = {"mini": "model-manifest.json", "turbo": "model-manifest-turbo.json", "2.1": "model-manifest-2.1.json"}[model]
+    manifest = json.loads(Path(__file__).with_name(filename).read_text("utf-8"))
     started = time.monotonic()
-    print(f"[generation] Model: {MANIFEST['model']} | files: {len(MANIFEST['files'])} | cache: {HOME}", flush=True)
+    print(f"[generation] Model: {manifest['model']} | files: {len(manifest['files'])} | cache: {HOME}", flush=True)
     print("[generation] Acquiring model download lock", flush=True)
     # OS-owned locks are released after a crash; a leftover file is harmless.
     lock = (HOME / "download.lock").open("a+b")
@@ -271,21 +273,31 @@ def main():
         raise RuntimeError("Another download is running; retry later")
     try:
         print("[generation] Download lock acquired; checking disk space", flush=True)
-        prepare_source(HOME)
+        prepare_source(HOME, series="2.1" if model == "2.1" else "2.0")
         missing = sum(
-            i["size"] for i in MANIFEST["files"] if not (HOME / i["path"]).exists()
+            i["size"] for i in manifest["files"] if not (HOME / i["path"]).exists()
         )
         free = shutil.disk_usage(HOME).free
         print(f"[generation] Disk space: {free / 1024**3:.2f} GiB free; missing files: {missing / 1024**3:.2f} GiB", flush=True)
         if free < missing + 512 * 1024**2:
             raise RuntimeError("Insufficient disk space for model preparation")
-        for index, item in enumerate(MANIFEST["files"], 1):
-            print(f"\n[generation] File {index}/{len(MANIFEST['files'])}: {item['path']}", flush=True)
+        for index, item in enumerate(manifest["files"], 1):
+            print(f"\n[generation] File {index}/{len(manifest['files'])}: {item['path']}", flush=True)
             download(item)
         print(f"[generation] model source and weights verified (elapsed {time.monotonic() - started:.0f}s)", flush=True)
     finally:
         lock.close()
         print("[generation] Download lock released", flush=True)
+
+
+def main():
+    import argparse
+    from model_catalog import MODELS, enabled_models
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model', choices=['mini', 'turbo', '2.1'])
+    selected = parser.parse_args().model
+    for key in ([selected] if selected else [MODELS[id]['key'] for id in enabled_models()]):
+        prepare_model(key)
 
 
 if __name__ == "__main__":

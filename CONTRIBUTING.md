@@ -87,6 +87,10 @@ node tests/sidebar-controls.e2e.cjs
 
 使用生成服务的 Python 3.12 环境执行 `tests/generation_runtime_test.py`、`tests/generation_service_test.py` 和 `tests/generation_source_wheel_test.py`。解释器位置记录在 `runtime/generation/platforms/<os>-<arch>/python-<variant>/environment.json`，其中 `python` 相对于该文件所在目录。
 
+新增服务生命周期与模型适配检查：用同一生成环境执行 `tests/generation_lifecycle_test.py`、`tests/generation_startup_test.py` 和 `tests/generation_adapter_test.py`。前者使用合成 worker 检查加载期间接口、队列、取消、容量和失败语义；启动检查使用真实离线 HTTP 子进程；适配检查覆盖严格权重赋值、预处理及 2.1 分层坐标。它们都不代替真实模型质量验证。
+
+`tests/generation_benchmark.py --url <API> --config <私有config.json> --jobs <任务目录> --output <忽略的结果目录> --models hunyuan-mini,hunyuan-turbo,hunyuan-2-1 --repeat-first` 用同一批花瓶、椅子、纸伞和盆景顺序生成，默认使用各模型声明的步数。以 `tests/generation_mesh_report.py <benchmark.json>` 统计原始/减面网格；仍需人工查看多角度外形，不能凭成功导出或统计自动判定质量通过。报告不保存访问凭证。
+
 TLS 集成测试设置 `GENERATION_TEST_TLS=1`，并准备 OpenSSL。`tests/generation_fresh_e2e.py` 用全新目录、隐藏系统运行时和隔离旧缓存的方式，验证 CPU 在线准备、服务启动及 5 步/256 分辨率的真实模型生成；仅用于 Windows/Git Bash，会下载数 GB，目标目录必须不存在。例如：
 
 ```sh

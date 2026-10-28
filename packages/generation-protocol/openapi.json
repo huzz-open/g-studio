@@ -71,7 +71,13 @@
         "responses": {
           "200": {
             "description": "Success",
-            "content": {}
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                }
+              }
+            }
           },
           "default": {
             "description": "Structured failure",
@@ -95,7 +101,7 @@
       "post": {
         "responses": {
           "202": {
-            "description": "Accepted",
+            "description": "Accepted; enabled preparing/loading providers queue jobs without interrupting shared preparation",
             "content": {
               "application/json": {
                 "schema": {
@@ -229,7 +235,8 @@
               "type": "string"
             }
           }
-        ]
+        ],
+        "description": "Queued cancellation is immediate. Running resident cancellation is acknowledged at an independent execution boundary; the shared model remains loaded."
       }
     },
     "/v1/jobs/{id}/ack": {
@@ -461,6 +468,9 @@
           "outputs"
         ],
         "properties": {
+          "backend": {
+            "type": "string"
+          },
           "protocolVersion": {
             "const": 1
           },
@@ -508,8 +518,36 @@
               "$ref": "#/components/schemas/Output"
             }
           },
-          "backend": {
+          "timings": {
+            "$ref": "#/components/schemas/Timings"
+          },
+          "strategy": {
+            "enum": [
+              "resident",
+              "staged"
+            ]
+          },
+          "precision": {
+            "enum": [
+              "fp16",
+              "fp32"
+            ],
+            "description": "Fixed sampling/decoding precision; image encoder precision may be reported separately."
+          },
+          "instanceId": {
             "type": "string"
+          },
+          "elapsedSeconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "imageEncoderPrecision": {
+            "type": "string",
+            "enum": [
+              "fp16",
+              "fp32"
+            ],
+            "description": "Fixed at startup; may differ from sampling/decoding precision."
           }
         }
       },
@@ -543,6 +581,205 @@
           },
           "error": {
             "type": "object"
+          },
+          "timings": {
+            "$ref": "#/components/schemas/Timings"
+          }
+        }
+      },
+      "Timings": {
+        "type": "object",
+        "required": [
+          "totalSeconds",
+          "queueSeconds",
+          "executionSeconds"
+        ],
+        "properties": {
+          "totalSeconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "queueSeconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "executionSeconds": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      },
+      "ParameterRange": {
+        "type": "object",
+        "required": [
+          "min",
+          "max",
+          "default"
+        ],
+        "properties": {
+          "min": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          },
+          "default": {
+            "type": "number"
+          },
+          "step": {
+            "type": "number"
+          },
+          "integer": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Provider": {
+        "type": "object",
+        "required": [
+          "providerId",
+          "name",
+          "state",
+          "parameters"
+        ],
+        "properties": {
+          "providerId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ParameterRange"
+            }
+          },
+          "acceptsJobs": {
+            "type": "boolean",
+            "description": "When absent, clients only submit to ready providers. Loading submissions share startup preparation."
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 2,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "\u63a8\u8350",
+                "\u5feb\u901f",
+                "\u5747\u8861",
+                "\u7cbe\u7ec6"
+              ]
+            }
+          },
+          "strategy": {
+            "enum": [
+              "resident",
+              "staged"
+            ]
+          },
+          "precision": {
+            "enum": [
+              "fp16",
+              "fp32"
+            ],
+            "description": "Fixed sampling/decoding precision; image encoder precision may be reported separately."
+          },
+          "preparationSeconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "loadSeconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "warmupSeconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "instanceId": {
+            "type": "string"
+          },
+          "loadCount": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "imageEncoderPrecision": {
+            "type": "string",
+            "enum": [
+              "fp16",
+              "fp32"
+            ],
+            "description": "Fixed at startup; may differ from sampling/decoding precision."
+          }
+        }
+      },
+      "Capabilities": {
+        "type": "object",
+        "required": [
+          "protocolVersion",
+          "providers",
+          "limits",
+          "targetFaces"
+        ],
+        "properties": {
+          "protocolVersion": {
+            "const": 1
+          },
+          "providers": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 64,
+            "items": {
+              "$ref": "#/components/schemas/Provider"
+            }
+          },
+          "limits": {
+            "type": "object",
+            "required": [
+              "inputBytes",
+              "inputDimension",
+              "outputBytes",
+              "concurrency",
+              "queue"
+            ],
+            "properties": {
+              "inputBytes": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "inputDimension": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "outputBytes": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "concurrency": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "queue": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
+          "targetFaces": {
+            "$ref": "#/components/schemas/ParameterRange"
           }
         }
       }

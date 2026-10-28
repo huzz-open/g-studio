@@ -17,7 +17,9 @@ test('profiles select CPU, NVIDIA CUDA and Apple MPS without advertising Intel/A
   assert.equal(chooseProfile({ platform: 'win32-x64', requested: 'cuda' }).variant, 'cu124');
   assert.equal(chooseProfile({ platform: 'darwin-arm64' }).variant, 'mps');
   assert.deepEqual(chooseProfile({platform:'darwin-arm64',requested:'cpu'}),{variant:'mps',requested:'cpu'});
-  for (const requested of ['xpu','rocm']) assert.equal(chooseProfile({ platform: 'win32-x64', requested }).variant, 'cpu');
+  for (const requested of ['xpu','rocm']) assert.throws(() => chooseProfile({ platform: 'win32-x64', requested }));
+  assert.equal(chooseProfile({ platform: 'darwin-arm64' }).requested, 'auto');
+  assert.equal(chooseProfile({ platform: 'win32-x64', nvidia: true }).requested, 'auto');
   assert.throws(() => chooseProfile({ platform: 'win32-x64', requested: 'mps' }));
   assert.throws(() => chooseProfile({ platform: 'darwin-arm64', requested: 'cuda' }));
   assert.deepEqual(chooseProfile({ platform: 'win32-x64', requested: 'cpu', nvidia: true }), { variant:'cpu', requested:'cpu' });

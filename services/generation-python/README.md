@@ -12,7 +12,7 @@ Use Git Bash on Windows, a terminal on macOS/Linux. WSL uses Linux resources. Th
 
 Backend preparation manages Python, dependencies and models independently of Node installation. Both `sh start-generation.sh` and the npm commands use their working Node directly, without preparing a portable Node copy or fetching its license. Old Node files under `runtime/generation/platforms/` are ignored when a compatible installed Node is available; no cache cleanup is required after updating the source.
 
-For the default device policy omit `--cpu`. First launch prepares Python 3.12, dependencies, pinned inference source and about **4.23GB of model weights**, then starts the service. Complete compatible resources are reused; missing or incompatible resources are repaired. Ctrl+C stops the processes launched by this command. Do not use `--offline` on a fresh installation: that flag forbids required downloads.
+For the default device policy omit `--cpu`. First launch prepares Python 3.12, dependencies, pinned inference source and about **4.23GB of model weights**, opens HTTP after Python setup, and prepares model resources in the background. Complete compatible resources are reused; missing or incompatible resources are repaired. Ctrl+C stops the processes launched by this command. Do not use `--offline` on a fresh installation: that flag forbids required downloads.
 
 | Task | Command |
 | --- | --- |
@@ -99,13 +99,13 @@ This reuses installed dependencies and verified models; missing resources fail c
 
 On Windows, automatic preparation selects CUDA only when NVIDIA hardware is detected; Intel/AMD GPUs use the CPU profile. Runtime probing distinguishes CUDA from HIP/ROCm, even though both expose `torch.cuda`, and never advertises ROCm/XPU as supported. On Apple Silicon, automatic preparation selects the standard Mac ARM64 PyTorch distribution and prefers MPS after a real device operation check. CPU remains available in the same distribution.
 
-Force CPU with `--cpu`; use `--cuda` or `--mps` to prepare a specific environment. `GEN_DEVICE` accepts `auto`, `cpu`, `cuda`, `mps`; explicit `xpu`/`rocm` requests currently fall back to CPU with an explanation. A recoverable CUDA/MPS task failure retries once on CPU using the same original upload. API device info includes `backend` and a diagnostic `reason`, and the UI identifies NVIDIA CUDA or Apple MPS when actually selected.
+Force CPU with `--cpu`; use `--cuda` or `--mps` to prepare a specific environment. `GEN_DEVICE` accepts `auto`, `cpu`, `cuda`, `mps`. Explicit unavailable/unsupported devices fail clearly. Auto detection may choose CPU at startup; execution errors never retry on another backend/model/strategy. API device info includes `backend` and a diagnostic `reason`, and the UI identifies NVIDIA CUDA or Apple MPS when actually selected.
 
 | Platform / device | Implemented behavior | Verification boundary |
 | --- | --- | --- |
-| Windows x64 CPU | Full local inference and cached offline startup | Real inference and relocation tested |
-| Windows x64 NVIDIA | PyTorch 2.6.0 + CUDA 12.4, FP16; device failure falls back to CPU | CUDA dependencies can be prepared on CPU; NVIDIA GPU inference needs compatible-device validation. Not every new/old NVIDIA architecture is guaranteed by this pinned build |
-| Apple Silicon, target macOS 14+ | ARM64 PyTorch 2.6.0, MPS preferred, FP32 and CPU noise generator; unsupported MPS operations/OOM can retry the complete task on CPU | Offline startup, API generation and vase geometry inspection passed on Apple M5 (24 GB, macOS 26.5.2); other Macs remain unvalidated |
+| Windows x64 CPU | CPU FP32, startup capacity policy | Historical Mini inference/relocation tested; new multi-model CPU path not re-benchmarked this round |
+| Windows x64 NVIDIA | PyTorch 2.6.0 + CUDA 12.4, FP16; execution errors fail the task | CUDA dependencies can be prepared on CPU; NVIDIA GPU inference needs compatible-device validation. Not every new/old NVIDIA architecture is guaranteed by this pinned build |
+| Apple Silicon, target macOS 14+ | ARM64 PyTorch 2.6.0, MPS preferred, FP16 sampling/decoding (Mini image encoder FP32) and CPU noise generator; execution errors fail the task | Current Apple M5 (24 GB, macOS 26.5.2) real runs and raw/final inspections are recorded separately; semantic/decimation limitations remain, other Macs unvalidated |
 | Windows Intel/AMD GPUs | Production uses CPU | Experimental UHD 630 DirectML required adaptations and took 868 s versus 228 s CPU; Radeon 780M model inference failed. This does not establish that all Intel/AMD hardware is incapable |
 | Intel macOS | Lightweight `--base` only | Pinned full-model PyTorch does not support macOS x64 |
 | Linux x64/ARM64 | Preparation paths retained | Not validated on Linux hardware here |
@@ -114,9 +114,30 @@ NVIDIA GeForce MX150 (2 GB) is not supported for GPU inference with the current 
 
 Weights are fixed data, while the runtime executes operators. CUDA, MPS and CPU have different kernels, supported dtypes, random generators and memory limits. The adapter does not retrain or modify weights; it chooses compatible execution behavior. The current service generates geometry only, not the upstream CUDA texture-rendering extensions.
 
-Measured environments and results belong to the dated [validation record](../../docs/history/model-generation-validation.md). CPU generation can take several minutes.
+New multi-model validation belongs to the [2026-10-28 record](../../docs/history/model-generation-upgrade-20261028.md). Historical environments and results belong to the dated [validation record](../../docs/history/model-generation-validation.md). CPU generation can take several minutes.
 
-The complete API vase task on Apple M5 took 84.5 s for generation (86.5 s including submission/polling), using 5 steps and resolution 256 without CPU fallback. Keep those defaults for quality checks: reducing only the steps to 1 produced severely distorted geometry and took about 202 s. The earlier 99 s minimal test established execution only, not acceptable geometry. Ordinary Windows integrated GPUs are not recommended for this backend: a desktop CPU may be faster, and driver/operator compatibility can prevent completion. These are specific workload observations, not a controlled cross-platform ranking. GPU speed-based automatic selection has not been implemented.
+The historical 2026-10-27 Mini FP32 API vase task on Apple M5 took 84.5 s for generation (86.5 s including submission/polling), using 5 steps and resolution 256 without CPU fallback. Those settings describe historical Mini, not full 2.1 (50 steps by default): reducing only the steps to 1 produced severely distorted geometry and took about 202 s. The earlier 99 s minimal test established execution only, not acceptable geometry. Ordinary Windows integrated GPUs are not recommended for this backend: a desktop CPU may be faster, and driver/operator compatibility can prevent completion. These are specific workload observations, not a controlled cross-platform ranking. GPU speed-based automatic selection has not been implemented.
+
+## Shape models and startup policy
+
+The default enabled set remains Mini to preserve the 4.23 GB first-install footprint. Standard Turbo and full 2.1 Shape are independently pinned and can be enabled explicitly:
+
+```sh
+sh start-generation.sh prepare --models all --mps
+sh start-generation.sh --models all --mps --precision fp16 --offline
+# Allow one model to reside when the combined three-model budget would not fit:
+sh start-generation.sh --models turbo --mps --offline
+```
+
+All three weight sets total 16,934,572,304 bytes; this is disk size, not runtime memory. Cached files are SHA256-verified and reused. Standard Turbo uses its own 3072-token VAE; Mini uses 512 tokens. Full 2.1 has 4096 tokens and its embedded full VAE/conditioner, with separate pinned shape source. There is no 2.1 Small, texture/PBR or additional inference backend.
+
+HTTP is available during preparation, loading and bounded warmup. Enabled loading models accept queued requests; the UI shows two-character positioning tags separately from status. Cancelling queued tasks never interrupts public loading. Resident models are proactively loaded once and reused; staged-ready models have verified resources and load one phase per task. Running resident cancellation is checked between encoder blocks, diffusion steps and decoder chunks, with checks around simplification.
+
+Startup capacity sums every resident model's weights AND workspace reserve, then adds the largest staged phase with its workspace, 5% parameter margin, 2 GiB system reserve and 1 GiB loading reserve. Workspace reserve per resident (and for the one staged process) is MPS 5 GiB FP16 / 9 GiB with an FP32 image encoder, CPU/CUDA 4 GiB. Mini on MPS always keeps its 1022-pixel DINO encoder in FP32; both its FP32 parameter bytes and larger workspace are included. This accounts for separate resident processes retaining graph/host allocator caches even though execution is serialized. MPS uses the smaller of available system memory after reserve and its recommended device budget, never their sum. These are conservative planning estimates, not measured peak guarantees; PyTorch driver caches and different inputs can still exhaust memory. Insufficient capacity reports failure, without substituting a different configuration. Auto strategy is chosen once, never retuned after the first task.
+
+Input resizing/cropping/normalization is always CPU FP32; the transformer, diffusion network and VAE stay on the selected inference device. This fixed adapter avoids the pinned MPS antialiased-resize operator gap without error-triggered CPU fallback. The 2.1 full-VAE hierarchical adapter preserves floating coordinate spacing; it does not use Turbo weights or adaptive KV selection. Warmup covers a synthetic image, one sampling step and a resolution-15 volume; full-resolution kernels and different inputs can still have first-use overhead.
+
+Startup prints a three-column current configuration table. Credentials remain in the private config path printed by the service. Every task logs its result and monotonic total/execution time. Per-task sampled process/device memory is reported separately because unified memory cannot be added across those counters.
 
 ## Configuration
 
@@ -132,10 +153,13 @@ All variables are optional for the default local workflow.
 | `GEN_HOST_NAME` | Optional exact hostname accepted behind a reverse proxy |
 | `GEN_WEB_PORT` | Default development launcher web port, default 5173 |
 | `GEN_ORIGINS` | Comma-separated exact allowed browser origins; default localhost/127.0.0.1 on 5173 |
-| `GEN_DEVICE` | `auto`, `cpu`, `cuda`, or `mps`; unsupported XPU/ROCm requests fall back to CPU |
+| `GEN_DEVICE` | `auto`, `cpu`, `cuda`, or `mps`; explicit unavailable/unsupported devices fail |
 | `GEN_PYTHON` | Use an explicitly managed Python executable; dependencies must already be installed |
 | `GEN_IMPORT_CACHE` | Import matching source/model files from an existing cache, with SHA256 verification |
 | `GEN_MODEL_SOURCE` | Optional explicit source priority: `modelscope` or `huggingface`; normally set automatically by the project preset |
+| `GEN_MODELS` | Enabled set: `mini` (default), `turbo`, `2.1`, comma-separated combinations or `all`; also `--models` |
+| `GEN_PRECISION` | `fp16` (GPU default) or `fp32` (CPU required); also `--precision`; fixed for sampling/decoding; Mini on MPS always uses an FP32 image encoder, reported separately |
+| `GEN_STRATEGY` | `auto` (default), `resident` or `staged`; also `--strategy`; forced residency must fit aggregate startup capacity |
 | `GEN_SKIP_MODEL` | `1` prepares only the lightweight algorithm provider; no Hunyuan download |
 | `GEN_RELAY_URL` | Outbound `wss://.../generation/worker` endpoint |
 | `GEN_PAIR` | `1` enables a new five-minute pairing session at this launch |
@@ -181,3 +205,5 @@ Test commands and environment prerequisites are in the [development guide](../..
 The project license does not replace upstream code or model terms. Hunyuan shape source is shipped as a small, checked-in [source wheel](./bundled/wheels/README.md), verified and unpacked locally during model preparation; startup no longer downloads individual upstream source files. Its upstream LICENSE and NOTICE remain in the wheel's `.dist-info/licenses/` directory. Model downloads retain `models/LICENSE` and `models/NOTICE`; [model-manifest.json](./model-manifest.json) records model versions and hashes, and [source-manifest.json](./bundled/wheels/source-manifest.json) records the pinned source inputs.
 
 Sources: [Hunyuan3D-2](https://github.com/Tencent-Hunyuan/Hunyuan3D-2), [Hunyuan3D-2mini](https://huggingface.co/tencent/Hunyuan3D-2mini), [Tencent ModelScope mirror](https://modelscope.cn/models/Tencent-Hunyuan/Hunyuan3D-2mini). Bundled runtime notices are documented [here](../../scripts/generation/licenses/README.md).
+
+Mini on MPS uses a fixed FP32 image encoder even with `--precision fp16`. The current real test found finite but incorrect FP16 conditioning and box-like meshes; merely promoting attention or VAE precision did not fix it. This adapter is selected before loading, never as an error-triggered retry. `imageEncoderPrecision` reports the actual encoder precision; `precision` describes sampling/decoding. Standard Turbo and 2.1 retain the selected precision.

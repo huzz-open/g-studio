@@ -20,7 +20,7 @@ function tetrahedron() {
 async function generateFrom(scope) { const fork=scope.getByRole('button',{name:'生成新模型',exact:true}); await (await fork.count() ? fork : scope.getByRole('button',{name:'生成模型',exact:true})).click() }
 async function main() {
   fs.mkdirSync(output,{recursive:true})
-  const browser = await chromium.launch({channel:'msedge',headless:true})
+  const browser = await chromium.launch({channel:process.env.G_STUDIO_TEST_BROWSER_CHANNEL || 'chrome',headless:true})
   try {
     const page = await browser.newPage({viewport:{width:1440,height:1000}}), errors=[]
     async function expandQueue() { const toggle=page.locator('.queue-toggle');if(await toggle.getAttribute('aria-expanded')!=='true')await toggle.click() }
@@ -28,7 +28,7 @@ async function main() {
     page.on('console', msg=>{if(msg.type()==='error') errors.push(msg.text())})
     const mesh=tetrahedron(), meshHash=createHash('sha256').update(mesh).digest('hex'), remote=new Map()
     let serial=0, finish=false, offline=false
-    const caps={protocolVersion:1,providers:[{providerId:'hunyuan-mini',name:'Hunyuan',state:'ready',parameters:{steps:{min:1,max:10,default:5,integer:true},resolution:{min:64,max:384,default:256,integer:true}}}],limits:{inputBytes:10485760,inputDimension:2048,outputBytes:134217728,concurrency:1,queue:8},targetFaces:{min:1000,max:40000,default:12000}}
+    const caps={protocolVersion:1,providers:[{providerId:'hunyuan-mini',name:'Hunyuan',state:'loading',acceptsJobs:true,tags:['推荐','快速'],strategy:'resident',parameters:{steps:{min:1,max:10,default:5,integer:true},resolution:{min:64,max:384,default:256,integer:true}}}],limits:{inputBytes:10485760,inputDimension:2048,outputBytes:134217728,concurrency:1,queue:8},targetFaces:{min:1000,max:40000,default:12000}}
     await page.route('**/__generation/connection',r=>r.fulfill({json:{baseUrl:'http://127.0.0.1:8765',token:'ui-test'}}))
     await page.route('http://127.0.0.1:8765/**',async r=>{
       const req=r.request(), pathname=new URL(req.url()).pathname

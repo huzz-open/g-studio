@@ -38,6 +38,18 @@ class SourceWheelTests(unittest.TestCase):
                 path = next(target.glob(f"*.dist-info/licenses/{name}")) if name in ("LICENSE", "NOTICE") else target / name
                 self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item["sha256"])
 
+    def test_21_separate_pinned_source_and_reproducible_wheel(self):
+        with tempfile.TemporaryDirectory() as directory, patch("urllib.request.urlopen", side_effect=AssertionError("network forbidden")):
+            target = prepare_source(Path(directory), series="2.1")
+            manifest = json.loads((BUNDLE.with_name("wheels-2.1") / "source-manifest.json").read_text())
+            for item in manifest["files"]:
+                name = item["path"].removeprefix(manifest["prefix"])
+                path = next(target.glob(f"*.dist-info/licenses/{name}")) if name in ("LICENSE", "NOTICE") else target / name
+                self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item["sha256"])
+            self.assertTrue((target / "hy3dshape/models/denoisers/hunyuandit.py").is_file())
+            self.assertFalse((target / "hy3dgen").exists())
+            self.assertEqual(manifest["revision"], "82920d643c0dc2f7bfd7255f45f62d386edfe60c")
+
     def test_corrupt_wheel_rejected_before_writing(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)

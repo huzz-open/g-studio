@@ -18,7 +18,18 @@ export interface Provider {
   providerId: string;
   name: string;
   state: string;
-  error?: string;
+  error?: string | null;
+  /** Absent on old services: only state=ready accepts submissions. */
+  acceptsJobs?: boolean;
+  tags?: ("推荐" | "快速" | "均衡" | "精细")[];
+  strategy?: "resident" | "staged";
+  precision?: "fp16" | "fp32";
+  imageEncoderPrecision?: "fp16" | "fp32";
+  preparationSeconds?: number;
+  loadSeconds?: number;
+  warmupSeconds?: number;
+  instanceId?: string;
+  loadCount?: number;
   parameters: Record<
     string,
     {
@@ -42,7 +53,17 @@ export interface Capabilities {
   };
   targetFaces: { min: number; max: number; default: number };
 }
+export interface JobTimings {
+  totalSeconds: number;
+  queueSeconds: number;
+  executionSeconds: number;
+}
 export interface GenerationResult {
+  timings?: JobTimings;
+  strategy?: "resident" | "staged";
+  precision?: "fp16" | "fp32";
+  imageEncoderPrecision?: "fp16" | "fp32";
+  instanceId?: string;
   providerVersion?: string;
   parameters?: GenerationRequest;
   deviceType?: DeviceType;
@@ -59,6 +80,7 @@ export interface GenerationResult {
   outputs: { id: string; mime: string; bytes: number; sha256: string }[];
 }
 export interface GenerationJob {
+  timings?: JobTimings;
   id: string;
   status:
     | "queued"

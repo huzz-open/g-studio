@@ -1,0 +1,2174 @@
+{
+  "date": "2026-10-28",
+  "baseCommit": "0ce405f",
+  "environment": {
+    "machine": "Apple M5 Mac17,3",
+    "os": "macOS 26.5.2 (25F84)",
+    "systemMemoryGiB": 24,
+    "python": "3.12.12",
+    "torch": "2.6.0",
+    "backend": "mps"
+  },
+  "parameters": {
+    "seed": 12345,
+    "resolution": 256,
+    "targetFaces": 12000,
+    "steps": {
+      "hunyuan-mini": 5,
+      "hunyuan-turbo": 5,
+      "hunyuan-2-1": 50
+    }
+  },
+  "batches": {
+    "mini-corrected": {
+      "complete": true,
+      "runs": [
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "providerId": "hunyuan-mini",
+          "jobId": "8a95be39-bdde-40a5-aca7-17c534cf44ca",
+          "status": "succeeded",
+          "version": "f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6",
+          "steps": 5,
+          "strategy": "staged",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp32",
+          "wallSeconds": 36.65917925000031,
+          "timings": {
+            "totalSeconds": 36.20491554099863,
+            "executionSeconds": 36.19748579099905,
+            "queueSeconds": 0.007429749999573687
+          },
+          "triangles": 12000,
+          "instanceId": null,
+          "memory": null,
+          "phaseStats": [
+            {
+              "phase": "encode",
+              "elapsed_seconds": 12.927469209000265,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 2740191232,
+                "minSystemAvailableBytes": 3938041856,
+                "peakDeviceAllocatedBytes": 7514948352,
+                "peakDriverAllocatedBytes": 13676281856
+              }
+            },
+            {
+              "phase": "mesh",
+              "elapsed_seconds": 11.875525084000401,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 3907600384,
+                "minSystemAvailableBytes": 12353912832,
+                "peakDeviceAllocatedBytes": 657439232,
+                "peakDriverAllocatedBytes": 3403300864
+              }
+            },
+            {
+              "phase": "sample",
+              "elapsed_seconds": 8.761727624998457,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 497123328,
+                "minSystemAvailableBytes": 13343981568,
+                "peakDeviceAllocatedBytes": 2455399168,
+                "peakDriverAllocatedBytes": 4469850112
+              }
+            }
+          ],
+          "meshMetrics": {
+            "raw": {
+              "originalFaces": 674964,
+              "removedDegenerateFaces": 321676,
+              "faces": 353288,
+              "vertices": 176648,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                353288
+              ],
+              "bounds": [
+                [
+                  -0.6718852519989014,
+                  -0.9987158179283142,
+                  -0.6801670789718628
+                ],
+                [
+                  0.6327997446060181,
+                  0.9594364166259766,
+                  0.6414422392845154
+                ]
+              ]
+            },
+            "shadow": {
+              "originalFaces": 12000,
+              "removedDegenerateFaces": 0,
+              "faces": 12000,
+              "vertices": 6004,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                12000
+              ],
+              "bounds": [
+                [
+                  -0.66681307554245,
+                  0.0,
+                  -0.6753007173538208
+                ],
+                [
+                  0.66681307554245,
+                  1.9996061325073242,
+                  0.6753007173538208
+                ]
+              ]
+            },
+            "sampledSurfaceDistance": {
+              "samplesPerMesh": 20000,
+              "seed": 12345,
+              "normalizedLongestSide": 2,
+              "mean": 0.009926041636936415,
+              "p95": 0.019349086733354552,
+              "max": 0.04433055855895346,
+              "note": "Independent centering/scaling; includes sampling error; not a semantic quality score."
+            }
+          },
+          "artifactSha256": {
+            "raw.glb": "af178eea6aa0dccf201303f2eccef176e0f5ba0e731a2fb852b9cd435196c656",
+            "shadow.glb": "795f1c7098c5d76a9e405148af43efbe78d1aabf6d952003b0b2eaf1ce644fe8"
+          }
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "providerId": "hunyuan-mini",
+          "jobId": "0687a8f7-b83b-4207-8cb8-a990c90cedcb",
+          "status": "succeeded",
+          "version": "f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6",
+          "steps": 5,
+          "strategy": "staged",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp32",
+          "wallSeconds": 37.69420212499972,
+          "timings": {
+            "totalSeconds": 37.446518083997944,
+            "executionSeconds": 37.4333149999984,
+            "queueSeconds": 0.013203083999542287
+          },
+          "triangles": 12000,
+          "instanceId": null,
+          "memory": null,
+          "phaseStats": [
+            {
+              "phase": "encode",
+              "elapsed_seconds": 13.884319583998149,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 2672377856,
+                "minSystemAvailableBytes": 3350020096,
+                "peakDeviceAllocatedBytes": 7514948352,
+                "peakDriverAllocatedBytes": 13676265472
+              }
+            },
+            {
+              "phase": "mesh",
+              "elapsed_seconds": 12.03566045900152,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 3906961408,
+                "minSystemAvailableBytes": 12380078080,
+                "peakDeviceAllocatedBytes": 658575104,
+                "peakDriverAllocatedBytes": 3403300864
+              }
+            },
+            {
+              "phase": "sample",
+              "elapsed_seconds": 8.834670542000822,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 496664576,
+                "minSystemAvailableBytes": 13460766720,
+                "peakDeviceAllocatedBytes": 2455401472,
+                "peakDriverAllocatedBytes": 4469850112
+              }
+            }
+          ],
+          "meshMetrics": {
+            "raw": {
+              "originalFaces": 674964,
+              "removedDegenerateFaces": 321676,
+              "faces": 353288,
+              "vertices": 176648,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                353288
+              ],
+              "bounds": [
+                [
+                  -0.6718852519989014,
+                  -0.9987158179283142,
+                  -0.6801670789718628
+                ],
+                [
+                  0.6327997446060181,
+                  0.9594364166259766,
+                  0.6414422392845154
+                ]
+              ]
+            },
+            "shadow": {
+              "originalFaces": 12000,
+              "removedDegenerateFaces": 0,
+              "faces": 12000,
+              "vertices": 6004,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                12000
+              ],
+              "bounds": [
+                [
+                  -0.66681307554245,
+                  0.0,
+                  -0.6753007173538208
+                ],
+                [
+                  0.66681307554245,
+                  1.9996061325073242,
+                  0.6753007173538208
+                ]
+              ]
+            },
+            "sampledSurfaceDistance": {
+              "samplesPerMesh": 20000,
+              "seed": 12345,
+              "normalizedLongestSide": 2,
+              "mean": 0.009926041636936415,
+              "p95": 0.019349086733354552,
+              "max": 0.04433055855895346,
+              "note": "Independent centering/scaling; includes sampling error; not a semantic quality score."
+            }
+          },
+          "artifactSha256": {
+            "raw.glb": "af178eea6aa0dccf201303f2eccef176e0f5ba0e731a2fb852b9cd435196c656",
+            "shadow.glb": "795f1c7098c5d76a9e405148af43efbe78d1aabf6d952003b0b2eaf1ce644fe8"
+          }
+        },
+        {
+          "input": "chair",
+          "inputSha256": "43a72eb6971fafd2176b87b9e5cbbd1790bbe8dfa3def3405e228ea8dafd1d68",
+          "providerId": "hunyuan-mini",
+          "jobId": "e2ab4c36-a48b-443e-93b8-568c7a2f5676",
+          "status": "succeeded",
+          "version": "f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6",
+          "steps": 5,
+          "strategy": "staged",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp32",
+          "wallSeconds": 40.30015162500058,
+          "timings": {
+            "totalSeconds": 40.09764016700137,
+            "executionSeconds": 40.0765154590008,
+            "queueSeconds": 0.021124708000570536
+          },
+          "triangles": 12000,
+          "instanceId": null,
+          "memory": null,
+          "phaseStats": [
+            {
+              "phase": "encode",
+              "elapsed_seconds": 13.796216916001868,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 2627485696,
+                "minSystemAvailableBytes": 3536896000,
+                "peakDeviceAllocatedBytes": 7514948352,
+                "peakDriverAllocatedBytes": 13676265472
+              }
+            },
+            {
+              "phase": "mesh",
+              "elapsed_seconds": 13.615305875002377,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 3931144192,
+                "minSystemAvailableBytes": 13770932224,
+                "peakDeviceAllocatedBytes": 725166592,
+                "peakDriverAllocatedBytes": 3405053952
+              }
+            },
+            {
+              "phase": "sample",
+              "elapsed_seconds": 9.88759279200167,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 496697344,
+                "minSystemAvailableBytes": 13317636096,
+                "peakDeviceAllocatedBytes": 2455400960,
+                "peakDriverAllocatedBytes": 4469850112
+              }
+            }
+          ],
+          "meshMetrics": {
+            "raw": {
+              "originalFaces": 525816,
+              "removedDegenerateFaces": 202764,
+              "faces": 323052,
+              "vertices": 161494,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                323052
+              ],
+              "bounds": [
+                [
+                  -0.6783977746963501,
+                  -0.9993652701377869,
+                  -0.4913545250892639
+                ],
+                [
+                  0.6395491361618042,
+                  0.9599365592002869,
+                  0.5045068264007568
+                ]
+              ]
+            },
+            "shadow": {
+              "originalFaces": 12000,
+              "removedDegenerateFaces": 0,
+              "faces": 12000,
+              "vertices": 5968,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                12000
+              ],
+              "bounds": [
+                [
+                  -0.6725102663040161,
+                  0.0,
+                  -0.5079379081726074
+                ],
+                [
+                  0.6725102663040161,
+                  1.9991300106048584,
+                  0.5079379081726074
+                ]
+              ]
+            },
+            "sampledSurfaceDistance": {
+              "samplesPerMesh": 20000,
+              "seed": 12345,
+              "normalizedLongestSide": 2,
+              "mean": 0.010611146703470443,
+              "p95": 0.020658331418621185,
+              "max": 0.03842008657772596,
+              "note": "Independent centering/scaling; includes sampling error; not a semantic quality score."
+            }
+          },
+          "artifactSha256": {
+            "raw.glb": "10966cf47467dab6c820cebd7fae2ff3fd7d9613e7a0307d86f1e6eef5b72335",
+            "shadow.glb": "a6ec2be156e59ac184a7a4a0db0a48467f46a3b2f0a986ae8174c99796afced2"
+          }
+        },
+        {
+          "input": "umbrella",
+          "inputSha256": "c79b4d5aaf8fdfcc048e6f17f0bc5d37195b23526a8aad38321ba8c6ab646741",
+          "providerId": "hunyuan-mini",
+          "jobId": "8e0e0775-ec1a-4f93-9b93-06ae78575a07",
+          "status": "succeeded",
+          "version": "f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6",
+          "steps": 5,
+          "strategy": "staged",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp32",
+          "wallSeconds": 36.70579849999922,
+          "timings": {
+            "totalSeconds": 36.322861333999754,
+            "executionSeconds": 36.302973459001805,
+            "queueSeconds": 0.01988787499794853
+          },
+          "triangles": 11999,
+          "instanceId": null,
+          "memory": null,
+          "phaseStats": [
+            {
+              "phase": "encode",
+              "elapsed_seconds": 16.06052691700097,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 2736111616,
+                "minSystemAvailableBytes": 3530326016,
+                "peakDeviceAllocatedBytes": 7514948352,
+                "peakDriverAllocatedBytes": 13676281856
+              }
+            },
+            {
+              "phase": "mesh",
+              "elapsed_seconds": 6.3581794160018035,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 2303623168,
+                "minSystemAvailableBytes": 12535365632,
+                "peakDeviceAllocatedBytes": 630788096,
+                "peakDriverAllocatedBytes": 4506107904
+              }
+            },
+            {
+              "phase": "sample",
+              "elapsed_seconds": 11.25719854199997,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 496877568,
+                "minSystemAvailableBytes": 13676773376,
+                "peakDeviceAllocatedBytes": 2455400960,
+                "peakDriverAllocatedBytes": 4469850112
+              }
+            }
+          ],
+          "meshMetrics": {
+            "raw": {
+              "originalFaces": 212924,
+              "removedDegenerateFaces": 5745,
+              "faces": 207179,
+              "vertices": 103595,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                207179
+              ],
+              "bounds": [
+                [
+                  -0.7940433025360107,
+                  -0.9980756044387817,
+                  -0.7989956140518188
+                ],
+                [
+                  0.7542428374290466,
+                  0.9592261910438538,
+                  0.7600064873695374
+                ]
+              ]
+            },
+            "shadow": {
+              "originalFaces": 11999,
+              "removedDegenerateFaces": 0,
+              "faces": 11999,
+              "vertices": 6005,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                11999
+              ],
+              "bounds": [
+                [
+                  -0.7909197211265564,
+                  0.0,
+                  -0.7956387996673584
+                ],
+                [
+                  0.7909197211265564,
+                  2.0010578632354736,
+                  0.7956387996673584
+                ]
+              ]
+            },
+            "sampledSurfaceDistance": {
+              "samplesPerMesh": 20000,
+              "seed": 12345,
+              "normalizedLongestSide": 2,
+              "mean": 0.007738403630666876,
+              "p95": 0.01491941689412192,
+              "max": 0.028294309263871904,
+              "note": "Independent centering/scaling; includes sampling error; not a semantic quality score."
+            }
+          },
+          "artifactSha256": {
+            "raw.glb": "30cd4c8b83b791171eee4a04ab2f5f0453c3339c1e1fe903aeae8ff34669a4c8",
+            "shadow.glb": "ffbccd8ae91afc07f6ae5d249bd2b0677e74bcb3988642ce843551b5f8fe5636"
+          }
+        },
+        {
+          "input": "bonsai",
+          "inputSha256": "a6fdcfa153818ac203cbf04e3031b166e88fdf0c2c63accfa8b3713c55752c1d",
+          "providerId": "hunyuan-mini",
+          "jobId": "88d07615-d1c4-4651-8e53-7b7ef8b67269",
+          "status": "succeeded",
+          "version": "f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6",
+          "steps": 5,
+          "strategy": "staged",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp32",
+          "wallSeconds": 44.8876830420013,
+          "timings": {
+            "totalSeconds": 44.552220875000785,
+            "executionSeconds": 44.532272541000566,
+            "queueSeconds": 0.019948334000218892
+          },
+          "triangles": 11999,
+          "instanceId": null,
+          "memory": null,
+          "phaseStats": [
+            {
+              "phase": "encode",
+              "elapsed_seconds": 16.23644045800029,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 2698969088,
+                "minSystemAvailableBytes": 3580542976,
+                "peakDeviceAllocatedBytes": 7514948352,
+                "peakDriverAllocatedBytes": 13676265472
+              }
+            },
+            {
+              "phase": "mesh",
+              "elapsed_seconds": 14.274755915997957,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 4027727872,
+                "minSystemAvailableBytes": 10849976320,
+                "peakDeviceAllocatedBytes": 1017387264,
+                "peakDriverAllocatedBytes": 4522885120
+              }
+            },
+            {
+              "phase": "sample",
+              "elapsed_seconds": 11.29148245900069,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 497074176,
+                "minSystemAvailableBytes": 13337657344,
+                "peakDeviceAllocatedBytes": 2455401472,
+                "peakDriverAllocatedBytes": 4469850112
+              }
+            }
+          ],
+          "meshMetrics": {
+            "raw": {
+              "originalFaces": 702854,
+              "removedDegenerateFaces": 242647,
+              "faces": 460207,
+              "vertices": 230060,
+              "watertight": false,
+              "components": 3,
+              "largestComponentFaces": [
+                460043,
+                140,
+                24
+              ],
+              "bounds": [
+                [
+                  -0.9959030151367188,
+                  -0.950701892375946,
+                  -0.4910596013069153
+                ],
+                [
+                  0.9561322331428528,
+                  0.9132960438728333,
+                  0.4616544544696808
+                ]
+              ]
+            },
+            "shadow": {
+              "originalFaces": 11999,
+              "removedDegenerateFaces": 0,
+              "faces": 11999,
+              "vertices": 5962,
+              "watertight": false,
+              "components": 8,
+              "largestComponentFaces": [
+                11977,
+                6,
+                4,
+                4,
+                2,
+                2,
+                2,
+                2
+              ],
+              "bounds": [
+                [
+                  -1.002501130104065,
+                  0.0,
+                  -0.48936402797698975
+                ],
+                [
+                  1.002501130104065,
+                  1.919005036354065,
+                  0.48936402797698975
+                ]
+              ]
+            },
+            "sampledSurfaceDistance": {
+              "samplesPerMesh": 20000,
+              "seed": 12345,
+              "normalizedLongestSide": 2,
+              "mean": 0.011897811829470499,
+              "p95": 0.022499955991920298,
+              "max": 0.18204895894009102,
+              "note": "Independent centering/scaling; includes sampling error; not a semantic quality score."
+            }
+          },
+          "artifactSha256": {
+            "raw.glb": "4191b2a35a51de7c2552cb82fae969f4fca0c7f5f06f00189225e63bc7647203",
+            "shadow.glb": "98f86018ac634c3efcc4fe9234993d57b11f55ddcf821dc089c4da4881dba674"
+          }
+        }
+      ],
+      "providers": [
+        {
+          "providerId": "hunyuan-mini",
+          "state": "ready",
+          "preparationSeconds": 1.440819334002299,
+          "strategy": "staged",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp32"
+        }
+      ]
+    },
+    "turbo-final": {
+      "complete": true,
+      "runs": [
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "providerId": "hunyuan-turbo",
+          "jobId": "e10d4e9e-d7d9-449a-9aac-f199ac37cf35",
+          "status": "succeeded",
+          "version": "9cd649ba6913f7a852e3286bad86bfa9a2d83dcf",
+          "steps": 5,
+          "strategy": "resident",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp16",
+          "wallSeconds": 31.927172334002535,
+          "timings": {
+            "totalSeconds": 31.901274375002686,
+            "executionSeconds": 31.893717500002822,
+            "queueSeconds": 0.007556874999863794
+          },
+          "triangles": 11999,
+          "instanceId": "96f5ca88d7a049409cf4daff9114dae7",
+          "memory": {
+            "sampleIntervalSeconds": 0.05,
+            "peakRssBytes": 4593860608,
+            "minSystemAvailableBytes": 6677954560,
+            "peakDeviceAllocatedBytes": 5692151552,
+            "peakDriverAllocatedBytes": 11220647936
+          },
+          "phaseStats": null,
+          "meshMetrics": {
+            "raw": {
+              "originalFaces": 763232,
+              "removedDegenerateFaces": 401099,
+              "faces": 362133,
+              "vertices": 181076,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                362133
+              ],
+              "bounds": [
+                [
+                  -0.6599874496459961,
+                  -0.9981847405433655,
+                  -0.6566360592842102
+                ],
+                [
+                  0.6198803782463074,
+                  0.9593617916107178,
+                  0.6123138070106506
+                ]
+              ]
+            },
+            "shadow": {
+              "originalFaces": 11999,
+              "removedDegenerateFaces": 0,
+              "faces": 11999,
+              "vertices": 6009,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                11999
+              ],
+              "bounds": [
+                [
+                  -0.654355525970459,
+                  0.0,
+                  -0.6483843922615051
+                ],
+                [
+                  0.654355525970459,
+                  2.002828359603882,
+                  0.6483843922615051
+                ]
+              ]
+            },
+            "sampledSurfaceDistance": {
+              "samplesPerMesh": 20000,
+              "seed": 12345,
+              "normalizedLongestSide": 2,
+              "mean": 0.010107179453444875,
+              "p95": 0.019560432591512526,
+              "max": 0.03629444111279544,
+              "note": "Independent centering/scaling; includes sampling error; not a semantic quality score."
+            }
+          },
+          "artifactSha256": {
+            "raw.glb": "94f47aa55c64654a130f4c433db51ea1444e7107738b44f97e22b72fc61e61c1",
+            "shadow.glb": "6616d410bf7c668c67d4ee9b2b22f02c36d614fd6c9dd31ea83d589b02f11422"
+          }
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "providerId": "hunyuan-turbo",
+          "jobId": "35198e22-8777-4d23-b384-d5dc528e173e",
+          "status": "succeeded",
+          "version": "9cd649ba6913f7a852e3286bad86bfa9a2d83dcf",
+          "steps": 5,
+          "strategy": "resident",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp16",
+          "wallSeconds": 20.758281750000606,
+          "timings": {
+            "totalSeconds": 20.264194667000993,
+            "executionSeconds": 20.243212332999974,
+            "queueSeconds": 0.0209823340010189
+          },
+          "triangles": 11999,
+          "instanceId": "96f5ca88d7a049409cf4daff9114dae7",
+          "memory": {
+            "sampleIntervalSeconds": 0.05,
+            "peakRssBytes": 4601446400,
+            "minSystemAvailableBytes": 6989217792,
+            "peakDeviceAllocatedBytes": 5692152064,
+            "peakDriverAllocatedBytes": 14208122880
+          },
+          "phaseStats": null,
+          "meshMetrics": {
+            "raw": {
+              "originalFaces": 763232,
+              "removedDegenerateFaces": 401099,
+              "faces": 362133,
+              "vertices": 181076,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                362133
+              ],
+              "bounds": [
+                [
+                  -0.6599874496459961,
+                  -0.9981847405433655,
+                  -0.6566360592842102
+                ],
+                [
+                  0.6198803782463074,
+                  0.9593617916107178,
+                  0.6123138070106506
+                ]
+              ]
+            },
+            "shadow": {
+              "originalFaces": 11999,
+              "removedDegenerateFaces": 0,
+              "faces": 11999,
+              "vertices": 6009,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                11999
+              ],
+              "bounds": [
+                [
+                  -0.654355525970459,
+                  0.0,
+                  -0.6483843922615051
+                ],
+                [
+                  0.654355525970459,
+                  2.002828359603882,
+                  0.6483843922615051
+                ]
+              ]
+            },
+            "sampledSurfaceDistance": {
+              "samplesPerMesh": 20000,
+              "seed": 12345,
+              "normalizedLongestSide": 2,
+              "mean": 0.010107179453444875,
+              "p95": 0.019560432591512526,
+              "max": 0.03629444111279544,
+              "note": "Independent centering/scaling; includes sampling error; not a semantic quality score."
+            }
+          },
+          "artifactSha256": {
+            "raw.glb": "94f47aa55c64654a130f4c433db51ea1444e7107738b44f97e22b72fc61e61c1",
+            "shadow.glb": "6616d410bf7c668c67d4ee9b2b22f02c36d614fd6c9dd31ea83d589b02f11422"
+          }
+        },
+        {
+          "input": "chair",
+          "inputSha256": "43a72eb6971fafd2176b87b9e5cbbd1790bbe8dfa3def3405e228ea8dafd1d68",
+          "providerId": "hunyuan-turbo",
+          "jobId": "b4e9c39b-ebeb-4403-8baf-8733a702de56",
+          "status": "succeeded",
+          "version": "9cd649ba6913f7a852e3286bad86bfa9a2d83dcf",
+          "steps": 5,
+          "strategy": "resident",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp16",
+          "wallSeconds": 32.641195082997,
+          "timings": {
+            "totalSeconds": 32.237312958000985,
+            "executionSeconds": 32.215512124999805,
+            "queueSeconds": 0.021800833001179853
+          },
+          "triangles": 11999,
+          "instanceId": "96f5ca88d7a049409cf4daff9114dae7",
+          "memory": {
+            "sampleIntervalSeconds": 0.05,
+            "peakRssBytes": 5367758848,
+            "minSystemAvailableBytes": 6878527488,
+            "peakDeviceAllocatedBytes": 5692150784,
+            "peakDriverAllocatedBytes": 13637271552
+          },
+          "phaseStats": null,
+          "meshMetrics": {
+            "raw": {
+              "originalFaces": 475136,
+              "removedDegenerateFaces": 175091,
+              "faces": 300045,
+              "vertices": 149990,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                300045
+              ],
+              "bounds": [
+                [
+                  -0.6772851347923279,
+                  -0.9979280829429626,
+                  -0.49330997467041016
+                ],
+                [
+                  0.6377251744270325,
+                  0.9588042497634888,
+                  0.4562799036502838
+                ]
+              ]
+            },
+            "shadow": {
+              "originalFaces": 11999,
+              "removedDegenerateFaces": 0,
+              "faces": 11999,
+              "vertices": 5967,
+              "watertight": false,
+              "components": 2,
+              "largestComponentFaces": [
+                11997,
+                2
+              ],
+              "bounds": [
+                [
+                  -0.6718764305114746,
+                  0.0,
+                  -0.4851779043674469
+                ],
+                [
+                  0.6718764305114746,
+                  2.000278949737549,
+                  0.4851779043674469
+                ]
+              ]
+            },
+            "sampledSurfaceDistance": {
+              "samplesPerMesh": 20000,
+              "seed": 12345,
+              "normalizedLongestSide": 2,
+              "mean": 0.010260230175921436,
+              "p95": 0.01989124009825079,
+              "max": 0.0357935003573026,
+              "note": "Independent centering/scaling; includes sampling error; not a semantic quality score."
+            }
+          },
+          "artifactSha256": {
+            "raw.glb": "bc980829f90faca4c1be6b42bbcb0bd76b75a7c6c2c8ed75e8a3fb1882dffac8",
+            "shadow.glb": "f5f1a6beda1b727adaa2c40b75f1453966faa48625259f1457a7b9a2a9e9d755"
+          }
+        },
+        {
+          "input": "umbrella",
+          "inputSha256": "c79b4d5aaf8fdfcc048e6f17f0bc5d37195b23526a8aad38321ba8c6ab646741",
+          "providerId": "hunyuan-turbo",
+          "jobId": "f5a839cb-1ebc-45d3-9f8c-4b9f846b0d9b",
+          "status": "succeeded",
+          "version": "9cd649ba6913f7a852e3286bad86bfa9a2d83dcf",
+          "steps": 5,
+          "strategy": "resident",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp16",
+          "wallSeconds": 28.549693791999744,
+          "timings": {
+            "totalSeconds": 28.464983834001032,
+            "executionSeconds": 28.446217791999516,
+            "queueSeconds": 0.018766042001516325
+          },
+          "triangles": 11999,
+          "instanceId": "96f5ca88d7a049409cf4daff9114dae7",
+          "memory": {
+            "sampleIntervalSeconds": 0.05,
+            "peakRssBytes": 5368905728,
+            "minSystemAvailableBytes": 5195825152,
+            "peakDeviceAllocatedBytes": 5692150784,
+            "peakDriverAllocatedBytes": 14924169216
+          },
+          "phaseStats": null,
+          "meshMetrics": {
+            "raw": {
+              "originalFaces": 189532,
+              "removedDegenerateFaces": 3409,
+              "faces": 186123,
+              "vertices": 92452,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                186123
+              ],
+              "bounds": [
+                [
+                  -0.7780777812004089,
+                  -0.9984968900680542,
+                  -0.7812265157699585
+                ],
+                [
+                  0.7377279996871948,
+                  0.9583909511566162,
+                  0.7430852651596069
+                ]
+              ]
+            },
+            "shadow": {
+              "originalFaces": 11999,
+              "removedDegenerateFaces": 0,
+              "faces": 11999,
+              "vertices": 5847,
+              "watertight": false,
+              "components": 111,
+              "largestComponentFaces": [
+                11775,
+                4,
+                4,
+                4,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2
+              ],
+              "bounds": [
+                [
+                  -0.7772645950317383,
+                  0.0,
+                  -0.7804622054100037
+                ],
+                [
+                  0.7772645950317383,
+                  2.0037360191345215,
+                  0.7804622054100037
+                ]
+              ]
+            },
+            "sampledSurfaceDistance": {
+              "samplesPerMesh": 20000,
+              "seed": 12345,
+              "normalizedLongestSide": 2,
+              "mean": 0.007847729398290778,
+              "p95": 0.013793718829127485,
+              "max": 0.024837638420659953,
+              "note": "Independent centering/scaling; includes sampling error; not a semantic quality score."
+            }
+          },
+          "artifactSha256": {
+            "raw.glb": "fa2ee6f71a91528f551ed0004b4b3737e0b459062aa2cf87c1752823dedf1815",
+            "shadow.glb": "77f1bef568c9e1d3c938bbae517681232f76b979eed90d3543cfebaba5bef427"
+          }
+        },
+        {
+          "input": "bonsai",
+          "inputSha256": "a6fdcfa153818ac203cbf04e3031b166e88fdf0c2c63accfa8b3713c55752c1d",
+          "providerId": "hunyuan-turbo",
+          "jobId": "e759309c-20f5-4e13-986d-25c05db2c6b6",
+          "status": "succeeded",
+          "version": "9cd649ba6913f7a852e3286bad86bfa9a2d83dcf",
+          "steps": 5,
+          "strategy": "resident",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp16",
+          "wallSeconds": 54.03963316599766,
+          "timings": {
+            "totalSeconds": 53.693851333002385,
+            "executionSeconds": 53.67801866599984,
+            "queueSeconds": 0.01583266700254171
+          },
+          "triangles": 11999,
+          "instanceId": "96f5ca88d7a049409cf4daff9114dae7",
+          "memory": {
+            "sampleIntervalSeconds": 0.05,
+            "peakRssBytes": 6302498816,
+            "minSystemAvailableBytes": 3796566016,
+            "peakDeviceAllocatedBytes": 5735497472,
+            "peakDriverAllocatedBytes": 15112863744
+          },
+          "phaseStats": null,
+          "meshMetrics": {
+            "raw": {
+              "originalFaces": 887136,
+              "removedDegenerateFaces": 326354,
+              "faces": 560782,
+              "vertices": 280408,
+              "watertight": false,
+              "components": 80,
+              "largestComponentFaces": [
+                554602,
+                452,
+                424,
+                336,
+                296,
+                288,
+                272,
+                264,
+                252,
+                232
+              ],
+              "bounds": [
+                [
+                  -0.9853965044021606,
+                  -0.9827616214752197,
+                  -0.5420058369636536
+                ],
+                [
+                  0.9473857879638672,
+                  0.9047675132751465,
+                  0.5037084221839905
+                ]
+              ]
+            },
+            "shadow": {
+              "originalFaces": 11999,
+              "removedDegenerateFaces": 0,
+              "faces": 11999,
+              "vertices": 5987,
+              "watertight": false,
+              "components": 127,
+              "largestComponentFaces": [
+                11657,
+                12,
+                8,
+                8,
+                8,
+                8,
+                8,
+                6,
+                6,
+                6
+              ],
+              "bounds": [
+                [
+                  -1.0017402172088623,
+                  0.0,
+                  -0.5415340065956116
+                ],
+                [
+                  1.0017402172088623,
+                  1.9555085897445679,
+                  0.5415340065956116
+                ]
+              ]
+            },
+            "sampledSurfaceDistance": {
+              "samplesPerMesh": 20000,
+              "seed": 12345,
+              "normalizedLongestSide": 2,
+              "mean": 0.013443699639961096,
+              "p95": 0.024374882025404575,
+              "max": 0.1172915197328233,
+              "note": "Independent centering/scaling; includes sampling error; not a semantic quality score."
+            }
+          },
+          "artifactSha256": {
+            "raw.glb": "afc61f5d1f1633f89a90332b79125d473e5abbdedf1ea178aa27cf9443033f5d",
+            "shadow.glb": "f178218e2c3feb554c3891b8840535eb53b59d384ef0fea53fd39ec915281c08"
+          }
+        }
+      ],
+      "providers": [
+        {
+          "providerId": "hunyuan-turbo",
+          "state": "ready",
+          "preparationSeconds": 1.8850533750010072,
+          "strategy": "resident",
+          "precision": "fp16",
+          "instanceId": "96f5ca88d7a049409cf4daff9114dae7",
+          "loadCount": 1,
+          "loadSeconds": 2.6266182500003197,
+          "warmupSeconds": 3.840711040997121,
+          "memory": {
+            "sampleIntervalSeconds": 0.05,
+            "peakRssBytes": 553287680,
+            "minSystemAvailableBytes": 12819120128,
+            "peakDeviceAllocatedBytes": 5690965504,
+            "peakDriverAllocatedBytes": 7102906368
+          }
+        }
+      ]
+    },
+    "shape21-final": {
+      "complete": true,
+      "runs": [
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "providerId": "hunyuan-2-1",
+          "jobId": "2613fa82-1437-457a-9fa7-76b140c2d8d3",
+          "status": "succeeded",
+          "version": "0b94677654c57bb9a6b6845cd7b704ccf551d327",
+          "steps": 50,
+          "strategy": "resident",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp16",
+          "wallSeconds": 300.96560837500147,
+          "timings": {
+            "totalSeconds": 300.82042808299957,
+            "executionSeconds": 300.8015980830023,
+            "queueSeconds": 0.018829999997251434
+          },
+          "triangles": 11999,
+          "instanceId": "9b27fa06fcb44ca49926802c2897f9f7",
+          "memory": {
+            "sampleIntervalSeconds": 0.05,
+            "peakRssBytes": 3880206336,
+            "minSystemAvailableBytes": 5678366720,
+            "peakDeviceAllocatedBytes": 9342530048,
+            "peakDriverAllocatedBytes": 12801474560
+          },
+          "phaseStats": null,
+          "meshMetrics": {
+            "raw": {
+              "originalFaces": 691748,
+              "removedDegenerateFaces": 311942,
+              "faces": 379806,
+              "vertices": 189911,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                379806
+              ],
+              "bounds": [
+                [
+                  -0.6503221988677979,
+                  -0.9973519444465637,
+                  -0.6580676436424255
+                ],
+                [
+                  0.6447142958641052,
+                  0.989783763885498,
+                  0.6506437659263611
+                ]
+              ]
+            },
+            "shadow": {
+              "originalFaces": 11999,
+              "removedDegenerateFaces": 0,
+              "faces": 11999,
+              "vertices": 6007,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                11999
+              ],
+              "bounds": [
+                [
+                  -0.6526667475700378,
+                  0.0,
+                  -0.6587494611740112
+                ],
+                [
+                  0.6526667475700378,
+                  2.004438638687134,
+                  0.6587494611740112
+                ]
+              ]
+            },
+            "sampledSurfaceDistance": {
+              "samplesPerMesh": 20000,
+              "seed": 12345,
+              "normalizedLongestSide": 2,
+              "mean": 0.010194321787997253,
+              "p95": 0.019604462555716302,
+              "max": 0.036986702500894454,
+              "note": "Independent centering/scaling; includes sampling error; not a semantic quality score."
+            }
+          },
+          "artifactSha256": {
+            "raw.glb": "80321b57afb112fda1d34dabda17140345dbf2baf2d51ef8b10c0c9f76aa3fb2",
+            "shadow.glb": "9d693fb7790ecfb721a9bb4e1804d73909af02f889be27e8d57bd5b90844a649"
+          }
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "providerId": "hunyuan-2-1",
+          "jobId": "24825644-d316-476f-8e9e-4e9544e9420a",
+          "status": "succeeded",
+          "version": "0b94677654c57bb9a6b6845cd7b704ccf551d327",
+          "steps": 50,
+          "strategy": "resident",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp16",
+          "wallSeconds": 335.560206457998,
+          "timings": {
+            "totalSeconds": 335.3168863329993,
+            "executionSeconds": 335.30358737500137,
+            "queueSeconds": 0.013298957997903926
+          },
+          "triangles": 11999,
+          "instanceId": "9b27fa06fcb44ca49926802c2897f9f7",
+          "memory": {
+            "sampleIntervalSeconds": 0.05,
+            "peakRssBytes": 3739926528,
+            "minSystemAvailableBytes": 3921461248,
+            "peakDeviceAllocatedBytes": 9217721344,
+            "peakDriverAllocatedBytes": 12801753088
+          },
+          "phaseStats": null,
+          "meshMetrics": {
+            "raw": {
+              "originalFaces": 691748,
+              "removedDegenerateFaces": 311942,
+              "faces": 379806,
+              "vertices": 189911,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                379806
+              ],
+              "bounds": [
+                [
+                  -0.6503221988677979,
+                  -0.9973519444465637,
+                  -0.6580676436424255
+                ],
+                [
+                  0.6447142958641052,
+                  0.989783763885498,
+                  0.6506437659263611
+                ]
+              ]
+            },
+            "shadow": {
+              "originalFaces": 11999,
+              "removedDegenerateFaces": 0,
+              "faces": 11999,
+              "vertices": 6007,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                11999
+              ],
+              "bounds": [
+                [
+                  -0.6526667475700378,
+                  0.0,
+                  -0.6587494611740112
+                ],
+                [
+                  0.6526667475700378,
+                  2.004438638687134,
+                  0.6587494611740112
+                ]
+              ]
+            },
+            "sampledSurfaceDistance": {
+              "samplesPerMesh": 20000,
+              "seed": 12345,
+              "normalizedLongestSide": 2,
+              "mean": 0.010194321787997253,
+              "p95": 0.019604462555716302,
+              "max": 0.036986702500894454,
+              "note": "Independent centering/scaling; includes sampling error; not a semantic quality score."
+            }
+          },
+          "artifactSha256": {
+            "raw.glb": "80321b57afb112fda1d34dabda17140345dbf2baf2d51ef8b10c0c9f76aa3fb2",
+            "shadow.glb": "9d693fb7790ecfb721a9bb4e1804d73909af02f889be27e8d57bd5b90844a649"
+          }
+        },
+        {
+          "input": "chair",
+          "inputSha256": "43a72eb6971fafd2176b87b9e5cbbd1790bbe8dfa3def3405e228ea8dafd1d68",
+          "providerId": "hunyuan-2-1",
+          "jobId": "ecb959d8-d487-49f9-b068-2b9c2f85233b",
+          "status": "succeeded",
+          "version": "0b94677654c57bb9a6b6845cd7b704ccf551d327",
+          "steps": 50,
+          "strategy": "resident",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp16",
+          "wallSeconds": 412.38714391600297,
+          "timings": {
+            "totalSeconds": 412.25782037500176,
+            "executionSeconds": 412.244236333001,
+            "queueSeconds": 0.013584042000729823
+          },
+          "triangles": 12000,
+          "instanceId": "9b27fa06fcb44ca49926802c2897f9f7",
+          "memory": {
+            "sampleIntervalSeconds": 0.05,
+            "peakRssBytes": 3400777728,
+            "minSystemAvailableBytes": 2694348800,
+            "peakDeviceAllocatedBytes": 9241320704,
+            "peakDriverAllocatedBytes": 12807012352
+          },
+          "phaseStats": null,
+          "meshMetrics": {
+            "raw": {
+              "originalFaces": 542784,
+              "removedDegenerateFaces": 212384,
+              "faces": 330400,
+              "vertices": 165152,
+              "watertight": true,
+              "components": 1,
+              "largestComponentFaces": [
+                330400
+              ],
+              "bounds": [
+                [
+                  -0.6639284491539001,
+                  -0.9976859092712402,
+                  -0.5090475082397461
+                ],
+                [
+                  0.6561511754989624,
+                  0.9900608062744141,
+                  0.49879515171051025
+                ]
+              ]
+            },
+            "shadow": {
+              "originalFaces": 12000,
+              "removedDegenerateFaces": 0,
+              "faces": 12000,
+              "vertices": 5956,
+              "watertight": false,
+              "components": 3,
+              "largestComponentFaces": [
+                11994,
+                4,
+                2
+              ],
+              "bounds": [
+                [
+                  -0.6638169884681702,
+                  0.0,
+                  -0.5068303346633911
+                ],
+                [
+                  0.6638169884681702,
+                  2.000880718231201,
+                  0.5068303346633911
+                ]
+              ]
+            },
+            "sampledSurfaceDistance": {
+              "samplesPerMesh": 20000,
+              "seed": 12345,
+              "normalizedLongestSide": 2,
+              "mean": 0.010516978726721658,
+              "p95": 0.02043915795554037,
+              "max": 0.03630920354218821,
+              "note": "Independent centering/scaling; includes sampling error; not a semantic quality score."
+            }
+          },
+          "artifactSha256": {
+            "raw.glb": "e0845d951aa8f980a550561ad1c6bfeb0b33fbb8485bd9f6c28c9084517a62fd",
+            "shadow.glb": "1ae64342d7468392b21a02a7259734142b9ba5af32d6b8646b3b08b5369df9af"
+          }
+        },
+        {
+          "input": "umbrella",
+          "inputSha256": "c79b4d5aaf8fdfcc048e6f17f0bc5d37195b23526a8aad38321ba8c6ab646741",
+          "providerId": "hunyuan-2-1",
+          "jobId": "acf4b7e5-081e-4c0c-9993-acc35da3eafc",
+          "status": "succeeded",
+          "version": "0b94677654c57bb9a6b6845cd7b704ccf551d327",
+          "steps": 50,
+          "strategy": "resident",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp16",
+          "wallSeconds": 349.2366475830022,
+          "timings": {
+            "totalSeconds": 349.2298307909987,
+            "executionSeconds": 349.2188831249987,
+            "queueSeconds": 0.01094766599999275
+          },
+          "triangles": 11999,
+          "instanceId": "9b27fa06fcb44ca49926802c2897f9f7",
+          "memory": {
+            "sampleIntervalSeconds": 0.05,
+            "peakRssBytes": 2793570304,
+            "minSystemAvailableBytes": 4303601664,
+            "peakDeviceAllocatedBytes": 9251283712,
+            "peakDriverAllocatedBytes": 12811370496
+          },
+          "phaseStats": null,
+          "meshMetrics": {
+            "raw": {
+              "originalFaces": 260084,
+              "removedDegenerateFaces": 7077,
+              "faces": 253007,
+              "vertices": 126388,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                253007
+              ],
+              "bounds": [
+                [
+                  -0.7862662672996521,
+                  -0.9980288743972778,
+                  -0.8024745583534241
+                ],
+                [
+                  0.776860773563385,
+                  0.988857626914978,
+                  0.793891966342926
+                ]
+              ]
+            },
+            "shadow": {
+              "originalFaces": 11999,
+              "removedDegenerateFaces": 0,
+              "faces": 11999,
+              "vertices": 5913,
+              "watertight": false,
+              "components": 19,
+              "largestComponentFaces": [
+                11957,
+                6,
+                4,
+                4,
+                2,
+                2,
+                2,
+                2,
+                2,
+                2
+              ],
+              "bounds": [
+                [
+                  -0.7872233390808105,
+                  0.0,
+                  -0.8033450245857239
+                ],
+                [
+                  0.7872233390808105,
+                  2.0010764598846436,
+                  0.8033450245857239
+                ]
+              ]
+            },
+            "sampledSurfaceDistance": {
+              "samplesPerMesh": 20000,
+              "seed": 12345,
+              "normalizedLongestSide": 2,
+              "mean": 0.008358843078727092,
+              "p95": 0.01583212103000231,
+              "max": 0.029487428994789677,
+              "note": "Independent centering/scaling; includes sampling error; not a semantic quality score."
+            }
+          },
+          "artifactSha256": {
+            "raw.glb": "0217b0f2637879a3569becd01cf82786728c752fd6529134120eb92157328068",
+            "shadow.glb": "78faa5c860af6fb8631b8cceabf27648d2953e1f42b9562a8ae35886d28e7931"
+          }
+        },
+        {
+          "input": "bonsai",
+          "inputSha256": "a6fdcfa153818ac203cbf04e3031b166e88fdf0c2c63accfa8b3713c55752c1d",
+          "providerId": "hunyuan-2-1",
+          "jobId": "a8cf8cad-aa83-470b-8ad5-b6e78aced0a1",
+          "status": "succeeded",
+          "version": "0b94677654c57bb9a6b6845cd7b704ccf551d327",
+          "steps": 50,
+          "strategy": "resident",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp16",
+          "wallSeconds": 362.28476091700213,
+          "timings": {
+            "totalSeconds": 361.9341030840005,
+            "executionSeconds": 361.9205071670003,
+            "queueSeconds": 0.013595917000202462
+          },
+          "triangles": 11999,
+          "instanceId": "9b27fa06fcb44ca49926802c2897f9f7",
+          "memory": {
+            "sampleIntervalSeconds": 0.05,
+            "peakRssBytes": 2880897024,
+            "minSystemAvailableBytes": 2758459392,
+            "peakDeviceAllocatedBytes": 9174195456,
+            "peakDriverAllocatedBytes": 12813778944
+          },
+          "phaseStats": null,
+          "meshMetrics": {
+            "raw": {
+              "originalFaces": 330684,
+              "removedDegenerateFaces": 112489,
+              "faces": 218195,
+              "vertices": 109084,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                218195
+              ],
+              "bounds": [
+                [
+                  -0.9978221654891968,
+                  -0.9142125248908997,
+                  -0.3945003151893616
+                ],
+                [
+                  0.9890281558036804,
+                  0.9021472334861755,
+                  0.386726975440979
+                ]
+              ]
+            },
+            "shadow": {
+              "originalFaces": 11999,
+              "removedDegenerateFaces": 0,
+              "faces": 11999,
+              "vertices": 5986,
+              "watertight": false,
+              "components": 2,
+              "largestComponentFaces": [
+                11997,
+                2
+              ],
+              "bounds": [
+                [
+                  -1.0000587701797485,
+                  0.0,
+                  -0.3932379484176636
+                ],
+                [
+                  1.0000587701797485,
+                  1.8303871154785156,
+                  0.3932379484176636
+                ]
+              ]
+            },
+            "sampledSurfaceDistance": {
+              "samplesPerMesh": 20000,
+              "seed": 12345,
+              "normalizedLongestSide": 2,
+              "mean": 0.008431809698518295,
+              "p95": 0.01575032865507057,
+              "max": 0.03259237993195194,
+              "note": "Independent centering/scaling; includes sampling error; not a semantic quality score."
+            }
+          },
+          "artifactSha256": {
+            "raw.glb": "f9b877b06d08cfd66a54d35f95a1698e66810c0a354eb2c02f53009d9a019e7b",
+            "shadow.glb": "3b8293001658abe5d5d7e5c91005fd3dc84810f62c056e249838e12c2feeefd0"
+          }
+        }
+      ],
+      "providers": [
+        {
+          "providerId": "hunyuan-2-1",
+          "state": "ready",
+          "preparationSeconds": 2.677992583001469,
+          "strategy": "resident",
+          "precision": "fp16",
+          "instanceId": "9b27fa06fcb44ca49926802c2897f9f7",
+          "loadCount": 1,
+          "loadSeconds": 3.5734487920017273,
+          "warmupSeconds": 5.7373802500005695,
+          "memory": {
+            "sampleIntervalSeconds": 0.05,
+            "peakRssBytes": 794066944,
+            "minSystemAvailableBytes": 6796967936,
+            "peakDeviceAllocatedBytes": 9217716224,
+            "peakDriverAllocatedBytes": 12506071040
+          }
+        }
+      ]
+    },
+    "all-final": {
+      "complete": true,
+      "runs": [
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "providerId": "hunyuan-mini",
+          "jobId": "d8ef84e3-dfd3-4afb-acd5-b0637a12f892",
+          "status": "succeeded",
+          "version": "f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6",
+          "steps": 5,
+          "strategy": "staged",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp32",
+          "wallSeconds": 42.272945875000005,
+          "timings": {
+            "totalSeconds": 42.033040958998754,
+            "executionSeconds": 42.01540529200065,
+            "queueSeconds": 0.01763566699810326
+          },
+          "triangles": 12000,
+          "instanceId": null,
+          "memory": null,
+          "phaseStats": [
+            {
+              "phase": "encode",
+              "elapsed_seconds": 16.585301875002187,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 2670329856,
+                "minSystemAvailableBytes": 3400630272,
+                "peakDeviceAllocatedBytes": 7514948352,
+                "peakDriverAllocatedBytes": 13676265472
+              }
+            },
+            {
+              "phase": "mesh",
+              "elapsed_seconds": 12.046147500001098,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 3907420160,
+                "minSystemAvailableBytes": 11582996480,
+                "peakDeviceAllocatedBytes": 671097344,
+                "peakDriverAllocatedBytes": 3403300864
+              }
+            },
+            {
+              "phase": "sample",
+              "elapsed_seconds": 10.710032666000188,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 496943104,
+                "minSystemAvailableBytes": 13320667136,
+                "peakDeviceAllocatedBytes": 2455400960,
+                "peakDriverAllocatedBytes": 4469850112
+              }
+            }
+          ],
+          "meshMetrics": {
+            "raw": {
+              "originalFaces": 674964,
+              "removedDegenerateFaces": 321676,
+              "faces": 353288,
+              "vertices": 176648,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                353288
+              ],
+              "bounds": [
+                [
+                  -0.6718852519989014,
+                  -0.9987158179283142,
+                  -0.6801670789718628
+                ],
+                [
+                  0.6327997446060181,
+                  0.9594364166259766,
+                  0.6414422392845154
+                ]
+              ]
+            },
+            "shadow": {
+              "originalFaces": 12000,
+              "removedDegenerateFaces": 0,
+              "faces": 12000,
+              "vertices": 6004,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                12000
+              ],
+              "bounds": [
+                [
+                  -0.66681307554245,
+                  0.0,
+                  -0.6753007173538208
+                ],
+                [
+                  0.66681307554245,
+                  1.9996061325073242,
+                  0.6753007173538208
+                ]
+              ]
+            },
+            "sampledSurfaceDistance": {
+              "samplesPerMesh": 20000,
+              "seed": 12345,
+              "normalizedLongestSide": 2,
+              "mean": 0.009926041636936415,
+              "p95": 0.019349086733354552,
+              "max": 0.04433055855895346,
+              "note": "Independent centering/scaling; includes sampling error; not a semantic quality score."
+            }
+          },
+          "artifactSha256": {
+            "raw.glb": "af178eea6aa0dccf201303f2eccef176e0f5ba0e731a2fb852b9cd435196c656",
+            "shadow.glb": "795f1c7098c5d76a9e405148af43efbe78d1aabf6d952003b0b2eaf1ce644fe8"
+          }
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "providerId": "hunyuan-turbo",
+          "jobId": "800dd3d5-381e-4551-8155-e8aab94078dd",
+          "status": "succeeded",
+          "version": "9cd649ba6913f7a852e3286bad86bfa9a2d83dcf",
+          "steps": 5,
+          "strategy": "staged",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp16",
+          "wallSeconds": 33.14953379199869,
+          "timings": {
+            "totalSeconds": 33.01600670900007,
+            "executionSeconds": 33.00207750000118,
+            "queueSeconds": 0.013929208998888498
+          },
+          "triangles": 11999,
+          "instanceId": null,
+          "memory": null,
+          "phaseStats": [
+            {
+              "phase": "encode",
+              "elapsed_seconds": 2.3358950420006295,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 437518336,
+                "minSystemAvailableBytes": 13122912256,
+                "peakDeviceAllocatedBytes": 2394131456,
+                "peakDriverAllocatedBytes": 3398139904
+              }
+            },
+            {
+              "phase": "mesh",
+              "elapsed_seconds": 14.153607708998607,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 4246667264,
+                "minSystemAvailableBytes": 9797926912,
+                "peakDeviceAllocatedBytes": 865924352,
+                "peakDriverAllocatedBytes": 6352551936
+              }
+            },
+            {
+              "phase": "sample",
+              "elapsed_seconds": 13.812355374997423,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 476037120,
+                "minSystemAvailableBytes": 13534593024,
+                "peakDeviceAllocatedBytes": 2989538048,
+                "peakDriverAllocatedBytes": 4058808320
+              }
+            }
+          ],
+          "meshMetrics": {
+            "raw": {
+              "originalFaces": 763232,
+              "removedDegenerateFaces": 401099,
+              "faces": 362133,
+              "vertices": 181076,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                362133
+              ],
+              "bounds": [
+                [
+                  -0.6599874496459961,
+                  -0.9981847405433655,
+                  -0.6566360592842102
+                ],
+                [
+                  0.6198803782463074,
+                  0.9593617916107178,
+                  0.6123138070106506
+                ]
+              ]
+            },
+            "shadow": {
+              "originalFaces": 11999,
+              "removedDegenerateFaces": 0,
+              "faces": 11999,
+              "vertices": 6009,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                11999
+              ],
+              "bounds": [
+                [
+                  -0.654355525970459,
+                  0.0,
+                  -0.6483843922615051
+                ],
+                [
+                  0.654355525970459,
+                  2.002828359603882,
+                  0.6483843922615051
+                ]
+              ]
+            },
+            "sampledSurfaceDistance": {
+              "samplesPerMesh": 20000,
+              "seed": 12345,
+              "normalizedLongestSide": 2,
+              "mean": 0.010107179453444875,
+              "p95": 0.019560432591512526,
+              "max": 0.03629444111279544,
+              "note": "Independent centering/scaling; includes sampling error; not a semantic quality score."
+            }
+          },
+          "artifactSha256": {
+            "raw.glb": "94f47aa55c64654a130f4c433db51ea1444e7107738b44f97e22b72fc61e61c1",
+            "shadow.glb": "6616d410bf7c668c67d4ee9b2b22f02c36d614fd6c9dd31ea83d589b02f11422"
+          }
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "providerId": "hunyuan-2-1",
+          "jobId": "3c68b6c7-35f6-4d98-9792-ee8da06edfe5",
+          "status": "succeeded",
+          "version": "0b94677654c57bb9a6b6845cd7b704ccf551d327",
+          "steps": 50,
+          "strategy": "staged",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp16",
+          "wallSeconds": 392.2220392909985,
+          "timings": {
+            "totalSeconds": 391.7979008750008,
+            "executionSeconds": 391.78776491700046,
+            "queueSeconds": 0.010135958000319079
+          },
+          "triangles": 11999,
+          "instanceId": null,
+          "memory": null,
+          "phaseStats": [
+            {
+              "phase": "encode",
+              "elapsed_seconds": 1.6118774169990502,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 442892288,
+                "minSystemAvailableBytes": 16485531648,
+                "peakDeviceAllocatedBytes": 690056704,
+                "peakDriverAllocatedBytes": 1791721472
+              }
+            },
+            {
+              "phase": "mesh",
+              "elapsed_seconds": 21.278924042002473,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 765755392,
+                "minSystemAvailableBytes": 14853668864,
+                "peakDeviceAllocatedBytes": 1465236224,
+                "peakDriverAllocatedBytes": 3712647168
+              }
+            },
+            {
+              "phase": "sample",
+              "elapsed_seconds": 366.0598926249986,
+              "memory": {
+                "sampleIntervalSeconds": 0.05,
+                "peakRssBytes": 4360699904,
+                "minSystemAvailableBytes": 6405963776,
+                "peakDeviceAllocatedBytes": 7893568000,
+                "peakDriverAllocatedBytes": 10546429952
+              }
+            }
+          ],
+          "meshMetrics": {
+            "raw": {
+              "originalFaces": 691748,
+              "removedDegenerateFaces": 311942,
+              "faces": 379806,
+              "vertices": 189911,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                379806
+              ],
+              "bounds": [
+                [
+                  -0.6503221988677979,
+                  -0.9973519444465637,
+                  -0.6580676436424255
+                ],
+                [
+                  0.6447142958641052,
+                  0.989783763885498,
+                  0.6506437659263611
+                ]
+              ]
+            },
+            "shadow": {
+              "originalFaces": 11999,
+              "removedDegenerateFaces": 0,
+              "faces": 11999,
+              "vertices": 6007,
+              "watertight": false,
+              "components": 1,
+              "largestComponentFaces": [
+                11999
+              ],
+              "bounds": [
+                [
+                  -0.6526667475700378,
+                  0.0,
+                  -0.6587494611740112
+                ],
+                [
+                  0.6526667475700378,
+                  2.004438638687134,
+                  0.6587494611740112
+                ]
+              ]
+            },
+            "sampledSurfaceDistance": {
+              "samplesPerMesh": 20000,
+              "seed": 12345,
+              "normalizedLongestSide": 2,
+              "mean": 0.010194321787997253,
+              "p95": 0.019604462555716302,
+              "max": 0.036986702500894454,
+              "note": "Independent centering/scaling; includes sampling error; not a semantic quality score."
+            }
+          },
+          "artifactSha256": {
+            "raw.glb": "80321b57afb112fda1d34dabda17140345dbf2baf2d51ef8b10c0c9f76aa3fb2",
+            "shadow.glb": "9d693fb7790ecfb721a9bb4e1804d73909af02f889be27e8d57bd5b90844a649"
+          }
+        }
+      ],
+      "providers": [
+        {
+          "providerId": "hunyuan-mini",
+          "state": "ready",
+          "preparationSeconds": 1.4842485420012963,
+          "strategy": "staged",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp32"
+        },
+        {
+          "providerId": "hunyuan-turbo",
+          "state": "ready",
+          "preparationSeconds": 1.8754318329993112,
+          "strategy": "staged",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp16"
+        },
+        {
+          "providerId": "hunyuan-2-1",
+          "state": "ready",
+          "preparationSeconds": 2.5660658750020957,
+          "strategy": "staged",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp16"
+        }
+      ]
+    },
+    "turbo-cancel-final": {
+      "complete": true,
+      "runs": [
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "providerId": "hunyuan-turbo",
+          "jobId": "69d23ed9-a9cb-4838-88c2-d960af3e98e5",
+          "status": "succeeded",
+          "version": "9cd649ba6913f7a852e3286bad86bfa9a2d83dcf",
+          "steps": 5,
+          "strategy": "resident",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp16",
+          "wallSeconds": 29.538703041995177,
+          "timings": {
+            "totalSeconds": 29.177598499998567,
+            "executionSeconds": 29.16945458400005,
+            "queueSeconds": 0.008143915998516604
+          },
+          "triangles": 11999,
+          "instanceId": "f4ab5a0fcf5e414ba67eb39b8d0c700e",
+          "memory": {
+            "sampleIntervalSeconds": 0.05,
+            "peakRssBytes": 4594171904,
+            "minSystemAvailableBytes": 6916915200,
+            "peakDeviceAllocatedBytes": 5692150272,
+            "peakDriverAllocatedBytes": 11222089728
+          },
+          "phaseStats": null,
+          "meshMetrics": null,
+          "artifactSha256": {
+            "raw.glb": "94f47aa55c64654a130f4c433db51ea1444e7107738b44f97e22b72fc61e61c1",
+            "shadow.glb": "6616d410bf7c668c67d4ee9b2b22f02c36d614fd6c9dd31ea83d589b02f11422"
+          }
+        }
+      ],
+      "providers": [
+        {
+          "providerId": "hunyuan-turbo",
+          "state": "ready",
+          "preparationSeconds": 1.900481167001999,
+          "strategy": "resident",
+          "precision": "fp16",
+          "imageEncoderPrecision": "fp16",
+          "instanceId": "f4ab5a0fcf5e414ba67eb39b8d0c700e",
+          "loadCount": 1,
+          "loadSeconds": 2.2207050409997464,
+          "warmupSeconds": 4.019700917000591,
+          "memory": {
+            "sampleIntervalSeconds": 0.05,
+            "peakRssBytes": 553533440,
+            "minSystemAvailableBytes": 11217190912,
+            "peakDeviceAllocatedBytes": 5690967808,
+            "peakDriverAllocatedBytes": 7102906368
+          }
+        }
+      ]
+    }
+  },
+  "controls": {
+    "mini-corrected-loading-cancel": {
+      "mode": "queued",
+      "cancelCallSeconds": 0.000647749999188818,
+      "status": "cancelled",
+      "timings": {
+        "totalSeconds": 0.01477037500080769,
+        "executionSeconds": 0.0,
+        "queueSeconds": 0.01477037500080769
+      },
+      "providersAfter": [
+        {
+          "providerId": "hunyuan-mini",
+          "state": "ready",
+          "strategy": "staged"
+        },
+        {
+          "providerId": "silhouette",
+          "state": "ready"
+        }
+      ]
+    },
+    "mini-corrected-running-cancel": {
+      "mode": "running",
+      "cancelCallSeconds": 0.0014642079986515455,
+      "status": "cancelled",
+      "timings": {
+        "totalSeconds": 0.03837470800135634,
+        "executionSeconds": 0.030799042000580812,
+        "queueSeconds": 0.007575666000775527
+      },
+      "providersAfter": [
+        {
+          "providerId": "hunyuan-mini",
+          "state": "ready",
+          "strategy": "staged"
+        },
+        {
+          "providerId": "silhouette",
+          "state": "ready"
+        }
+      ]
+    },
+    "turbo-final-loading-cancel": {
+      "mode": "queued",
+      "cancelCallSeconds": 0.0005409580007835757,
+      "status": "cancelled",
+      "timings": {
+        "totalSeconds": 0.01919412500137696,
+        "executionSeconds": 0.0,
+        "queueSeconds": 0.01919412500137696
+      },
+      "providersAfter": [
+        {
+          "providerId": "hunyuan-turbo",
+          "state": "ready",
+          "strategy": "resident",
+          "instanceId": "96f5ca88d7a049409cf4daff9114dae7",
+          "loadCount": 1
+        },
+        {
+          "providerId": "silhouette",
+          "state": "ready"
+        }
+      ]
+    },
+    "turbo-cancel-final-queued": {
+      "mode": "queued",
+      "cancelCallSeconds": 0.0006129589964984916,
+      "status": "cancelled",
+      "timings": {
+        "totalSeconds": 0.014124125002126675,
+        "executionSeconds": 0.0,
+        "queueSeconds": 0.014124125002126675
+      },
+      "providersAfter": [
+        {
+          "providerId": "hunyuan-turbo",
+          "state": "ready",
+          "strategy": "resident",
+          "instanceId": "f4ab5a0fcf5e414ba67eb39b8d0c700e",
+          "loadCount": 1
+        },
+        {
+          "providerId": "silhouette",
+          "state": "ready"
+        }
+      ]
+    },
+    "turbo-cancel-final-running": {
+      "mode": "running",
+      "cancelCallSeconds": 0.0009814169970923103,
+      "status": "cancelled",
+      "timings": {
+        "totalSeconds": 0.3174527919982211,
+        "executionSeconds": 0.3098482499990496,
+        "queueSeconds": 0.007604541999171488
+      },
+      "providersAfter": [
+        {
+          "providerId": "hunyuan-turbo",
+          "state": "ready",
+          "strategy": "resident",
+          "instanceId": "f4ab5a0fcf5e414ba67eb39b8d0c700e",
+          "loadCount": 1
+        },
+        {
+          "providerId": "silhouette",
+          "state": "ready"
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "No guarantee of correct openings, no adhesion, watertight geometry or quality ranking.",
+    "Full 2.1 bonsai has a planar canopy; Mini vase opening remains capped.",
+    "No CUDA/Windows/Linux/current CPU performance validation, no high-resolution or long-duration stress test.",
+    "Corrected Mini residency and multiple simultaneous resident models were budget-tested but unavailable under this host startup capacity.",
+    "Surface distances use independent normalization and random surface samples, not exact Hausdorff or semantic metrics."
+  ]
+}

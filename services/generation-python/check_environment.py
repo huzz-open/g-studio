@@ -27,7 +27,7 @@ def check(requirements, variant):
             issues.append({"package": name, "reason": "missing"})
     modules = {"aiohttp": "aiohttp", "pillow": "PIL.Image", "numpy": "numpy", "trimesh": "trimesh", "fast-simplification": "fast_simplification"}
     if variant != "base":
-        modules.update({"torch": "torch", "torchvision": "torchvision", "transformers": "transformers", "diffusers": "diffusers", "safetensors": "safetensors", "scipy": "scipy", "scikit-image": "skimage", "numba": "numba", "opencv-python-headless": "cv2"})
+        modules.update({"torch": "torch", "torchvision": "torchvision", "transformers": "transformers", "diffusers": "diffusers", "safetensors": "safetensors", "scipy": "scipy", "scikit-image": "skimage", "numba": "numba", "opencv-python-headless": "cv2", "timm": "timm", "omegaconf": "omegaconf"})
     for name, module in modules.items():
         try:
             loaded = importlib.import_module(module)

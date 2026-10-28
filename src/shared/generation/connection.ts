@@ -1,5 +1,5 @@
 import { computed, reactive, watch } from 'vue'
-import type { Capabilities } from '../../../packages/generation-protocol/types'
+import type { Capabilities, Provider } from '../../../packages/generation-protocol/types'
 import { GenerationClient } from './client'
 import { generationSettings, snapshotConnection, useDevelopmentConnection } from './settings'
 
@@ -8,7 +8,8 @@ export const generationConnection = reactive({
   capabilities: undefined as Capabilities | undefined,
 })
 export const modelProviders = computed(() => generationConnection.capabilities?.providers.filter(p => p.providerId !== 'silhouette') ?? [])
-export const canGenerateModels = computed(() => generationConnection.connected && modelProviders.value.some(p => p.providerId === generationSettings.providerId && p.state === 'ready'))
+export const providerAcceptsJobs = (p: Provider) => p.acceptsJobs ?? p.state === 'ready'
+export const canGenerateModels = computed(() => generationConnection.connected && modelProviders.value.some(p => p.providerId === generationSettings.providerId && providerAcceptsJobs(p)))
 let epoch = 0
 let pending: { key: string; controller: AbortController; promise: Promise<boolean> } | undefined
 let developmentLookup: Promise<boolean> | undefined

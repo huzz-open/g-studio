@@ -66,15 +66,13 @@ class DeviceTests(unittest.TestCase):
             with patch.dict(os.environ, {"GEN_DEVICE": "cpu"}):
                 self.assertEqual(device.probe()["backend"], "cpu")
 
-    def test_unsupported_gpu_requests_fall_back_to_cpu(self):
+    def test_unsupported_explicit_gpu_requests_fail(self):
         for requested in ("xpu", "rocm"):
             with patch.dict(os.environ, {"GEN_DEVICE": requested}):
-                result = device.probe()
-                self.assertEqual(result["backend"], "cpu")
-                self.assertIn("not supported", result["reason"])
+                with self.assertRaises(RuntimeError): device.probe()
 
-    def test_mps_uses_cpu_noise_generator_and_fp32(self):
-        from compute import inference_dtype, noise_generator, recoverable_accelerator_error
+    def test_mps_uses_cpu_noise_generator_and_fixed_precision(self):
+        from compute import inference_dtype, noise_generator
         seen = {}
         def generator(device):
             seen["device"] = device
@@ -82,14 +80,12 @@ class DeviceTests(unittest.TestCase):
         torch = types.SimpleNamespace(Generator=generator, float16="fp16", float32="fp32")
         noise_generator(torch, "mps", 42)
         self.assertEqual(seen, {"device": "cpu", "seed": 42})
-        self.assertEqual(inference_dtype(torch, "mps"), "fp32")
+        self.assertEqual(inference_dtype(torch, "mps"), "fp16")
         self.assertEqual(inference_dtype(torch, "cuda"), "fp16")
-        self.assertTrue(recoverable_accelerator_error("mps", "Not implemented for the MPS device"))
-        self.assertFalse(recoverable_accelerator_error("cpu", "out of memory"))
-        self.assertFalse(recoverable_accelerator_error("mps", "Invalid source image"))
 
     def test_gpu_preferred_after_runtime_validation(self):
         with (
+            patch("device.platform.system", return_value="Windows"),
             patch.dict(os.environ, {"GEN_DEVICE": ""}),
             patch(
                 "device.subprocess.run",
@@ -116,6 +112,11 @@ class DeviceTests(unittest.TestCase):
             self.assertEqual(result["deviceType"], "cpu")
             self.assertIn("initialization failed", result["reason"])
 
+    def test_explicit_unavailable_or_failed_device_does_not_select_cpu(self):
+        for torch in [self.fake_torch(available=False), self.fake_torch(error=True)]:
+            with patch("device.platform.system",return_value="Windows"), patch.dict(os.environ,GEN_DEVICE="cuda"), patch.dict(sys.modules,{"torch":torch}):
+                with self.assertRaises(RuntimeError): device.probe()
+
     def test_cpu_override(self):
         with (
             patch.dict(os.environ, {"GEN_DEVICE": "cpu"}),
@@ -133,7 +134,7 @@ class DeviceTests(unittest.TestCase):
 
 
 class DownloadTests(unittest.TestCase):
-    def test_accelerator_retry_preserves_the_original_upload(self):
+    def test_explicit_resubmission_preserves_the_original_upload(self):
         import generate
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)

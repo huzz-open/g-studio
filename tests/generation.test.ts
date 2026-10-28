@@ -191,3 +191,23 @@ test("mesh part v2 round-trips and rejects mesh payloads under v1", () => {
   p.version = 1;
   assert.throws(() => validatePart(p));
 });
+
+test('loading tags, submission policy and monotonic task timings are validated and schemas agree', () => {
+  const provider = {providerId:'hunyuan-mini',name:'Mini',state:'loading',acceptsJobs:true,tags:['推荐','快速'],strategy:'resident',precision:'fp16',imageEncoderPrecision:'fp32',parameters:{}};
+  const caps = {protocolVersion:1,providers:[provider],limits:{inputBytes:1,inputDimension:1,outputBytes:1,concurrency:1,queue:8},targetFaces:{min:1,max:2,default:1}};
+  assert.equal(parseCapabilities(caps).providers[0]!.acceptsJobs,true);
+  assert.doesNotThrow(()=>parseCapabilities({...caps,providers:[{providerId:'old',name:'Old',state:'ready',parameters:{}}]}));
+  for (const update of [{tags:['快速','快速']},{tags:['Very fast']},{tags:[['快速']]},{state:'disabled'},{loadCount:0},{instanceId:7},{acceptsJobs:'yes'},{state:'failed'},{strategy:'fallback'},{imageEncoderPrecision:'auto'}])
+    assert.throws(()=>parseCapabilities({...caps,providers:[{...provider,...update}]}));
+  assert.throws(()=>parseCapabilities({...caps,providers:[provider,{...provider,providerId:'second'}]}));
+  assert.doesNotThrow(()=>parseJob({id:'a',status:'cancelled',phase:'cancelled',timings:{totalSeconds:2,queueSeconds:2,executionSeconds:0}}));
+  assert.throws(()=>parseJob({id:'a',status:'failed',phase:'failed',timings:{totalSeconds:2,queueSeconds:2,executionSeconds:2}}));
+  const result = {protocolVersion:1,providerId:'hunyuan-mini',inputSha256:'a'.repeat(64),warnings:[],outputs:[{id:'shadow',mime:'model/gltf-binary',bytes:24,sha256:'b'.repeat(64)}],precision:'fp16',imageEncoderPrecision:'fp32',strategy:'resident'};
+  const done = {id:'a',status:'succeeded',phase:'complete',result};
+  assert.equal(parseJob(done).result?.imageEncoderPrecision, 'fp32');
+  assert.throws(()=>parseJob({...done,result:{...result,imageEncoderPrecision:'auto'}}));
+  const schema=JSON.parse(readFileSync(new URL('../packages/generation-protocol/schema.json',import.meta.url),'utf8'));
+  const api=JSON.parse(readFileSync(new URL('../packages/generation-protocol/openapi.json',import.meta.url),'utf8'));
+  for(const name of ['Provider','Capabilities','Timings','Job','Result'])
+    assert.deepEqual(api.components.schemas[name],JSON.parse(JSON.stringify(schema.$defs[name]).replaceAll('#/$defs/','#/components/schemas/')));
+});

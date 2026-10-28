@@ -44,6 +44,7 @@
 
 | 文档 | 日期与范围 | 语言 |
 | --- | --- | --- |
+| [几何模型与服务改造验证](history/model-generation-upgrade-20261028.md) | 2026-10-28，三模型资源、常驻/队列及真实几何对照 | ZH |
 | [生成服务验证](history/model-generation-validation.md) | 2026-10-26～27，Windows CPU、TLS、资源准备和分发包 | ZH |
 | [木箱阴影调查](history/shadow-alignment-2026-10-26.md) | 2026-10-26，图像轮廓与代理几何不一致的分析 | EN |
 

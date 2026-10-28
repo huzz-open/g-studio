@@ -8,15 +8,16 @@ import json
 import os
 from pathlib import Path
 import secrets
-import shutil
 import signal
 import sys
 import time
 import uuid
 from aiohttp import web
-from config import HOME, DATA_HOME, config, atomic_json
+from config import DATA_HOME, config, atomic_json
 from providers import PROVIDERS
-from compute import recoverable_accelerator_error
+from model_catalog import MODELS, enabled_models, image_encoder_precision
+from policy import plan
+from worker_client import WorkerClient
 from network import allowed_origins, host_allowed, listen_host, service_urls
 
 ROOT = Path(__file__).resolve().parent
@@ -36,18 +37,27 @@ class Fault(Exception):
 class Service:
     def __init__(self):
         self.jobs = {}
-        self.queue = asyncio.Queue()
+        self.wake = asyncio.Event()
+        self.compute_lock = asyncio.Lock()
+        self.children = set()
+        self.residents = {}
+        self.clocks = {}
+        self.enabled = enabled_models()
+        self.precision = None
+        self.memory = {}
+        self.policy = {}
         self.device = None
-        self.backend = "cpu"
+        self.backend = None
         self.device_reason = "Device detection in progress"
         self.process = None
         self.running = None
         self.provider_states = {
-            p.id: {"state": "preparing" if p.needs_model else "ready", "error": None}
+            p.id: {'state': ('preparing' if p.id in self.enabled else 'disabled') if p.needs_model else 'ready',
+                   'error': None, 'acceptsJobs': not p.needs_model or p.id in self.enabled,
+                   'tags': [MODELS[p.id]['tag']] if p.id in MODELS else []}
             for p in PROVIDERS.values()
         }
         self.tasks = []
-        self.preparation_process = None
         for path in JOBS.glob("*/job.json"):
             try:
                 job = json.loads(path.read_text("utf-8"))
@@ -102,76 +112,119 @@ class Service:
             "cancel": True,
         }
 
+    async def spawn(self, *command, **kwargs):
+        process = await asyncio.create_subprocess_exec(*command, start_new_session=os.name != 'nt', **kwargs)
+        self.children.add(process)
+        return process
+
+    def env(self, provider):
+        return {**os.environ, 'GEN_DEVICE': self.backend or 'cpu', 'GEN_PROVIDER': provider,
+                'GEN_PRECISION': self.precision or 'fp32', 'PYTORCH_ENABLE_MPS_FALLBACK': '0', 'PYTHONIOENCODING': 'utf-8'}
+
+    async def read_json(self, command, env=None):
+        process = await self.spawn(*command, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        try:
+            out, error = await asyncio.wait_for(process.communicate(), 60)
+            if process.returncode: raise RuntimeError(error.decode('utf-8', 'replace')[-1500:])
+            return json.loads(out)
+        finally:
+            if process.returncode is None: await self.stop_process(process)
+            self.children.discard(process)
+
+    def provider_failed(self, id, error):
+        self.provider_states[id].update(state='failed', error=error, acceptsJobs=False, tags=[MODELS[id]['tag']] if id in MODELS else [])
+        for job in self.jobs.values():
+            if job['providerId'] == id and job['status'] == 'queued':
+                job.update(status='failed', phase='preparation-failed', error={'code': 'PREPARATION_FAILED', 'message': error, 'retryable': True})
+                self.complete(job)
+        self.wake.set()
+
+    def print_table(self, detection=None):
+        def memory(value): return f'{value / 1024**3:.2f} GiB' if value is not None else '未知'
+        rows = [('操作系统', self.memory.get('os', sys.platform), ''),
+                ('处理器', self.memory.get('processor', '未知'), ''),
+                ('显卡', self.memory.get('gpu') or ', '.join((detection or {}).get('detected', [])) or '未知', ''),
+                ('系统内存', memory(self.memory.get('systemTotal')), '当前可用 ' + memory(self.memory.get('systemAvailable'))),
+                ('推理设备', self.device or '未确定', self.device_reason),
+                ('计算后端', self.backend or '未确定', '启动固定；执行失败不切换'),
+                ('采样/解码精度', self.precision or '未确定', '图像编码精度按模型另列'),
+                ('输入预处理', 'CPU FP32', '固定抗锯齿缩放/裁剪/归一化；模型不切换设备'),
+                ('容量预算', memory(self.policy.get('budgetBytes')), '统一内存不重复计入'),
+                ('计划峰值', memory(self.policy.get('plannedPeakBytes')), '参数估计 + 工作区 + 加载余量；不是实测峰值')]
+        for id in self.enabled:
+            state = self.provider_states[id]
+            rows += [('模型', PROVIDERS[id].name, state['state']),
+                     ('运行策略', state.get('strategy', '未确定'), PROVIDERS[id].name),
+                     ('图像编码精度', state.get('imageEncoderPrecision', '未确定'), PROVIDERS[id].name + '；启动固定'),
+                     ('FlashVDM 配置', '关闭' if MODELS[id]['series'] == '2.1' else '开启', '完整 VAE 分层解码' if MODELS[id]['series'] == '2.1' else 'Turbo VAE + KV 裁剪')]
+        rows += [('服务地址', url, 'HTTP 可用与模型就绪分开') for url in service_urls()]
+        print('\n类别 | 当前值 | 备注\n' + '\n'.join(' | '.join(' '.join(str(value).splitlines()) for value in row) for row in rows), flush=True)
+        print(f"[generation] Credentials/configuration: {DATA_HOME / 'config.json'}", flush=True)
+
     async def prepare(self):
-        p = await asyncio.create_subprocess_exec(
-            sys.executable,
-            str(ROOT / "device.py"),
-            stdout=asyncio.subprocess.PIPE,
-            start_new_session=os.name != "nt",
-        )
-        self.preparation_process = p
+        detection = None
         try:
-            out, _ = await asyncio.wait_for(p.communicate(), timeout=60)
-        except asyncio.TimeoutError:
-            await self.stop_process(p)
-            out = b""
-        try:
-            d = json.loads(out)
-            self.device = d["deviceType"]
-            self.backend = d.get("backend", "cpu")
-            self.device_reason = d["reason"]
-            print(
-                "[generation] detected: CPU; GPU: "
-                + (", ".join(d["detected"]) or "none"),
-                flush=True,
-            )
-            print("[generation] runtime: " + d["reason"], flush=True)
-            print("[generation] selected device: " + self.backend.upper(), flush=True)
-        except Exception:
-            self.device = "cpu"
-            self.backend = "cpu"
-            self.device_reason = "Device probe failed; using CPU"
-            print("[generation] GPU probe failed; selected device: CPU", flush=True)
-        self.preparation_process = None
-        for provider in PROVIDERS.values():
-            if not provider.needs_model:
-                continue
-            state = self.provider_states[provider.id]
-            if os.environ.get("GEN_SKIP_MODEL") == "1":
-                state["state"] = "not-installed"
-                continue
-            try:
-                command = provider.prepare_command()
-                if not command:
-                    raise RuntimeError("Provider has no preparation implementation")
-                p = await asyncio.create_subprocess_exec(
-                    *command, start_new_session=os.name != "nt"
-                )
-                self.preparation_process = p
-                if await p.wait():
-                    raise RuntimeError(
-                        "Model preparation failed; retry after resolving download errors"
-                    )
-                state["state"] = "ready"
-                print(f"[generation] Provider ready: {provider.name}", flush=True)
-            except Exception as e:
-                state.update(state="failed", error=str(e))
-                print(f"[generation] Provider preparation failed: {provider.name}: {e}", flush=True)
-            finally:
-                self.preparation_process = None
-        ready = [p.name for p in PROVIDERS.values() if self.provider_states[p.id]["state"] == "ready"]
-        print(
-            f"\n[generation] Preparation complete | device: {self.backend.upper()} | ready: {', '.join(ready) or 'none'}\n"
-            + "".join(f"[generation] API address: {url}\n" for url in service_urls())
-            + f"[generation] Access token: {config['token']}\n"
-            + f"[generation] Allowed frontend origins: {', '.join(allowed_origins())}\n"
-            + f"[generation] Start again: {os.environ.get('GEN_RESTART_COMMAND', 'sh start-generation.sh')}\n"
-            + "[generation] Waiting for generation requests. Connect from the app's model generation settings.\n"
-            "[generation] Keep this terminal open; press Ctrl+C to stop the service.",
-            flush=True,
-        )
+            detection = await self.read_json([sys.executable, str(ROOT / 'device.py')])
+            self.device, self.backend, self.device_reason = detection['deviceType'], detection['backend'], detection['reason']
+            self.precision = os.environ.get('GEN_PRECISION', 'fp32' if self.backend == 'cpu' else 'fp16')
+            available = []
+            for id in self.enabled:
+                started = time.monotonic()
+                try:
+                    process = await self.spawn(*PROVIDERS[id].prepare_command())
+                    if await process.wait(): raise RuntimeError('Resource preparation failed; resolve the reported checksum/download error and restart')
+                    self.children.discard(process)
+                    self.provider_states[id]['preparationSeconds'] = time.monotonic() - started
+                    available.append(id)
+                except Exception as error: self.provider_failed(id, str(error))
+            if available:
+                self.memory = await self.read_json([sys.executable, str(ROOT / 'policy.py')], self.env(available[0]))
+                self.policy = plan(available, self.backend, self.precision, self.memory, os.environ.get('GEN_STRATEGY', 'auto'))
+                for id, error in self.policy['errors'].items(): self.provider_failed(id, error)
+                for id, strategy in self.policy['strategies'].items():
+                    self.provider_states[id]['strategy'] = strategy
+                    self.provider_states[id]['precision'] = self.precision
+                    self.provider_states[id]['imageEncoderPrecision'] = image_encoder_precision(id, self.backend, self.precision)
+                    if id == 'hunyuan-mini' and strategy == 'resident' and self.backend == 'mps' and self.precision == 'fp16':
+                        self.provider_states[id]['tags'] = ['推荐', MODELS[id]['tag']]
+            self.print_table(detection)
+            for id, strategy in self.policy.get('strategies', {}).items():
+                state = self.provider_states[id]
+                try:
+                    if strategy == 'resident':
+                        state['state'] = 'loading'
+                        async with self.compute_lock:
+                            client = WorkerClient(self, id, self.env(id))
+                            self.residents[id] = client
+                            state.update(await client.start())
+                            state.pop('event', None)
+                    state['state'] = 'ready'
+                    print(f"[模型] {PROVIDERS[id].name} 已就绪 | {strategy}", flush=True)
+                    self.wake.set()
+                except Exception as error:
+                    self.provider_failed(id, str(error))
+                    if id in self.residents: await self.residents[id].close()
+        except Exception as error:
+            self.device_reason = str(error)
+            for id in self.enabled: self.provider_failed(id, str(error))
+            self.print_table(detection)
+
+    def complete(self, job):
+        if job.get('_logged'): return
+        clock = self.clocks.pop(job['id'], None)
+        if clock:
+            now = time.monotonic()
+            total = now - clock[0]
+            execution = now - clock[1] if clock[1] is not None else 0.
+            job['timings'] = dict(totalSeconds=total, executionSeconds=execution, queueSeconds=max(0., total-execution))
+            if job.get('result'): job['result']['timings'] = job['timings']
+            print(f"[任务 {job['id']}] {job['status']} | 总耗时 {total:.2f} 秒 | 执行 {execution:.2f} 秒" + (f" | {job['error']['message']}" if job.get('error') else ''), flush=True)
+        job['expiresAt'] = time.time() + 86400
+        job['_logged'] = True
+        self.save(job)
 
     async def submit(self, request, image):
+        received = time.monotonic()
         if not isinstance(request, dict):
             raise Fault("INVALID_REQUEST", "JSON object required")
         allowed = {
@@ -233,13 +286,13 @@ class Service:
                     )
                 return job
         provider_state = self.provider_states[request["providerId"]]
-        if provider_state["state"] != "ready":
+        if not provider_state["acceptsJobs"]:
             raise Fault(
                 "PROVIDER_NOT_READY",
                 provider_state["error"] or provider_state["state"],
                 503,
             )
-        if self.queue.qsize() >= 8:
+        if sum(j["status"] == "queued" for j in self.jobs.values()) >= 8:
             raise Fault("QUEUE_FULL", "Queue is full", 429)
         from PIL import Image
 
@@ -272,7 +325,9 @@ class Service:
         }
         self.jobs[id] = job
         self.save(job)
-        await self.queue.put(id)
+        self.clocks[id] = [received, None]
+        print(f'[任务 {id}] 已排队，等待模型与执行空位', flush=True)
+        self.wake.set()
         return job
 
     def get(self, id):
@@ -282,155 +337,126 @@ class Service:
 
     async def cancel(self, id):
         job = self.get(id)
-        if job["status"] in TERMINAL:
-            return job
-        job["status"] = "cancel_requested"
-        self.save(job)
-        if self.running == id and self.process:
-            await self.stop_process()
-        job.update(status="cancelled", phase="cancelled", expiresAt=time.time() + 86400)
-        self.save(job)
+        if job['status'] in TERMINAL: return job
+        if job['status'] == 'queued':
+            job.update(status='cancelled', phase='cancelled')
+            self.complete(job)
+        else:
+            job['status'] = 'cancel_requested'
+            (JOBS / id / 'cancel').touch()
+            self.save(job)
+            if self.running == id and self.process: await self.stop_process(self.process)
+        self.wake.set()
         return job
 
     async def stop_process(self, p=None):
         p = p or self.process
-        if not p or p.returncode is not None:
-            return
-        if os.name == "nt":
-            killer = await asyncio.create_subprocess_exec(
-                "taskkill",
-                "/PID",
-                str(p.pid),
-                "/T",
-                "/F",
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            await killer.wait()
+        if not p or p.returncode is not None: return
+        if os.name == 'nt':
+            killer = await asyncio.create_subprocess_exec('taskkill', '/PID', str(p.pid), '/T', '/F', stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+            await asyncio.wait_for(killer.wait(), 10)
         else:
-            try:
-                os.killpg(p.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-        await p.wait()
+            try: os.killpg(p.pid, signal.SIGTERM)
+            except ProcessLookupError: pass
+        try: await asyncio.wait_for(p.wait(), 5)
+        except asyncio.TimeoutError:
+            if os.name != 'nt':
+                try: os.killpg(p.pid, signal.SIGKILL)
+                except ProcessLookupError: pass
+            else:
+                p.kill()
+            await asyncio.wait_for(p.wait(), 5)
+        self.children.discard(p)
+
+    async def staged(self, folder, job):
+        self.process = await self.spawn(sys.executable, '-u', str(ROOT / 'generate.py'), str(folder),
+            env=self.env(job['providerId']), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+        if job['status'] == 'cancel_requested':
+            await self.stop_process(self.process)
+            return {'status': 'cancelled'}
+        tail = []
+        with (folder / 'execution.log').open('a') as log:
+            async for raw in self.process.stdout:
+                line = raw.decode('utf-8', 'replace').strip()
+                log.write(line + '\n'); log.flush()
+                tail = (tail + [line])[-30:]
+                try:
+                    event = json.loads(line)
+                    if 'phase' in event:
+                        job['phase'] = event['phase']; self.save(job)
+                except (ValueError, TypeError): pass
+        code = await self.process.wait()
+        self.children.discard(self.process)
+        if job['status'] == 'cancel_requested': return {'status': 'cancelled'}
+        if code: raise RuntimeError('\n'.join(tail)[-1500:])
+        return {'status': 'succeeded'}
+
+    def result(self, folder, job):
+        import struct
+        meta = json.loads((folder / 'output.json').read_text())
+        output_path = folder / 'shadow.glb'
+        if not 20 <= output_path.stat().st_size <= 128*1024*1024: raise ValueError('Invalid GLB output size')
+        output = output_path.read_bytes()
+        if struct.unpack('<4sII', output[:12]) != (b'glTF', 2, len(output)):
+            raise ValueError('Invalid GLB output')
+        bounds = meta.get('bounds')
+        if (type(meta.get('triangles')) is not int or not 1 <= meta['triangles'] <= job['parameters']['targetFaces']
+            or not isinstance(bounds, list) or len(bounds) != 2 or any(not isinstance(row, list) or len(row) != 3 for row in bounds)
+            or not all(type(v) in (int, float) and math.isfinite(v) for row in bounds for v in row)
+            or any(bounds[0][i] > bounds[1][i] for i in range(3))):
+            raise ValueError('Invalid geometry metadata')
+        gpu = PROVIDERS[job['providerId']].supports_gpu and self.device == 'gpu'
+        return {**meta, 'protocolVersion': 1, 'jobId': job['id'], 'providerId': job['providerId'],
+            'providerVersion': PROVIDERS[job['providerId']].version, 'parameters': job['parameters'],
+            'deviceType': 'gpu' if gpu else 'cpu', 'backend': self.backend if gpu else 'cpu',
+            'precision': self.precision if PROVIDERS[job['providerId']].needs_model else 'fp32',
+            'imageEncoderPrecision': image_encoder_precision(job['providerId'], self.backend, self.precision) if PROVIDERS[job['providerId']].needs_model else 'fp32',
+            'strategy': self.provider_states[job['providerId']].get('strategy', 'staged'),
+            'inputSha256': job['inputSha256'], 'outputs': [{'id': 'shadow', 'mime': 'model/gltf-binary', 'bytes': len(output), 'sha256': hashlib.sha256(output).hexdigest()}]}
 
     async def worker(self):
         while True:
-            id = await self.queue.get()
-            job = self.jobs[id]
-            if job["status"] != "queued":
+            self.wake.clear()
+            # A preparing model must not head-of-line block another ready model.
+            job = next((j for j in self.jobs.values() if j['status'] == 'queued' and self.provider_states[j['providerId']]['state'] == 'ready'), None)
+            if job is None:
+                await self.wake.wait()
                 continue
-            self.running = id
-            job.update(status="running", phase="starting")
-            self.save(job)
-            folder = JOBS / id
-            try:
-                for attempt in range(2):
-                    use_gpu = (
-                        self.device == "gpu"
-                        and PROVIDERS[job["providerId"]].supports_gpu
-                    )
-                    backend = self.backend if use_gpu else "cpu"
-                    env = {
-                        **os.environ,
-                        "GEN_DEVICE": backend,
-                        "PYTHONIOENCODING": "utf-8",
-                    }
-                    opts = {} if os.name == "nt" else {"start_new_session": True}
-                    self.process = await asyncio.create_subprocess_exec(
-                        sys.executable,
-                        "-u",
-                        str(ROOT / "generate.py"),
-                        str(folder),
-                        env=env,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.STDOUT,
-                        **opts,
-                    )
-                    tail = []
-                    with (folder / "execution.log").open("a", encoding="utf-8") as log:
-                        async for raw in self.process.stdout:
-                            line = raw.decode("utf-8", "replace").strip()
-                            log.write(line + "\n")
-                            log.flush()
-                            tail.append(line)
-                            tail = tail[-30:]
-                            try:
-                                event = json.loads(line)
-                                if "phase" in event:
-                                    job["phase"] = event["phase"]
-                                    self.save(job)
-                            except (ValueError, TypeError):
-                                pass
-                    code = await self.process.wait()
-                    if job["status"] in ("cancel_requested", "cancelled"):
-                        break
-                    if code == 0:
-                        break
-                    detail = "\n".join(tail)
-                    if (
-                        attempt == 0
-                        and use_gpu
-                        and recoverable_accelerator_error(backend, detail)
-                    ):
-                        self.device = "cpu"
-                        self.backend = "cpu"
-                        self.device_reason = "Accelerator failed during inference; retried on CPU"
-                        job["phase"] = "fallback-cpu"
-                        self.save(job)
-                        print(
-                            "[generation] GPU failed; selected device: CPU; retrying task once",
-                            flush=True,
-                        )
-                    else:
-                        raise RuntimeError(detail[-1500:])
-                if job["status"] in ("cancel_requested", "cancelled"):
-                    continue
-                meta = json.loads((folder / "output.json").read_text("utf-8"))
-                output = folder / "shadow.glb"
-                if output.stat().st_size > 128 * 1024 * 1024:
-                    raise ValueError("Output exceeds limit")
-                job.update(
-                    status="succeeded",
-                    phase="complete",
-                    expiresAt=time.time() + 86400,
-                    result={
-                        **meta,
-                        "protocolVersion": 1,
-                        "jobId": id,
-                        "providerId": job["providerId"],
-                        "providerVersion": PROVIDERS[job["providerId"]].version,
-                        "parameters": job["parameters"],
-                        "deviceType": "gpu" if use_gpu else "cpu",
-                        "backend": backend,
-                        "inputSha256": job["inputSha256"],
-                        "outputs": [
-                            {
-                                "id": "shadow",
-                                "mime": "model/gltf-binary",
-                                "bytes": output.stat().st_size,
-                                "sha256": hashlib.sha256(
-                                    output.read_bytes()
-                                ).hexdigest(),
-                            }
-                        ],
-                    },
-                )
-            except Exception as e:
-                if job["status"] != "cancelled":
-                    job.update(
-                        status="failed",
-                        error={
-                            "code": "GENERATION_FAILED",
-                            "message": str(e),
-                            "retryable": True,
-                        },
-                        expiresAt=time.time() + 86400,
-                    )
-            finally:
+            async with self.compute_lock:
+                if job['status'] != 'queued': continue
+                if self.provider_states[job['providerId']]['state'] != 'ready': continue
+                self.running = job['id']
+                self.clocks[job['id']][1] = time.monotonic()
+                job.update(status='running', phase='starting')
                 self.save(job)
-                self.process = None
-                self.running = None
+                print(f"[任务 {job['id']}] 开始生成", flush=True)
+                folder = JOBS / job['id']
+                try:
+                    client = self.residents.get(job['providerId'])
+                    event = await client.run(folder, job) if client else await self.staged(folder, job)
+                    if event['status'] == 'cancelled' or job['status'] == 'cancel_requested':
+                        job.update(status='cancelled', phase='cancelled')
+                    elif event['status'] != 'succeeded': raise RuntimeError(event.get('error', 'Inference failed'))
+                    else: job.update(status='succeeded', phase='complete', result=self.result(folder, job))
+                except asyncio.CancelledError:
+                    raise
+                except Exception as error:
+                    if job['status'] == 'cancel_requested': job.update(status='cancelled', phase='cancelled')
+                    else: job.update(status='failed', phase='failed', error={'code': 'GENERATION_FAILED', 'message': str(error), 'retryable': True})
+                finally:
+                    if job['status'] in TERMINAL: self.complete(job)
+                    self.process = None
+                    self.running = None
+
+    async def close(self):
+        for task in self.tasks: task.cancel()
+        await asyncio.gather(*self.tasks, return_exceptions=True)
+        for client in self.residents.values(): await client.close()
+        for process in list(self.children): await self.stop_process(process)
+        for job in self.jobs.values():
+            if job['status'] not in TERMINAL:
+                job.update(status='failed', phase='interrupted', error={'code': 'INTERRUPTED', 'message': 'Service stopped; resubmit explicitly.', 'retryable': True})
+                self.complete(job)
 
     async def cleanup(self):
         while True:
@@ -580,6 +606,7 @@ async def ack(r):
 
 
 async def startup(app):
+    print("[生成服务] HTTP 接口启动；模型在后台准备", flush=True)
     service.tasks = [
         asyncio.create_task(service.prepare()),
         asyncio.create_task(service.worker()),
@@ -594,12 +621,7 @@ async def startup(app):
 
 
 async def shutdown(app):
-    await service.stop_process()
-    if service.preparation_process:
-        await service.stop_process(service.preparation_process)
-    for task in service.tasks:
-        task.cancel()
-    await asyncio.gather(*service.tasks, return_exceptions=True)
+    await service.close()
 
 
 app = web.Application(middlewares=[security], client_max_size=LIMIT + 65536)

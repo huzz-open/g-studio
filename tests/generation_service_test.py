@@ -263,6 +263,12 @@ class GenerationIntegration(unittest.TestCase):
         )
 
     def test_02_relay_pairing_output_and_isolation(self):
+        # Do not consume the invalid-code rate limit while the worker connects.
+        deadline = time.time() + 30
+        while "Pairing registration ready" not in (self.home / "worker.log").read_text():
+            if time.time() > deadline:
+                self.fail("Worker did not register the pairing code")
+            time.sleep(0.1)
         deadline = time.time() + 30
         while True:
             code, pair = call(

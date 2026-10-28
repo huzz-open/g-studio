@@ -142,6 +142,8 @@ async def run_relay(service):
                                 )
                         elif m["type"] == "error":
                             print("[relay] " + m["message"], flush=True)
+                        elif m["type"] == "pair.ready":
+                            print("[relay] Pairing registration ready", flush=True)
                         elif m["type"] == "pair.used":
                             paired = True
                             print("[relay] Browser connected. The pairing code has been used.", flush=True)

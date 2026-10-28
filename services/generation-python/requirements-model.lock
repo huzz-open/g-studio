@@ -48,3 +48,8 @@ typing-extensions==4.16.0
 urllib3==2.8.0
 yarl==1.25.1
 zipp==4.1.2
+
+# Pinned Hunyuan3D-2.1 Shape dependencies (no paint / renderer).
+timm==1.0.15
+omegaconf==2.3.0
+antlr4-python3-runtime==4.9.3

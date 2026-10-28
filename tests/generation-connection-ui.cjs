@@ -4,14 +4,14 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 
 ;(async () => {
-  const browser = await chromium.launch({ channel: 'msedge', headless: true })
+  const browser = await chromium.launch({ channel: process.env.G_STUDIO_TEST_BROWSER_CHANNEL || 'chrome', headless: true })
   try {
     const context = await browser.newContext({ viewport: { width: 1400, height: 1000 } })
     const page = await context.newPage(), errors = []
     page.on('pageerror', error => errors.push(String(error)))
     let apiRequests = 0, lookups = 0, ready = false
     const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization,content-type', 'access-control-allow-methods': 'GET,POST,OPTIONS' }
-    const caps = { protocolVersion: 1, providers: [{ providerId: 'hunyuan-mini', name: 'Hunyuan', state: 'ready', parameters: {} }], limits: { inputBytes: 10485760, inputDimension: 2048, outputBytes: 134217728, concurrency: 1, queue: 8 }, targetFaces: { min: 1000, max: 40000, default: 12000 } }
+    const caps = { protocolVersion: 1, providers: [{ providerId: 'hunyuan-mini', name: 'Hunyuan', state: 'loading', acceptsJobs: true, tags: ['推荐','快速'], strategy: 'resident', parameters: {} }], limits: { inputBytes: 10485760, inputDimension: 2048, outputBytes: 134217728, concurrency: 1, queue: 8 }, targetFaces: { min: 1000, max: 40000, default: 12000 } }
     await page.route('**/__generation/connection', route => { lookups++; return route.fulfill({ json: { baseUrl: 'http://127.0.0.1:8765', token: 'local-only' } }) })
     await page.route('http://192.168.1.20:8765/**', async route => {
       apiRequests++
@@ -57,6 +57,9 @@ const fs = require('node:fs')
     await page.locator('.test-connection').click()
     await page.locator('.connection-status.connected').waitFor()
     await page.locator('.device-tag').filter({ hasText: 'GPU · Apple MPS' }).waitFor()
+    assert.match(await page.locator('#generation-provider option').innerText(), /推荐.*快速/);
+    assert.doesNotMatch(await page.locator('#generation-provider option').innerText(), /加载/);
+    assert.match(await page.locator('.provider-status').innerText(), /加载中.*可提交排队/);
     assert.equal(lookups, 0, 'a remote API must never use local development credentials')
     await page.locator('#generation-url').fill('http://public.example.com:8765')
     await page.locator('.test-connection').click()

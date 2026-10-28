@@ -31,7 +31,7 @@ def build(cache):
                 data = response.read()
         if len(data) != item["size"] or hashlib.sha256(data).hexdigest() != item["sha256"]:
             raise ValueError(f"Source verification failed: {item['path']}")
-        name = item["path"].removeprefix("vendor/Hunyuan3D-2/")
+        name = item["path"].removeprefix(manifest.get("prefix", "vendor/Hunyuan3D-2/"))
         if name in ("LICENSE", "NOTICE"):
             name = f"{DIST}/licenses/{name}"
         contents[name] = data
@@ -70,4 +70,11 @@ def build(cache):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cache", type=Path, default=ROOT / "runtime/generation")
-    build(parser.parse_args().cache)
+    parser.add_argument("--series", choices=["2.0", "2.1"], default="2.0")
+    args = parser.parse_args()
+    if args.series == "2.1":
+        OUTPUT = OUTPUT.with_name("wheels-2.1")
+        NAME = "g_studio_hunyuan21_shape"
+        VERSION = "2.1.0+82920d643c0d"
+        DIST = f"{NAME}-{VERSION}.dist-info"
+    build(args.cache)

@@ -22,6 +22,7 @@ const deploymentCommand = computed(() => installCommand(new URL(import.meta.env.
 let disposed = false;
 let feedbackToast: number | undefined;
 const capabilities = computed(() => generationConnection.capabilities);
+const selectedProvider = computed(() => capabilities.value?.providers.find(p => p.providerId === settings.providerId));
 const parameters = computed(() => props.parameters ?? settings);
 watch(
   () => [
@@ -131,9 +132,14 @@ onUnmounted(() => {
               :key="p.providerId"
               :value="p.providerId"
             >
-              {{ p.name }} · {{ t("generation.providerState." + p.state) }}
+              {{ [p.name, ...(p.tags || []).map(tag => t('generation.tag.' + tag))].join(' · ') }}
             </option>
           </select>
+          <p v-if="selectedProvider" class="provider-status" role="status">
+            {{ t('generation.providerState.' + selectedProvider.state) }}<span v-if="selectedProvider.strategy"> · {{ t('generation.strategy.' + selectedProvider.strategy) }}</span>
+            <span v-if="selectedProvider.acceptsJobs && selectedProvider.state !== 'ready'"> — {{ t('generation.queueWhileLoading') }}</span>
+          </p>
+          <p v-if="selectedProvider?.error">{{ selectedProvider.error }}</p>
         </div>
     </template>
     <div v-else class="generation-parameters" role="group" :aria-label="t(props.parameters ? 'generation.parameters' : 'generation.defaults')">

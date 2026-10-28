@@ -39,11 +39,13 @@ npm run dev
 
 打开 <http://localhost:5173>。`npm run dev` 同时启动网页与 AI 后端；首次会准备 Python 环境并下载约 **4.23GB 模型权重**。只开发或使用网页功能，可改为 `npm run dev:web`，无需准备 Python 和模型。
 
-模型生成初始未配置 API。在连接设置中复制当前站点的安装命令，或填写已有后端在终端打印的地址和凭证。安装器下载并校验源码后调用项目启动脚本；已有项目直接执行 `sh start-generation.sh`，不会下载或更新源码。其他设备访问时加 `--host 0.0.0.0`，允许其他网页来源时加 `--origin https://your-site.example`。详见[安装与直连访问](./services/generation-python/README.md#external-installation)。
+模型生成初始未配置 API。在连接设置中复制当前站点的安装命令，或填写已有后端在终端打印的地址和私有凭证配置路径。安装器下载并校验源码后调用项目启动脚本；已有项目直接执行 `sh start-generation.sh`，不会下载或更新源码。其他设备访问时加 `--host 0.0.0.0`，允许其他网页来源时加 `--origin https://your-site.example`。详见[安装与直连访问](./services/generation-python/README.md#external-installation)。
 
 国内下载预设及恢复方法见[后端部署说明](./services/generation-python/README.md#download-sources)。
 
 ## AI 硬件与启动
+
+几何服务支持 Mini Turbo、标准 Turbo 和完整 2.1 Shape，默认只启用 Mini。使用 `--models all` 启用三者；服务按合计容量在启动时确定常驻／分阶段策略。加载中可提交、查询和取消排队任务，执行失败不会自动切换设备。新验证与质量限制见[2026-10-28 记录](./docs/history/model-generation-upgrade-20261028.md)。
 
 支持 **CPU、兼容的 NVIDIA CUDA 显卡、Apple Silicon Mac（MPS）**。不推荐普通 Windows 笔记本核显作为本项目的 GPU 推理方案：可能比 CPU 慢，或受驱动与算子兼容性限制无法完成任务；台式机 CPU 也可能明显快于核显。
 

@@ -112,3 +112,14 @@ test('task snapshots record provider defaults and keep input preferences indepen
   snapshot.parametersByProvider['hunyuan-mini']!.resolution = 128
   assert.equal(settings.parametersByProvider['hunyuan-mini']!.resolution, undefined)
 })
+
+
+test('new loading services accept queued requests while old preparing services remain disabled', async t => {
+  settings.baseUrl = 'http://127.0.0.1:8765'; settings.token = 'queue-test';
+  let caps = capabilities('preparing'); caps.providers[1]!.acceptsJobs = true;
+  t.mock.method(GenerationClient.prototype, 'capabilities', async () => caps);
+  t.mock.method(GenerationClient.prototype, 'info', async () => ({ deviceType: 'gpu' }));
+  assert.equal(await checkGenerationConnection(), true);
+  caps = {...caps,providers:caps.providers.map(p => ({...p,acceptsJobs:false}))};
+  assert.equal(await checkGenerationConnection(), false);
+});

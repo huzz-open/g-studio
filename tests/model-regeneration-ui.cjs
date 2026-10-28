@@ -12,7 +12,7 @@ function tetrahedron(height = 2) {
   return data
 }
 
-(async()=>{const browser=await chromium.launch({channel:'msedge',headless:true});try{
+(async()=>{const browser=await chromium.launch({channel:process.env.G_STUDIO_TEST_BROWSER_CHANNEL || 'chrome',headless:true});try{
 const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(String(e)));
 let serial=0,autoFinish=true,failNext=false;const remote=new Map();
 const headers={'access-control-allow-origin':'*','access-control-allow-headers':'authorization,content-type','access-control-allow-methods':'GET,POST,OPTIONS'};

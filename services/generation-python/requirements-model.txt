@@ -17,3 +17,8 @@ safetensors==0.8.0
 psutil==7.2.2
 tqdm==4.70.1
 fast-simplification==0.2.0
+
+# Pinned Hunyuan3D-2.1 Shape dependencies (no paint / renderer).
+timm==1.0.15
+omegaconf==2.3.0
+antlr4-python3-runtime==4.9.3

@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from model_catalog import MODELS
 import sys
 
 
@@ -39,7 +40,7 @@ class SilhouetteProvider(Provider):
 
 class HunyuanProvider(Provider):
     def prepare_command(self):
-        return [sys.executable, str(Path(__file__).with_name("download.py"))]
+        return [sys.executable, str(Path(__file__).with_name("download.py")), "--model", MODELS[self.id]["key"]]
 
     def generate(self, folder, request):
         from generate import hunyuan
@@ -48,22 +49,9 @@ class HunyuanProvider(Provider):
 
 
 PROVIDERS = {
-    "hunyuan-mini": HunyuanProvider(
-        "hunyuan-mini",
-        "Hunyuan3D-2mini-Turbo",
-        "f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6",
-        True,
-        True,
-        {
-            "steps": {"min": 1, "max": 10, "default": 5, "integer": True, "step": 1},
-            "resolution": {
-                "min": 128,
-                "max": 380,
-                "default": 256,
-                "integer": True,
-                "step": 1,
-            },
-        },
-    ),
-    "silhouette": SilhouetteProvider("silhouette", "Silhouette algorithm", "1"),
+    key: HunyuanProvider(key, spec['name'], spec['revision'], True, True, {
+        'steps': {'min': 1, 'max': spec['max_steps'], 'default': spec['steps'], 'integer': True, 'step': 1},
+        'resolution': {'min': 128, 'max': 380, 'default': 256, 'integer': True, 'step': 1},
+    }) for key, spec in MODELS.items()
 }
+PROVIDERS['silhouette'] = SilhouetteProvider('silhouette', 'Silhouette algorithm', '1')

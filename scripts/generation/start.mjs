@@ -12,6 +12,18 @@ import {
 const mode = process.argv[2] || "start";
 const flags = process.argv.slice(3);
 const serviceUrl = configureNetwork(flags);
+for (const [flag, name, valid] of [
+  ['--models', 'GEN_MODELS', /^(all|(mini|turbo|2\.1)(,(mini|turbo|2\.1))*)$/],
+  ['--precision', 'GEN_PRECISION', /^(fp16|fp32)$/],
+  ['--strategy', 'GEN_STRATEGY', /^(auto|resident|staged)$/],
+]) {
+  const index = flags.indexOf(flag);
+  if (index >= 0) {
+    if (!valid.test(flags[index + 1] || '')) throw Error(`${flag} requires a supported value`);
+    process.env[name] = flags[index + 1];
+  }
+}
+
 process.env.GEN_RESTART_COMMAND ||= ['sh', join(root, 'start-generation.sh'), mode, ...flags].map(value => `'${value.replaceAll("'", "'\\''")}'`).join(' ');
 if (flags.includes("--pair")) process.env.GEN_PAIR = "1";
 if (flags.includes("--cpu")) process.env.GEN_DEVICE = "cpu";

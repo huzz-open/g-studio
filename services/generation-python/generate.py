@@ -37,8 +37,7 @@ def silhouette(folder):
 def hunyuan(folder, request):
     import shutil
 
-    # encode writes a normalized preview to input.png. Accelerator retries must
-    # reuse the upload, not preprocess that preview a second time.
+    # Preserve the upload separately from the normalized preview.
     if not (folder / "original.png").exists():
         shutil.copyfile(folder / "input.png", folder / "original.png")
     for phase in ("encode", "sample", "mesh"):
@@ -51,7 +50,7 @@ def hunyuan(folder, request):
                 phase,
                 str(folder),
                 "--steps",
-                str(request.get("parameters", {}).get("steps", 5)),
+                str(request.get("parameters", {}).get("steps", __import__("model_catalog").MODELS[request.get("providerId", "hunyuan-mini")]["steps"])),
                 "--resolution",
                 str(request.get("parameters", {}).get("resolution", 256)),
                 "--seed",
@@ -70,6 +69,8 @@ def finish(folder, request):
     if not len(mesh.faces) or not np.isfinite(mesh.vertices).all():
         raise ValueError("Invalid generated mesh")
     lo, hi = mesh.bounds.copy()
+    if not np.isfinite([lo, hi]).all() or max(hi - lo) <= 0:
+        raise ValueError("Invalid mesh bounds")
     scale = 2 / max(hi - lo)
     mesh.vertices = (
         mesh.vertices - [(lo[0] + hi[0]) / 2, lo[1], (lo[2] + hi[2]) / 2]
@@ -117,7 +118,7 @@ def finish(folder, request):
         "warnings": [
             "Single-view inferred geometry; inspect openings and alignment before applying."
         ]
-        if request["providerId"] == "hunyuan-mini"
+        if request["providerId"] != "silhouette"
         else ["Silhouette approximation, not AI reconstruction."],
     }
 
@@ -127,13 +128,14 @@ if __name__ == "__main__":
     parser.add_argument("folder", type=Path)
     a = parser.parse_args()
     request = json.loads((a.folder / "request.json").read_text("utf-8"))
-    start = time.time()
+    start = time.monotonic()
     progress("generating")
     from providers import PROVIDERS
 
     PROVIDERS[request["providerId"]].generate(a.folder, request)
     progress("simplifying")
     meta = finish(a.folder, request)
-    meta["elapsedSeconds"] = time.time() - start
+    meta["elapsedSeconds"] = time.monotonic() - start
+    meta["phaseStats"] = [json.loads(p.read_text()) for p in sorted(a.folder.glob("*-stats.json"))]
     (a.folder / "output.json").write_text(json.dumps(meta), encoding="utf-8")
     progress("complete")

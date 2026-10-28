@@ -3,7 +3,7 @@ export function chooseProfile({ platform, requested = 'auto', skip = false, nvid
   if (!['auto', 'cpu', 'cuda', 'mps', 'xpu', 'rocm'].includes(requested)) throw Error('GEN_DEVICE must be auto, cpu, cuda or mps');
   if (skip) return { variant: 'base', requested: 'cpu' };
   if (platform === 'darwin-x64') throw Error('Pinned PyTorch supports Apple Silicon macOS only; use --base on Intel Mac.');
-  if (['xpu', 'rocm'].includes(requested)) return { variant: 'cpu', requested: 'cpu', reason: 'Intel/AMD GPU inference is not supported; using CPU' };
+  if (['xpu', 'rocm'].includes(requested)) throw Error('Requested GPU backend is not supported; explicitly choose CPU or auto');
   if (requested === 'cuda') {
     if (platform.startsWith('darwin-')) throw Error('CUDA packages are not available for macOS');
     return { variant: 'cu124', requested: 'cuda' };
@@ -17,6 +17,6 @@ export function chooseProfile({ platform, requested = 'auto', skip = false, nvid
   if (requested === 'cpu') {
     return { variant: platform === 'darwin-arm64' ? 'mps' : 'cpu', requested: 'cpu' };
   }
-  if (platform === 'darwin-arm64') return { variant: 'mps', requested: 'mps' };
-  return nvidia ? { variant: 'cu124', requested: 'cuda' } : { variant: 'cpu', requested: 'cpu', reason: 'No supported NVIDIA CUDA device detected; Intel/AMD GPUs use CPU' };
+  if (platform === 'darwin-arm64') return { variant: 'mps', requested: 'auto' };
+  return nvidia ? { variant: 'cu124', requested: 'auto' } : { variant: 'cpu', requested: 'auto', reason: 'No supported NVIDIA CUDA device detected; Intel/AMD GPUs use CPU' };
 }

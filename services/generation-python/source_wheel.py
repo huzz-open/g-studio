@@ -12,13 +12,18 @@ import zipfile
 BUNDLE = Path(__file__).with_name("bundled") / "wheels"
 
 
-def prepare_source(home, bundle=BUNDLE):
+def prepare_source(home, bundle=BUNDLE, series="2.0"):
+    if series not in ("2.0", "2.1"):
+        raise ValueError("Unknown Hunyuan source series")
+    if series == "2.1" and bundle == BUNDLE:
+        bundle = BUNDLE.with_name("wheels-2.1")
     metadata = json.loads((bundle / "wheel.json").read_text("utf-8"))
     wheel = bundle / metadata["filename"]
     data = wheel.read_bytes()
     if len(data) != metadata["size"] or hashlib.sha256(data).hexdigest() != metadata["sha256"]:
         raise RuntimeError("Bundled Hunyuan source wheel failed SHA256/size verification")
-    target = home / "vendor/Hunyuan3D-2"
+    target = home / ("vendor/Hunyuan3D-2.1/hy3dshape" if series == "2.1" else "vendor/Hunyuan3D-2")
+    package = "hy3dshape" if series == "2.1" else "hy3dgen"
     repaired = 0
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
         entries = []
@@ -26,7 +31,7 @@ def prepare_source(home, bundle=BUNDLE):
             name = PurePosixPath(entry.filename)
             if (name.is_absolute() or ".." in name.parts or "\\" in entry.filename
                     or ":" in entry.filename or not name.parts
-                    or not (name.parts[0] == "hy3dgen" or name.parts[0].endswith(".dist-info"))):
+                    or not (name.parts[0] == package or name.parts[0].endswith(".dist-info"))):
                 raise RuntimeError(f"Invalid bundled wheel member: {entry.filename}")
             if entry.is_dir():
                 continue

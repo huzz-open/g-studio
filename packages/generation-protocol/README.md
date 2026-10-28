@@ -76,7 +76,17 @@ Images and GLBs use authenticated task-scoped HTTP transfers. The relay job ID b
 
 1. Subclass `Provider` and implement `generate(folder, request)`, writing `raw.glb`.
 2. Register it in `PROVIDERS`; declare parameter bounds and GPU support.
-3. If model preparation is needed, provide a trusted `prepare_command()`; readiness and errors are tracked per provider.
+3. Built-in Hunyuan model entries also require a pinned `model_catalog.py` profile (resource/shape/capacity metadata), a compatible shape adapter and a trusted `prepare_command()`. Readiness and errors are tracked per provider; executable paths never come from requests.
 4. Exercise it through the HTTP and relay tests in the [development guide](../../CONTRIBUTING.md#python-与真实推理).
 
-The common runner normalizes and simplifies output and builds the manifest. Pure algorithms require no weights. Cancellation terminates the task process tree. Executable code or module paths must not come from requests.
+The common runner normalizes and simplifies output and builds the manifest. Pure algorithms require no weights. Staged cancellation terminates only the task process tree; resident cancellation signals only the active task. Executable code or module paths must not come from requests.
+
+## Loading, residency and timing
+
+A `disabled` provider is not enabled in this startup configuration; this does not claim its cached weights are absent. Providers may advertise `acceptsJobs` while `state` is `preparing`, `loading` or `warming`. Clients without that field retain the old ready-only rule. HTTP health is independent of model readiness. A queued cancellation does not stop shared startup preparation; running resident cancellation is acknowledged at a task boundary, preserving the instance. Failed preparation ends affected queued tasks. The initial service has one active task and eight live queued tasks; cancelled queue entries do not consume capacity.
+
+Optional `tags` contain up to two distinct server-selected values: `推荐`, `快速`, `均衡`, `精细`. Localize these separately from loading status. At most one provider is recommended; failed/disabled providers cannot be recommended. Optional `strategy` is `resident` (loaded once and reused) or `staged` (phase allocations released). `instanceId`, `loadCount`, preparation/load/warmup seconds and warmup scope describe actual initialization. A staged-ready provider has verified resources, not resident weights.
+
+Terminal jobs expose monotonic `timings`: total from submission, execution from dispatch (including staged loading), and their queue/wait difference. Failed/cancelled tasks also have timings; queued cancellation has zero execution. The backend, precision and strategy are fixed at startup. Execution errors do not trigger retries or device/model/strategy substitution. Restarted unfinished tasks report `INTERRUPTED` and require explicit resubmission.
+
+`precision` reports fixed sampling/decoding precision; optional `imageEncoderPrecision` reports the image encoder separately (Mini/MPS uses FP32). Both fields are chosen before loading and never changed after a task failure.
