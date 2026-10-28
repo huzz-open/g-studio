@@ -55,6 +55,10 @@ const providerParameters = computed(
       (p) => p.providerId === settings.providerId,
     )?.parameters || {},
 );
+function updateProviderParameter(key: string, value: number) {
+  const provider = parameters.value.parametersByProvider[settings.providerId] ??= {};
+  provider[key] = value;
+}
 function friendlyError(value: unknown) {
   const message = String(value);
   if (/Failed to fetch|NetworkError|fetch failed|TimeoutError|aborted|OFFLINE/i.test(message)) return t('generation.connectionFailedHint');
@@ -220,7 +224,7 @@ onUnmounted(() => {
     <div v-else class="generation-parameters" role="group" :aria-label="t(props.parameters ? 'generation.parameters' : 'generation.defaults')">
       <NumberRow v-model="parameters.targetFaces" :label="t('generation.targetFaces')" :hint="t(props.parameters ? 'generation.inputParametersHint' : 'generation.newTasksOnly')" :default-value="generationDefaults.targetFaces" :min="1000" :max="40000" :step="1000" :disabled="props.disabled" />
       <NumberRow v-model="parameters.seed" :label="t('generation.seed')" :default-value="generationDefaults.seed" :min="0" :max="2147483647" :step="1" :disabled="props.disabled" />
-      <NumberRow v-for="(range,key) in providerParameters" :key="key" :label="t('generation.parameter.'+key) === 'generation.parameter.'+key ? key : t('generation.parameter.'+key)" :model-value="parameters.parametersByProvider[settings.providerId]?.[key] ?? range.default" :default-value="range.default" :min="range.min" :max="range.max" :step="range.step ?? (range.integer ? 1 : 0.1)" :disabled="props.disabled" @update:model-value="value=>(parameters.parametersByProvider[settings.providerId] ??= {})[key]=value" />
+      <NumberRow v-for="(range,key) in providerParameters" :key="key" :label="t('generation.parameter.'+key) === 'generation.parameter.'+key ? key : t('generation.parameter.'+key)" :model-value="parameters.parametersByProvider[settings.providerId]?.[key] ?? range.default" :default-value="range.default" :min="range.min" :max="range.max" :step="range.step ?? (range.integer ? 1 : 0.1)" :disabled="props.disabled" @update:model-value="updateProviderParameter(key, $event)" />
     </div>
 
   </div>

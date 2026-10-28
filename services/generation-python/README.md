@@ -10,6 +10,8 @@ sh start-generation.sh --cpu
 
 Use Git Bash on Windows, a terminal on macOS/Linux. WSL uses Linux resources. The launcher uses bundled Node, then a compatible installed Node, or downloads a verified runtime.
 
+When reusing resources copied from another computer, the bootstrap restores the managed Node executable's Unix permissions and replaces an unusable binary from the currently running Node. If the replacement cannot start, the error includes its path, process exit status or signal, and captured output. Older launchers reported these execution failures as `Invalid bundled Node version`; that message alone does not establish a version mismatch.
+
 For the default device policy omit `--cpu`. First launch prepares Python 3.12, dependencies, pinned inference source and about **4.23GB of model weights**, then starts the service. Complete compatible resources are reused; missing or incompatible resources are repaired. Ctrl+C stops the processes launched by this command. Do not use `--offline` on a fresh installation: that flag forbids required downloads.
 
 | Task | Command |

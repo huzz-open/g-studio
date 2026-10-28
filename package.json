@@ -24,7 +24,7 @@
     "dev:web": "vite",
     "generation:start": "node scripts/generation/start.mjs start",
     "generation:download": "node scripts/generation/start.mjs download",
-    "test:runtime": "node --test tests/generation-bootstrap.test.mjs",
+    "test:runtime": "node --test tests/generation-bootstrap.test.mjs tests/generation-node-runtime.test.mjs",
     "test:uv-mirror": "node --test tests/uv-mirror.test.mjs",
     "generation:doctor": "node scripts/generation/start.mjs doctor",
     "relay:dev": "tsx services/generation-relay/server.ts",

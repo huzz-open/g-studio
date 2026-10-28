@@ -11,6 +11,7 @@ import { installUv } from './uv-download.mjs';
 import { chooseProfile } from './profiles.mjs';
 import { downloadTorchWheels } from './torch-download.mjs';
 import { downloadDependencies } from './dependency-download.mjs';
+import { prepareBundledNode } from './node-runtime.mjs';
 export { root };
 export const { home, dataHome } = resourcePaths();
 export const managedChildren = new Set();
@@ -30,9 +31,7 @@ export function run(command, args, options = {}) {
 }
 function works(command, args = ['--version']) { return spawnSync(command, args, { stdio: 'ignore', windowsHide: true, timeout: 15000 }).status === 0; }
 function assertOnline(resource) { if (process.env.GEN_OFFLINE === '1') throw Error(`Offline: ${resource} is missing or incompatible. Prepare resources on a connected machine first.`); }
-async function retainNodeLicense(layout) {
-  const version = spawnSync(layout.node, ['--version'], { encoding: 'utf8', windowsHide: true, timeout: 15000 }).stdout?.trim();
-  if (!/^v\d+\.\d+\.\d+$/.test(version || '')) throw Error('Invalid bundled Node version');
+async function retainNodeLicense(layout, version) {
   const license = join(dirname(layout.node), 'LICENSE'), marker = join(dirname(layout.node), 'license-version.txt');
   if (existsSync(license) && existsSync(marker) && readFileSync(marker, 'utf8').trim() === version) return;
   assertOnline('Node distribution license');
@@ -105,9 +104,8 @@ export async function preparePython() {
   if (process.env.GEN_PYTHON) return resolve(process.env.GEN_PYTHON);
   const layout = selectRuntime();
   mkdirSync(layout.runtime, { recursive: true }); mkdirSync(dataHome, { recursive: true });
-  mkdirSync(dirname(layout.node), { recursive: true });
-  if (!existsSync(layout.node) || !works(layout.node)) copyFileSync(process.execPath, layout.node);
-  await retainNodeLicense(layout);
+  const nodeVersion = prepareBundledNode(layout.node);
+  await retainNodeLicense(layout, nodeVersion);
   const lock = join(layout.runtime, 'environment.lock');
   if (existsSync(lock)) {
     const pid = Number(readFileSync(lock, 'utf8')); let alive = false;
