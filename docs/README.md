@@ -36,7 +36,8 @@
 | 文档 | 状态与范围 | 语言 |
 | --- | --- | --- |
 | [生成服务架构](design/model-generation.md) | 已接入架构的职责与设计决定；部署参数引用当前服务文档 | ZH |
-| [几何模型与推理服务改造](design/model-generation-upgrade.md) | 待实施方案、固定资源清单、随附改动的未核实边界及验收要求 | ZH |
+| [几何模型与推理服务改造](design/model-generation-upgrade.md) | 已实施的服务机制、固定资源与未关闭的 Mini 正确性/性能问题 | ZH |
+| [Mini 推理异常与性能调查](design/mini-inference-investigation.md) | 优先待修复：平板退化、FP32 规避办法、常驻预算与官方 FlashVDM 对照及验收 | ZH |
 | [引擎桥接](design/engine-bridge/README.md) | 原始设计与实施计划，含未验收接口和伪代码 | ZH |
 | [角色视频工作流](design/character-video-workflow.md) | 素材制作方案，不代表全部功能已实现 | ZH |
 

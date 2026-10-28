@@ -2168,7 +2168,7 @@
     "No guarantee of correct openings, no adhesion, watertight geometry or quality ranking.",
     "Full 2.1 bonsai has a planar canopy; Mini vase opening remains capped.",
     "No CUDA/Windows/Linux/current CPU performance validation, no high-resolution or long-duration stress test.",
-    "Corrected Mini residency and multiple simultaneous resident models were budget-tested but unavailable under this host startup capacity.",
+    "Corrected Mini residency and multiple simultaneous resident models were not hardware-validated; current estimates rejected configurations, which does not demonstrate hardware impossibility.",
     "Surface distances use independent normalization and random surface samples, not exact Hausdorff or semantic metrics."
   ]
 }
