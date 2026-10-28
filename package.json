@@ -3,6 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "allowScripts": {
+    "esbuild": true,
+    "fsevents": true
+  },
   "scripts": {
     "setup:cn": "node scripts/generation/setup.mjs cn",
     "setup:default": "node scripts/generation/setup.mjs default",
