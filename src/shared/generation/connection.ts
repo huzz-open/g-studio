@@ -1,7 +1,7 @@
 import { computed, reactive, watch } from 'vue'
 import type { Capabilities } from '../../../packages/generation-protocol/types'
 import { GenerationClient } from './client'
-import { generationSettings, generationDefaults, snapshotConnection, useDevelopmentConnection } from './settings'
+import { generationSettings, snapshotConnection, useDevelopmentConnection } from './settings'
 
 export const generationConnection = reactive({
   connected: false, checking: false, error: '', device: '',
@@ -22,8 +22,10 @@ watch(connectionKey, () => {
 
 /** Polls preserve the last badge; only a user-triggered test shows a spinner. */
 export async function checkGenerationConnection({ background = false } = {}) {
-  if (generationSettings.mode === 'direct' && !generationSettings.baseUrl.trim()) generationSettings.baseUrl = generationDefaults.baseUrl
-  if (generationSettings.mode === 'direct' && !generationSettings.token) {
+  // A fresh browser has no API configured. Polling must not probe localhost or
+  // read development credentials until the user explicitly supplies an address.
+  if (!generationSettings.baseUrl.trim()) return false
+  if (generationSettings.mode === 'direct' && !generationSettings.token && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(generationSettings.baseUrl)) {
     developmentLookup ??= useDevelopmentConnection().catch(() => false).finally(() => { developmentLookup = undefined })
     await developmentLookup
   }

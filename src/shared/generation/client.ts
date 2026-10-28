@@ -5,11 +5,12 @@ import type {
   ServiceInfo,
 } from "../../../packages/generation-protocol/types";
 import type { GenerationConnection } from "./settings";
+import { isLocalServiceHost } from './deployment';
 import {
   parseCapabilities,
   parseJob,
 } from "../../../packages/generation-protocol/validate";
-export function endpoint(value: string) {
+export function endpoint(value: string, mode: 'direct' | 'relay' | 'silhouette' = 'direct') {
   const url = new URL(value);
   if (
     !["http:", "https:"].includes(url.protocol) ||
@@ -21,9 +22,9 @@ export function endpoint(value: string) {
     throw Error("Invalid service URL");
   if (
     url.protocol === "http:" &&
-    !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+    !(mode === 'direct' ? isLocalServiceHost(url.hostname) : ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))
   )
-    throw Error("Remote services require HTTPS");
+    throw Error("Public services require HTTPS; HTTP is available for local and private-network direct APIs");
   return value.replace(/\/+$/, "");
 }
 export class GenerationClient {
@@ -34,7 +35,7 @@ export class GenerationClient {
   async call(path: string, init: RequestInit = {}, raw = false) {
     const c = this.config,
       relay = c.mode === "relay",
-      base = endpoint(relay ? c.relayUrl : c.baseUrl),
+      base = endpoint(relay ? c.relayUrl : c.baseUrl, c.mode),
       token = relay ? c.relayToken : c.token;
     const response = await fetch(base + path, {
       ...init,

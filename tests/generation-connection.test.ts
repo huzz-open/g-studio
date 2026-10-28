@@ -4,7 +4,7 @@ import { GenerationClient } from '../src/shared/generation/client.ts'
 import type { Capabilities } from '../packages/generation-protocol/types.ts'
 
 Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {
-  getItem: () => JSON.stringify({ mode: 'silhouette', providerId: 'silhouette', token: 'test-token' }),
+  getItem: () => JSON.stringify({ mode: 'silhouette', providerId: 'silhouette', baseUrl: 'http://127.0.0.1:8765', token: 'test-token' }),
   setItem: () => {},
 } })
 const { generationSettings: settings } = await import('../src/shared/generation/settings.ts')
@@ -45,8 +45,19 @@ test('a response to old credentials cannot restore the connection badge', async 
   assert.equal(canGenerateModels.value, false)
 })
 
-test('an empty direct URL uses the default and repeated checks share one request', async t => {
+test('an unconfigured API is idle and makes no requests, including background polling', async t => {
   settings.baseUrl = '  '
+  const request = t.mock.method(GenerationClient.prototype, 'capabilities', async () => capabilities())
+  assert.equal(await checkGenerationConnection({ background: true }), false)
+  assert.equal(await checkGenerationConnection(), false)
+  assert.equal(request.mock.callCount(), 0)
+  assert.equal(settings.baseUrl, '  ')
+  assert.equal(state.checking, false)
+  assert.equal(state.error, '')
+})
+
+test('repeated checks of a configured API share one request', async t => {
+  settings.baseUrl = 'http://127.0.0.1:8765'
   let finish!: (value: Capabilities) => void
   let calls=0
   t.mock.method(GenerationClient.prototype,'capabilities',function(this: GenerationClient) {

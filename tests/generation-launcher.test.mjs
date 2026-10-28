@@ -49,6 +49,10 @@ function runLauncher(directory, { system = true, cached = 'broken', args = ['--o
   if (cached === 'working') installedNode(cachedNode);
   copyFileSync(join(root, 'start-generation.sh'), join(directory, 'start-generation.sh'));
   mkdirSync(join(directory, 'scripts/generation'), { recursive: true });
+  for (const required of ['scripts/generation/bootstrap.mjs', 'services/generation-python/server.py', 'services/generation-python/requirements-base.lock', 'services/generation-python/requirements-model.lock']) {
+    mkdirSync(dirname(join(directory, required)), { recursive: true });
+    writeFileSync(join(directory, required), 'fixture');
+  }
   writeFileSync(join(directory, 'scripts/generation/start.mjs'), 'console.log(JSON.stringify({ node: process.execPath, args: process.argv.slice(2), offline: process.env.GEN_OFFLINE }));');
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GEN_')));
   const result = spawnSync(shell, ['-c', 'export PATH="$1:/usr/bin:/bin"; shift; exec /bin/sh "$@"', 'launcher-test', posix(bin), posix(join(directory, 'start-generation.sh')), ...args], {
@@ -94,6 +98,16 @@ test('offline startup without any Node fails before preparing resources', shellO
   assert.equal(result.status, 1);
   assert.match(result.stderr, /Offline: a working bundled Node runtime is missing/);
   assert.equal(existsSync(dirname(cachedNode)), false);
+}));
+
+test('a standalone start script reports missing source before creating resources or downloading anything', shellOptions, () => fixture(directory => {
+  const script = join(directory, 'start-generation.sh');
+  copyFileSync(join(root, 'start-generation.sh'), script);
+  const result = spawnSync(shell, [script], { cwd: directory, encoding: 'utf8', windowsHide: true, timeout: 15000 });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Missing project file: scripts\/generation\/start.mjs/);
+  assert.match(result.stderr, /Use install-generation.sh/);
+  assert.equal(existsSync(join(directory, 'runtime')), false);
 }));
 
 for (const stale of [false, true]) {

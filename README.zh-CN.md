@@ -10,7 +10,7 @@
 
 **[在线体验](https://huzz-open.github.io/g-studio/)** · [文档索引](./docs/README.md) · [开发指南](./CONTRIBUTING.md)
 
-基础编辑无需登录，资产保存在本地。可选 AI 模型生成使用独立服务；公网中转模式会通过所配置的服务器传输图片和模型。
+基础编辑无需登录，资产保存在本地。可选 AI 模型生成通过直连 API 使用浏览器能够访问的电脑上的生成服务。
 
 ## 主要功能
 
@@ -38,6 +38,8 @@ npm run dev
 ```
 
 打开 <http://localhost:5173>。`npm run dev` 同时启动网页与 AI 后端；首次会准备 Python 环境并下载约 **4.23GB 模型权重**。只开发或使用网页功能，可改为 `npm run dev:web`，无需准备 Python 和模型。
+
+模型生成初始未配置 API。在连接设置中复制当前站点的安装命令，或填写已有后端在终端打印的地址和凭证。安装器下载并校验源码后调用项目启动脚本；已有项目直接执行 `sh start-generation.sh`，不会下载或更新源码。其他设备访问时加 `--host 0.0.0.0`，允许其他网页来源时加 `--origin https://your-site.example`。详见[安装与直连访问](./services/generation-python/README.md#external-installation)。
 
 国内下载预设及恢复方法见[后端部署说明](./services/generation-python/README.md#download-sources)。
 

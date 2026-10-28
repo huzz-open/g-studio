@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from 'vite'
 import { resolve } from 'path'
 import { createReadStream, existsSync, statSync, copyFileSync, mkdirSync, readFileSync } from 'fs'
 import vue from '@vitejs/plugin-vue'
+import { generationDistribution } from './scripts/generation/distribution.mjs'
 
 const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'))
 
@@ -47,11 +48,34 @@ function generationDevelopmentConnection(): Plugin {
   }}
 }
 
+function generationInstaller(): Plugin {
+  return {
+    name: 'generation-installer',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const file = req.url?.split('?')[0]?.split('/').at(-1) || ''
+        if (file !== 'install-generation.sh' && file !== 'generation-source.sha256' && !/^generation-source-[a-f0-9]{64}\.tar\.gz$/.test(file)) return next()
+        try {
+          const files = generationDistribution(__dirname)
+          const source = files.get(file)
+          if (!source) { res.statusCode = 404; res.end(); return }
+          res.setHeader('Content-Type', file.endsWith('.tar.gz') ? 'application/gzip' : 'text/plain; charset=utf-8')
+          res.setHeader('Cache-Control', 'no-store')
+          res.end(source)
+        } catch (error) { res.statusCode = 500; res.end(String(error)) }
+      })
+    },
+    generateBundle() {
+      for (const [fileName, source] of generationDistribution(__dirname)) this.emitFile({ type: 'asset', fileName, source })
+    },
+  }
+}
+
 export default defineConfig({
   optimizeDeps: { entries: ['index.html'] },
   server: { watch: { ignored: ['**/runtime/**', '**/.generation-test/**', '**/.venv/**', '**/venv/**'] } },
   base: process.env.GITHUB_ACTIONS ? '/g-studio/' : '/',
-  plugins: [vue(), opencvRawServe(), generationDevelopmentConnection()],
+  plugins: [vue(), opencvRawServe(), generationDevelopmentConnection(), generationInstaller()],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },

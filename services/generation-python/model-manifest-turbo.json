@@ -1,0 +1,58 @@
+{
+  "model": "Hunyuan3D-2-Turbo",
+  "revision": "9cd649ba6913f7a852e3286bad86bfa9a2d83dcf",
+  "files": [
+    {
+      "path": "models/hunyuan3d-dit-v2-0-turbo/config.yaml",
+      "size": 1663,
+      "sha256": "4712421fe32d57c678be3be2b608acdb8871985f0b81646a883d136abc63feb7",
+      "urls": [
+        "https://huggingface.co/tencent/Hunyuan3D-2/resolve/9cd649ba6913f7a852e3286bad86bfa9a2d83dcf/hunyuan3d-dit-v2-0-turbo/config.yaml",
+        "https://modelscope.cn/models/Tencent-Hunyuan/Hunyuan3D-2/resolve/79c1ec63d2dba4f649fe7e719d191170f5108a37/hunyuan3d-dit-v2-0-turbo/config.yaml"
+      ]
+    },
+    {
+      "path": "models/hunyuan3d-dit-v2-0-turbo/model.fp16.safetensors",
+      "size": 4930777530,
+      "sha256": "5ee5a81e4df08a1c65b79910bf5b145a90376e526794f4607a4d5d068d62f269",
+      "urls": [
+        "https://huggingface.co/tencent/Hunyuan3D-2/resolve/9cd649ba6913f7a852e3286bad86bfa9a2d83dcf/hunyuan3d-dit-v2-0-turbo/model.fp16.safetensors",
+        "https://modelscope.cn/models/Tencent-Hunyuan/Hunyuan3D-2/resolve/79c1ec63d2dba4f649fe7e719d191170f5108a37/hunyuan3d-dit-v2-0-turbo/model.fp16.safetensors"
+      ]
+    },
+    {
+      "path": "models/hunyuan3d-vae-v2-0-turbo/config.yaml",
+      "size": 336,
+      "sha256": "91355c5acc412149996d19dbe46040d10fab888efd8bb910c76bad3a550f6ceb",
+      "urls": [
+        "https://huggingface.co/tencent/Hunyuan3D-2/resolve/9cd649ba6913f7a852e3286bad86bfa9a2d83dcf/hunyuan3d-vae-v2-0-turbo/config.yaml",
+        "https://modelscope.cn/models/Tencent-Hunyuan/Hunyuan3D-2/resolve/79c1ec63d2dba4f649fe7e719d191170f5108a37/hunyuan3d-vae-v2-0-turbo/config.yaml"
+      ]
+    },
+    {
+      "path": "models/hunyuan3d-vae-v2-0-turbo/model.fp16.safetensors",
+      "size": 407410402,
+      "sha256": "66b7af697118db2de00c22f63a385c75f9049709739281971837af9e4ce31cb4",
+      "urls": [
+        "https://huggingface.co/tencent/Hunyuan3D-2/resolve/9cd649ba6913f7a852e3286bad86bfa9a2d83dcf/hunyuan3d-vae-v2-0-turbo/model.fp16.safetensors",
+        "https://modelscope.cn/models/Tencent-Hunyuan/Hunyuan3D-2/resolve/79c1ec63d2dba4f649fe7e719d191170f5108a37/hunyuan3d-vae-v2-0-turbo/model.fp16.safetensors"
+      ]
+    },
+    {
+      "path": "models/hunyuan3d-2/LICENSE",
+      "size": 17830,
+      "sha256": "eca02cc10abaf520d85c3c523aef0b88f36b935b85635f1e34370688e93da3dd",
+      "urls": [
+        "https://huggingface.co/tencent/Hunyuan3D-2/resolve/9cd649ba6913f7a852e3286bad86bfa9a2d83dcf/LICENSE"
+      ]
+    },
+    {
+      "path": "models/hunyuan3d-2/NOTICE",
+      "size": 32064,
+      "sha256": "7b7ace3714c188b7a27e20edbcceaaac836540bbb63759a37039e5624c8f6bbc",
+      "urls": [
+        "https://huggingface.co/tencent/Hunyuan3D-2/resolve/9cd649ba6913f7a852e3286bad86bfa9a2d83dcf/NOTICE"
+      ]
+    }
+  ]
+}

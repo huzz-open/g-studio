@@ -17,6 +17,7 @@ from aiohttp import web
 from config import HOME, DATA_HOME, config, atomic_json
 from providers import PROVIDERS
 from compute import recoverable_accelerator_error
+from network import allowed_origins, host_allowed, listen_host, service_urls
 
 ROOT = Path(__file__).resolve().parent
 JOBS = DATA_HOME / "jobs"
@@ -161,8 +162,11 @@ class Service:
         ready = [p.name for p in PROVIDERS.values() if self.provider_states[p.id]["state"] == "ready"]
         print(
             f"\n[generation] Preparation complete | device: {self.backend.upper()} | ready: {', '.join(ready) or 'none'}\n"
-            f"[generation] Local service: http://127.0.0.1:{os.environ.get('GEN_PORT', '8765')}\n"
-            "[generation] Waiting for generation requests. Connect from the app's model generation settings.\n"
+            + "".join(f"[generation] API address: {url}\n" for url in service_urls())
+            + f"[generation] Access token: {config['token']}\n"
+            + f"[generation] Allowed frontend origins: {', '.join(allowed_origins())}\n"
+            + f"[generation] Start again: {os.environ.get('GEN_RESTART_COMMAND', 'sh start-generation.sh')}\n"
+            + "[generation] Waiting for generation requests. Connect from the app's model generation settings.\n"
             "[generation] Keep this terminal open; press Ctrl+C to stop the service.",
             flush=True,
         )
@@ -465,9 +469,7 @@ service = Service()
 
 @web.middleware
 async def security(request, handler):
-    origins = os.environ.get(
-        "GEN_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
-    ).split(",")
+    origins = allowed_origins()
     origin = request.headers.get("Origin")
     headers = {}
     if origin and origin not in origins:
@@ -482,13 +484,9 @@ async def security(request, handler):
             "Access-Control-Allow-Headers": "Authorization,Content-Type",
             "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
         }
-    if request.host.split(":")[0] not in (
-        "127.0.0.1",
-        "localhost",
-        "[",
-        os.environ.get("GEN_HOST_NAME", ""),
-    ):
-        return web.Response(status=403)
+    local = request.transport.get_extra_info("sockname")
+    if not local or not host_allowed(request.host, local[0]):
+        return web.json_response({"error": {"code": "HOST_DENIED", "message": "Service host not allowed"}}, status=403, headers=headers)
     if request.method == "OPTIONS":
         return web.Response(headers=headers)
     if request.path != "/health" and not secrets.compare_digest(
@@ -587,7 +585,9 @@ async def startup(app):
         asyncio.create_task(service.worker()),
         asyncio.create_task(service.cleanup()),
     ]
-    if os.environ.get("GEN_RELAY_URL") or config.get("relayUrl"):
+    # Only explicit legacy clients opt into relay; saved config must not connect
+    # a direct API deployment to an old relay in the background.
+    if os.environ.get("GEN_RELAY_URL"):
         from relay import run_relay
 
         service.tasks.append(asyncio.create_task(run_relay(service)))
@@ -618,13 +618,15 @@ app.add_routes(
 app.on_startup.append(startup)
 app.on_cleanup.append(shutdown)
 if __name__ == "__main__":
+    host = listen_host()
+    allowed_origins()
     print(
         f"[generation] Configuration: {DATA_HOME / 'config.json'}; device detection starting",
         flush=True,
     )
     web.run_app(
         app,
-        host="127.0.0.1",
+        host=host,
         port=int(os.environ.get("GEN_PORT", "8765")),
         access_log=None,
     )

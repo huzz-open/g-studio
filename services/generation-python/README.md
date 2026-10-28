@@ -44,6 +44,31 @@ Hunyuan shape inference code ships as the small, pinned [source wheel](./bundled
 
 The first dependency-resolution pass also prepares local PyTorch wheels, so cold disk/cache work can take more than a minute before index resolution. Each source attempt has a five-minute overall limit; HTTP requests retain their own timeouts. A resolution wait does not by itself mean a mirror is unavailable.
 
+## External installation
+
+The connection settings generate a command from the current website's origin and base path. For a site hosted under `/studio/`, the command has this form:
+
+```sh
+G_STUDIO_SITE='https://your-site.example/studio/'
+curl -fsSL "$G_STUDIO_SITE"install-generation.sh | bash -s -- --site "$G_STUDIO_SITE" --host 0.0.0.0
+```
+
+Omit `--host 0.0.0.0` for loopback-only access. The installer defaults to `~/.g-studio/backend`; `--dir /absolute/path`, `--port`, repeated `--origin`, `--cpu` / `--cuda` / `--mps`, and `--mirror cn|default` are optional. It downloads a source archive from that same site, verifies SHA256, and calls its `start-generation.sh`. The site origin and localhost:5173 origins are allowed automatically. No Git, npm or preinstalled Python is required. Bash, curl, tar, and sha256sum or shasum are required; Windows uses Git Bash. The default mirror profile is `cn`.
+
+Source versions live in `versions/<sha256>/`; `resources/` and private `data/` stay outside them. A repeat install reuses the completed source version, downloaded models and credentials. The generated `start.sh` retains network/device settings for subsequent starts. It runs in the foreground; keep the terminal open. A failed checksum does not replace the previous start command or private data. Existing checkouts should run their own `sh start-generation.sh` instead: that script never downloads or updates project source and reports missing project files before environment setup.
+
+`npm run build` publishes `install-generation.sh`, `generation-source.sha256`, and a source archive named by its SHA256 alongside the website. This archive contains only the backend source and launcher, including the pinned inference source wheel. It contains no installed runtime, frontend dependencies, models or credentials. Vite development serves the same files. Publish the entire build output, including these assets, when hosting the frontend under a custom domain or subpath.
+
+## Direct access from another device
+
+```sh
+sh start-generation.sh --host 0.0.0.0 --port 8765 --origin https://your-site.example
+```
+
+The default is `127.0.0.1`, which only accepts local connections. `0.0.0.0` listens on IPv4 interfaces; enter the backend computer's actual IP (for example `http://192.168.1.20:8765`) in the browser, never `0.0.0.0`. The terminal prints API addresses, the direct token, allowed origins and a restart command. Local/private IPs may use HTTP; public APIs require HTTPS at the service or a reverse proxy. The browser still enforces its own network permissions and mixed-content rules. Token authentication, exact CORS origins and Host validation remain enabled on all interfaces.
+
+The webpage may be hosted on any server: direct requests originate from the user's browser, so it is the browser's network that must reach the API. New browsers start with an empty API address and do not probe localhost or load credentials until an address is supplied. For an explicitly configured loopback API in development, the local Vite endpoint may fill the token automatically. The settings expose direct APIs only; historical relay job snapshots remain readable for compatibility.
+
 Model versions, file URLs, resume and SHA256 verification are built in; no user-selected hashes, ModelScope SDK or token are needed for these public weights. Verified configurations and notices ship in [bundled/](./bundled/README.md). Switching download mirrors does not substitute ModelScope's differing model configuration.
 
 ## Resources and private data
@@ -102,7 +127,9 @@ All variables are optional for the default local workflow.
 | `GEN_HOME` | Override the resource root (default project `runtime/generation`) |
 | `GEN_DATA_HOME` | Override private credentials/job storage |
 | `GEN_OFFLINE` | `1` forbids setup downloads; incomplete resources produce a clear error |
-| `GEN_PORT` | Loopback HTTP port, default 8765 |
+| `GEN_HOST` | Listen IP, default 127.0.0.1; use 0.0.0.0 to accept other devices |
+| `GEN_PORT` | HTTP port, default 8765 |
+| `GEN_HOST_NAME` | Optional exact hostname accepted behind a reverse proxy |
 | `GEN_WEB_PORT` | Default development launcher web port, default 5173 |
 | `GEN_ORIGINS` | Comma-separated exact allowed browser origins; default localhost/127.0.0.1 on 5173 |
 | `GEN_DEVICE` | `auto`, `cpu`, `cuda`, or `mps`; unsupported XPU/ROCm requests fall back to CPU |
@@ -120,15 +147,15 @@ The service permits one active and eight queued tasks. Image and result limits a
 
 ## Public websites
 
-For direct local access, allow the exact public site origin in `GEN_ORIGINS`, configure `http://127.0.0.1:8765` and the direct token from private `config.json` in the website, and grant browser local-network permission if requested. If that browser cannot connect, use a relay.
+For direct access, allow the exact site origin with `--origin` or `GEN_ORIGINS`, configure the backend address reachable from the user's browser and its direct token, and grant browser local-network permission if requested. The website's server does not forward these requests. An HTTPS website calling an HTTP local API is subject to browser-specific permission/mixed-content behavior; the app cannot override browser policy. For a public API use an HTTPS reverse proxy with a trusted certificate matching that API's hostname.
 
-For relay mode, deploy the [relay service](../generation-relay/README.md), then run:
+Legacy relay deployment is retained for existing clients and is no longer offered in the current settings. An explicitly opted-in legacy worker can use the [relay service](../generation-relay/README.md):
 
 ```sh
 sh start-generation.sh --relay wss://your-domain.example/generation/worker --pair
 ```
 
-Complete the [browser pairing steps](../../docs/guides/model-generation.md#通过公网中转). Subsequent launches can omit `--pair`; retain the same private credential directory (`GEN_DATA_HOME`, or custom `GEN_HOME` when it also holds data) and relay URL.
+Legacy clients follow the [relay authorization protocol](../generation-relay/README.md#authorization). Current connection settings migrate to direct APIs. A saved `relayUrl` alone no longer starts a background relay connection; legacy workers must opt in explicitly through `--relay` or `GEN_RELAY_URL`.
 
 Remote connections require WSS; plain WS is limited to localhost development. The worker opens no public inbound port. Relay operators can read temporary files; this is not end-to-end encryption. Authorization and retention rules are maintained in the [relay deployment guide](../generation-relay/README.md).
 

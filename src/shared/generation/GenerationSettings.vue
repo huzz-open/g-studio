@@ -6,24 +6,20 @@ import ConnectionStatus from './ConnectionStatus.vue';
 import InfoHint from '../components/InfoHint.vue';
 import NumberRow from '../components/editor-shell/sidebar-atoms/NumberRow.vue';
 import { showToast, dismissToast } from '../components/toast';
-import SegmentedControl from "../components/SegmentedControl.vue";
 import {
   generationSettings as settings,
-  snapshotConnection,
   generationDefaults,
 } from "./settings";
-import { GenerationClient, endpoint } from "./client";
-import { forgetJobCredentials } from "./jobs";
+import { installCommand } from './deployment';
 import type { GenerationParameters } from './parameters';
 const props = withDefaults(
   defineProps<{ section?: "connection" | "defaults"; disabled?: boolean; parameters?: GenerationParameters }>(),
   { section: "connection" },
 );
-const { t } = useI18n(),
-  busy = ref(false),
-  code = ref("");
+const { t } = useI18n(), busy = ref(false);
+const allowRemote = ref(false);
+const deploymentCommand = computed(() => installCommand(new URL(import.meta.env.BASE_URL, window.location.origin).href, allowRemote.value));
 let disposed = false;
-let actionEpoch = 0;
 let feedbackToast: number | undefined;
 const capabilities = computed(() => generationConnection.capabilities);
 const parameters = computed(() => props.parameters ?? settings);
@@ -38,16 +34,9 @@ watch(
     settings.providerId,
   ],
   () => {
-    actionEpoch++;
     busy.value = false;
   },
   { flush: "sync" },
-);
-const modes = computed(() =>
-  (["direct", "relay"] as const).map((value) => ({
-    value,
-    label: t("generation.mode." + value),
-  })),
 );
 const providerParameters = computed(
   () =>
@@ -64,8 +53,7 @@ function friendlyError(value: unknown) {
   if (/Failed to fetch|NetworkError|fetch failed|TimeoutError|aborted|OFFLINE/i.test(message)) return t('generation.connectionFailedHint');
   if (/401|Access token|UNAUTHORIZED/i.test(message)) return t('generation.credentialsInvalid');
   if (/Invalid URL|Invalid service URL/i.test(message)) return t('generation.invalidAddress');
-  if (/PAIR_BLOCKED|Too many invalid|Too many attempts/i.test(message)) return t('generation.pairBlocked');
-  if (/Invalid or expired pairing|Invalid pairing/i.test(message)) return t('generation.pairExpired');
+  if (/Public services require HTTPS/i.test(message)) return t('generation.httpsRequired');
   return message.replace(/^(TypeError|Error):\s*/, '');
 }
 function feedback(message: string, success = false) {
@@ -73,8 +61,7 @@ function feedback(message: string, success = false) {
   feedbackToast = showToast(message, success ? 'success' : 'error', success ? 3000 : 5000);
 }
 async function connect(manual = true) {
-  if (settings.mode === 'direct' && !settings.baseUrl.trim()) settings.baseUrl = generationDefaults.baseUrl;
-  actionEpoch++;
+  if (!settings.baseUrl.trim()) { if (manual) feedback(t('generation.addressRequired')); return; }
   if (manual && feedbackToast !== undefined) { dismissToast(feedbackToast); feedbackToast = undefined; }
   if (manual) busy.value = true;
   try {
@@ -85,66 +72,35 @@ async function connect(manual = true) {
     }
   } finally { if (manual && !disposed) busy.value = false; }
 }
-async function pair() {
-  const attempted = ++actionEpoch;
-  const base = settings.relayUrl.trim();
-  if (!base) { feedback(t('generation.relayAddressRequired')); return; }
-  busy.value = true;
+async function copyDeploymentCommand() {
   try {
-    const response = await fetch(endpoint(base) + '/v1/pair', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: code.value.trim().toUpperCase() }), signal: AbortSignal.timeout(10000),
-    });
-    const data = await response.json();
-    if (!response.ok) throw Error(data.error?.message || response.statusText);
-    if (disposed || attempted !== actionEpoch) return;
-    if (data.state !== 'approved' || typeof data.token !== 'string' || typeof data.deviceId !== 'string') throw Error(t('generation.pairServiceOutdated'));
-    settings.relayToken = data.token;
-    settings.deviceId = data.deviceId;
-    code.value = '';
-    await connect();
-  } catch (error) { if (!disposed && attempted === actionEpoch) feedback(friendlyError(error)); }
-  finally { if (!disposed) busy.value = false; }
-}
-async function forget() {
-  try {
-    const connection = snapshotConnection();
-    if (settings.mode === "relay" && settings.deviceId)
-      await new GenerationClient(connection).call(
-        "/v1/devices/" + settings.deviceId,
-        { method: "DELETE" },
-      );
-    await forgetJobCredentials(connection);
-    settings.relayToken = "";
-    settings.deviceId = "";
-  } catch (e) {
-    feedback(friendlyError(e));
-  }
+    await navigator.clipboard.writeText(deploymentCommand.value);
+    feedback(t('generation.commandCopied'), true);
+  } catch { feedback(t('generation.copyCommandManually')); }
 }
 onMounted(() => {
-  if (props.section === "connection" && (settings.mode === "direct" || (settings.mode === "relay" && settings.deviceId))) void connect(false);
+  if (props.section === 'connection' && settings.baseUrl.trim()) void connect(false);
 });
 onUnmounted(() => {
   disposed = true;
-  actionEpoch++;
 });
 </script>
 <template>
   <div class="generation-settings">
     <template v-if="props.section === 'connection'">
-      <div class="gs-row">
-        <SegmentedControl
-          v-model="settings.mode"
-          :label="t('generation.connectionMode')"
-          :options="modes"
-          :disabled="busy"
-        />
-
-      </div>
-      <template v-if="settings.mode === 'direct'">
+      <details class="generation-install" :open="!settings.baseUrl.trim()">
+        <summary>{{ t('generation.installBackend') }}</summary>
+        <p>{{ t('generation.installIntro') }}</p>
+        <label class="install-scope"><input v-model="allowRemote" type="checkbox" />{{ t('generation.allowRemote') }}<InfoHint :label="t('generation.allowRemote')" :text="t('generation.listenHint')" /></label>
+        <pre class="install-command">{{ deploymentCommand }}</pre>
+        <button type="button" class="copy-install" @click="copyDeploymentCommand">{{ t('generation.copyCommand') }}</button>
+        <p>{{ t('generation.installNext') }}</p>
+        <InfoHint :label="t('generation.installRequirements')" :text="t('generation.installRequirementsHint')" /><span class="install-requirements">{{ t('generation.installRequirements') }}</span>
+      </details>
         <div class="gs-row">
           <div class="gs-label-actions">
             <label for="generation-url">{{ t("generation.apiUrl") }}</label>
+            <InfoHint :label="t('generation.apiUrl')" :text="t('generation.directHint')" />
             <ConnectionStatus />
             <span v-if="generationConnection.device" class="device-tag">{{ generationConnection.device }}</span>
             <button class="test-connection" :disabled="busy || generationConnection.checking" @click="connect(true)">{{ t(busy ? 'common.loading' : 'generation.testConnection') }}</button>
@@ -163,46 +119,6 @@ onUnmounted(() => {
           />
 
         </div>
-      </template>
-      <template v-if="settings.mode === 'relay'">
-        <div class="gs-row">
-          <div class="gs-label-actions">
-            <label for="generation-relay">{{ t("generation.relayUrl") }}</label><InfoHint :label="t('generation.relayUrl')" :text="t('generation.relayPrivacy')" />
-            <ConnectionStatus />
-            <span v-if="generationConnection.device" class="device-tag">{{ generationConnection.device }}</span>
-            <button class="test-connection" :disabled="busy || generationConnection.checking || !settings.deviceId" @click="connect(true)">{{ t(busy ? 'common.loading' : 'generation.testConnection') }}</button>
-          </div><input
-            id="generation-relay"
-            v-model.trim="settings.relayUrl"
-            :disabled="busy"
-            placeholder="https://example.com"
-          />
-          <p>{{ t("generation.relayPurpose") }}</p>
-        </div>
-        <div v-if="!settings.deviceId" class="gs-row">
-          <div class="gs-label-actions"><label for="generation-pair">{{ t("generation.pairCode") }}</label><InfoHint :label="t('generation.pairCode')" :text="t('generation.pairSecurity')" /></div>
-          <div class="gs-actions">
-            <input
-              id="generation-pair"
-              v-model.trim="code"
-              maxlength="10"
-              @input="code = code.toUpperCase().replace(/[^A-Z0-9]/g, '')"
-              autocomplete="off"
-            /><button :disabled="busy || !/^[A-Z0-9]{10}$/.test(code)" @click="pair">
-              {{ t("generation.pair") }}
-            </button>
-          </div>
-
-        </div>
-        <p v-else>
-          {{ t("generation.boundDevice") }} ·
-          {{ settings.deviceId.slice(0, 8) }}
-        </p>
-      </template>
-      <template v-if="settings.mode !== 'silhouette'">
-        <div v-if="settings.mode === 'relay' && settings.deviceId" class="gs-actions">
-          <button :disabled="busy" :title="t('generation.forgetHint')" @click="forget">{{ t('generation.forget') }}</button>
-        </div>
         <div v-if="capabilities" class="gs-row">
           <label for="generation-provider">{{ t("generation.provider") }}</label
           ><select
@@ -219,7 +135,6 @@ onUnmounted(() => {
             </option>
           </select>
         </div>
-      </template>
     </template>
     <div v-else class="generation-parameters" role="group" :aria-label="t(props.parameters ? 'generation.parameters' : 'generation.defaults')">
       <NumberRow v-model="parameters.targetFaces" :label="t('generation.targetFaces')" :hint="t(props.parameters ? 'generation.inputParametersHint' : 'generation.newTasksOnly')" :default-value="generationDefaults.targetFaces" :min="1000" :max="40000" :step="1000" :disabled="props.disabled" />
@@ -230,6 +145,12 @@ onUnmounted(() => {
   </div>
 </template>
 <style scoped>
+.generation-install { padding:14px 0; border-bottom:1px solid #2f2f2f; }
+.generation-install summary { cursor:pointer; color:#ddd; }
+.install-scope { display:flex; align-items:center; gap:6px; color:#ccc; }
+.install-command { white-space:pre-wrap; overflow-wrap:anywhere; background:#171b21; border:1px solid #444; border-radius:5px; padding:10px; color:#dce4ee; font:11px/1.7 monospace; user-select:text; }
+.copy-install { padding:5px 10px; border:1px solid #555; border-radius:5px; background:#303944; color:#eee; cursor:pointer; }
+.install-requirements { color:#999; margin-left:4px; }
 .generation-parameters { display:flex; flex-direction:column; gap:12px; padding:14px 0; border-bottom:1px solid #2f2f2f; }
 .generation-parameters :deep(.number-row) { margin-bottom:0; }
 .generation-settings :deep(.number-label) { white-space:normal; }

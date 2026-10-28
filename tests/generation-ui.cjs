@@ -55,6 +55,7 @@ async function main() {
       }
       throw Error('Unexpected endpoint '+pathname)
     })
+    await page.addInitScript(() => { const key = 'g-studio-generation-device-v1'; if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify({ mode: 'direct', baseUrl: 'http://127.0.0.1:8765', token: 'ui-test' })) })
     await page.goto(url)
     await page.locator('.module-card').first().waitFor()
     const expected=['精灵图切分','场景光影','模型生成','瓦片集制作','场景区域编辑','资源管理']

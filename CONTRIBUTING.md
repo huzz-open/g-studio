@@ -61,7 +61,8 @@ npm run preview
 | 法线、轮廓投影数学 | `npm run test:normals`、`npm run test:shadows` |
 | 计算调度 | `npm run test:compute` |
 | 生成协议和导入 | `npm run test:generation` |
-| 启动资源、下载镜像 | `npm run test:runtime`、`npm run test:mirrors`、`npm run test:uv-mirror` |
+| 启动资源、外部安装、下载镜像 | `npm run test:runtime`、`npm run test:mirrors`、`npm run test:uv-mirror` |
+| API 连接和部署命令 | `npm run test:connection`；用生成环境的 Python 执行 `tests/generation_network_test.py` |
 | 中转 TypeScript | `npm run check:relay` |
 
 这些命令没有统一的 `npm test` 入口。历史验证记录中的测试数量只对应当时运行。

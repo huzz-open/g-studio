@@ -2,6 +2,11 @@
 set -eu
 PROJECT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd "$PROJECT_ROOT"
+# This entry point only starts an existing checkout. Source installation belongs
+# to install-generation.sh and must never overwrite a developer's local files.
+for required in scripts/generation/start.mjs scripts/generation/bootstrap.mjs services/generation-python/server.py services/generation-python/requirements-base.lock services/generation-python/requirements-model.lock; do
+  [ -f "$PROJECT_ROOT/$required" ] || { echo "[generation] Missing project file: $required. Use install-generation.sh for a new installation." >&2; exit 1; }
+done
 for argument in "$@"; do
   if [ "$argument" = --offline ]; then export GEN_OFFLINE=1; fi
 done

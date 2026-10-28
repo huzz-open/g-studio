@@ -13,7 +13,7 @@ export interface GenerationConnection {
 }
 const defaults: GenerationConnection = {
   mode: "direct",
-  baseUrl: "http://127.0.0.1:8765",
+  baseUrl: "",
   token: "",
   relayUrl: "",
   relayToken: "",
@@ -38,8 +38,15 @@ function read() {
 }
 /** Device-private, deliberately outside the workspace settings/export. */
 export const generationSettings = reactive<GenerationConnection>(read());
-// Migrate the former shadow-proxy fallback out of the model-generation workflow.
-if (generationSettings.mode === 'silhouette') generationSettings.mode = 'direct';
+// New connections are direct only. Preserve historical job snapshots separately.
+if (generationSettings.mode === 'relay') {
+  generationSettings.baseUrl = '';
+  generationSettings.token = '';
+}
+generationSettings.mode = 'direct';
+generationSettings.relayUrl = '';
+generationSettings.relayToken = '';
+generationSettings.deviceId = '';
 if (generationSettings.providerId === 'silhouette') generationSettings.providerId = 'hunyuan-mini';
 watch(
   generationSettings,

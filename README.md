@@ -10,7 +10,7 @@ A browser-based game asset workbench for slicing sprites, editing parts, preview
 
 **[Live demo](https://huzz-open.github.io/g-studio/)** · [Documentation](./docs/README.md) · [Development guide](./CONTRIBUTING.md)
 
-Core editing requires no login and keeps assets local. Optional AI geometry generation uses a separate service; relay mode transfers images and models through the configured server.
+Core editing requires no login and keeps assets local. Optional AI geometry generation uses a direct API on a computer reachable from your browser.
 
 ## Features
 
@@ -38,6 +38,8 @@ npm run dev
 ```
 
 Open <http://localhost:5173>. `npm run dev` starts the web app and AI backend; the first launch prepares Python and downloads approximately **4.23GB of model weights**. Use `npm run dev:web` for web-only development or editing without Python and model setup.
+
+Model generation starts unconfigured. Open its connection settings to copy an install command for the current website, or enter the address and token printed by an existing backend. The installer downloads verified source files and calls the project launcher; an existing checkout can run `sh start-generation.sh` directly without downloading or updating source. Add `--host 0.0.0.0` to accept connections from other devices and `--origin https://your-site.example` to allow a different frontend origin. See [installation and direct access](./services/generation-python/README.md#external-installation).
 
 See [download sources](./services/generation-python/README.md#download-sources) for the China preset and how to reset it.
 

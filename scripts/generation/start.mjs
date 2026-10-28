@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { join } from "node:path";
+import { configureNetwork } from './options.mjs';
 import {
   home,
   root,
@@ -10,6 +11,8 @@ import {
 
 const mode = process.argv[2] || "start";
 const flags = process.argv.slice(3);
+const serviceUrl = configureNetwork(flags);
+process.env.GEN_RESTART_COMMAND ||= ['sh', join(root, 'start-generation.sh'), mode, ...flags].map(value => `'${value.replaceAll("'", "'\\''")}'`).join(' ');
 if (flags.includes("--pair")) process.env.GEN_PAIR = "1";
 if (flags.includes("--cpu")) process.env.GEN_DEVICE = "cpu";
 if (flags.includes("--cuda")) process.env.GEN_DEVICE = "cuda";
@@ -79,7 +82,7 @@ try {
     let existing;
     try {
       existing = await fetch(
-        `http://127.0.0.1:${process.env.GEN_PORT || 8765}/health`,
+        `${serviceUrl}/health`,
         { signal: AbortSignal.timeout(1500) },
       );
     } catch {}
@@ -103,7 +106,7 @@ try {
     console.log("Generation home:", home);
     try {
       const r = await fetch(
-        `http://127.0.0.1:${process.env.GEN_PORT || 8765}/health`,
+        `${serviceUrl}/health`,
       );
       console.log("Service:", await r.json());
     } catch {
@@ -112,7 +115,7 @@ try {
   } else {
     try {
       const r = await fetch(
-        `http://127.0.0.1:${process.env.GEN_PORT || 8765}/health`,
+        `${serviceUrl}/health`,
         { signal: AbortSignal.timeout(1500) },
       );
       if (r.ok)
