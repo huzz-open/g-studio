@@ -28,6 +28,13 @@ test('panned camera targets round-trip and invalid targets are rejected',()=>{
   assert.deepEqual(parseScene(JSON.parse(JSON.stringify(scene))),scene)
   for(const target of [null,[],[1,2],[1,2,3,4],[0,'1',2],[0,Infinity,2]])assert.throws(()=>parseScene({...scene,target}))
 })
+test('explicitly cleared selection survives scene reload without removing items',()=>{
+  const scene=createScene();scene.selected=''
+  assert.ok(scene.items.length>0)
+  assert.deepEqual(parseScene(JSON.parse(JSON.stringify(scene))),scene)
+  assert.equal(parseScene({...scene,selected:'missing-item'}).selected,scene.items[0].id)
+})
+
 test('old scenes migrate without changing instance or point-light placement',()=>{
   const old=createScene();delete old.room;delete old.sun;delete old.lightKind
   const result=parseScene(old)

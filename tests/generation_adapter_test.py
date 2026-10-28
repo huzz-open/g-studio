@@ -48,10 +48,14 @@ class AdapterTests(unittest.TestCase):
             torch.save({'conditioner':source.state_dict()},file)
             loaded=load_module({'target':'test.Tiny'},file,'conditioner.',lambda _:Tiny())
             self.assertTrue(torch.equal(source.linear.weight,loaded.linear.weight))
-            torch.save({'model':source.state_dict()},file)
-            with self.assertRaises(KeyError): load_module({'target':'test.Tiny'},file,'conditioner.',lambda _:Tiny())
-            bad=source.state_dict();bad['linear.bias']=torch.ones(7);torch.save({'conditioner':bad},file)
-            with self.assertRaisesRegex(RuntimeError,'Wrong shape'):load_module({'target':'test.Tiny'},file,'conditioner.',lambda _:Tiny())
+            # CPU assign=True retains mmap-backed tensors. Windows cannot
+            # overwrite that checkpoint while the loaded module is alive.
+            missing=Path(folder)/'missing-conditioner.ckpt'
+            torch.save({'model':source.state_dict()},missing)
+            with self.assertRaises(KeyError): load_module({'target':'test.Tiny'},missing,'conditioner.',lambda _:Tiny())
+            malformed=Path(folder)/'wrong-shape.ckpt'
+            bad=source.state_dict();bad['linear.bias']=torch.ones(7);torch.save({'conditioner':bad},malformed)
+            with self.assertRaisesRegex(RuntimeError,'Wrong shape'):load_module({'target':'test.Tiny'},malformed,'conditioner.',lambda _:Tiny())
 
     def test_fixed_preprocessing_matches_cpu_fp32_antialiased_reference(self):
         from runtime import fixed_image_forward

@@ -189,7 +189,7 @@ export interface SceneRegion {
 
 ### 任务 3.1：插件骨架
 
-**文件**：`addons/g_studio/` 目录（在 Godot 项目中，不在 G-Studio 项目中）
+**文件**：仓库中的 `integrations/godot/addons/g_studio/`，安装到目标 Godot 项目的 `addons/g_studio/`。当前目录与安装说明见 [Godot 插件](../../../integrations/godot/README.md)；下列任务保留历史规划，文件轮询现已合并到 `gs_scene_manager.gd`。
 
 创建插件基本结构：
 - plugin.cfg + plugin.gd
@@ -203,7 +203,7 @@ export interface SceneRegion {
 
 ### 任务 3.2：结构识别 + 首次生成
 
-**文件**：`addons/g_studio/handlers/scene_region_handler.gd`
+**文件**：`integrations/godot/addons/g_studio/handlers/scene_region_handler.gd`（安装后为 `res://addons/g_studio/handlers/scene_region_handler.gd`）
 
 功能：
 - recognize() — 从场景树提取受管区域

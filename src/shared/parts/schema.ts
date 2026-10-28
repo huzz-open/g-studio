@@ -95,9 +95,6 @@ export function createPart(name: string, image: PartAsset['image'], id: string =
     alignment: { anchor: [.5, 1], offset: [0, 0], scale: 1 } }
   validatePart(part); return part
 }
-export function sameSource(part: PartAsset, source: NonNullable<PartAsset['source']>) {
-  return part.source?.sheetHash === source.sheetHash && part.source.pixelHash === source.pixelHash && part.source.rect.every((n, i) => n === source.rect[i])
-}
 export function partRenderKey(part: PartAsset) { return JSON.stringify([part.image, part.normal, part.geometry, part.alignment]) }
 /** Inputs that affect the mesh, color texture and projected surface fields. */
 export function partSurfaceKey(part: PartAsset) { return JSON.stringify([part.image, part.geometry, part.alignment]) }

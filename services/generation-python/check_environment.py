@@ -20,7 +20,11 @@ def check(requirements, variant):
         pins.update(torch="2.6.0", torchvision="0.21.0")
     for name, expected in pins.items():
         try:
-            actual = importlib.metadata.version(name).split("+")[0]
+            installed = importlib.metadata.version(name)
+            if not installed:
+                issues.append({"package": name, "reason": "missing version metadata"})
+                continue
+            actual = installed.split("+")[0]
             if actual != expected:
                 issues.append({"package": name, "reason": f"expected {expected}, found {actual}"})
         except importlib.metadata.PackageNotFoundError:

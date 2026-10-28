@@ -25,6 +25,8 @@ Core editing requires no login and keeps assets local. Optional AI geometry gene
 
 Drop the [sample sprite sheet](./samples/沧澜水乡_snippet.png) into Sprite Slicer to try it. See the [parts and lighting guide](./docs/guides/parts-and-lighting.md) (Chinese) for editing steps.
 
+The Godot scene sync plugin and runtime occlusion components live in [`integrations/godot/`](./integrations/godot/README.md). See its README (Chinese) for installation and usage.
+
 ## Quick start
 
 Requires Node.js 22.12+ and npm.

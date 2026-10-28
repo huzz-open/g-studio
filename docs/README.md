@@ -39,12 +39,14 @@
 | [几何模型与推理服务改造](design/model-generation-upgrade.md) | 已实施的服务机制、固定资源与未关闭的 Mini 正确性/性能问题 | ZH |
 | [Mini 推理异常与性能调查](design/mini-inference-investigation.md) | 优先待修复：平板退化、FP32 规避办法、常驻预算与官方 FlashVDM 对照及验收 | ZH |
 | [引擎桥接](design/engine-bridge/README.md) | 原始设计与实施计划，含未验收接口和伪代码 | ZH |
+| [Godot 素材制作插件](design/godot-plugin/README.md) | 后续工作流、部件与组合资产模型、迁移边界及语言选型建议；尚未实施 | ZH |
 | [角色视频工作流](design/character-video-workflow.md) | 素材制作方案，不代表全部功能已实现 | ZH |
 
 ## 历史记录 / Historical records
 
 | 文档 | 日期与范围 | 语言 |
 | --- | --- | --- |
+| [Windows CUDA 官方推理对照](history/model-generation-cuda-20261028.md) | 2026-10-28，RTX 3060 三模型官方/项目路径、耗时、内存与几何实验 | ZH |
 | [几何模型与服务改造验证](history/model-generation-upgrade-20261028.md) | 2026-10-28，三模型资源、常驻/队列及真实几何对照 | ZH |
 | [生成服务验证](history/model-generation-validation.md) | 2026-10-26～27，Windows CPU、TLS、资源准备和分发包 | ZH |
 | [木箱阴影调查](history/shadow-alignment-2026-10-26.md) | 2026-10-26，图像轮廓与代理几何不一致的分析 | EN |

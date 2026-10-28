@@ -25,6 +25,8 @@
 
 在切图工具中拖入 [示例精灵图](./samples/沧澜水乡_snippet.png) 即可体验。详细操作见[部件与光影指南](./docs/guides/parts-and-lighting.md)。
 
+Godot 场景同步插件和运行时遮挡组件统一放在 [`integrations/godot/`](./integrations/godot/README.md)，安装和使用方式见该目录说明。
+
 ## 快速开始
 
 需要 Node.js 22.12+ 和 npm。

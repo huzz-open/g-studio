@@ -1,0 +1,4403 @@
+{
+  "date": "2026-10-28",
+  "baseline": "12110cfcb137bcd96884e17ad2fe9bc3e8bd07c4",
+  "driver": "595.97",
+  "cpu": "Intel Core i7-11700",
+  "scope": "Shape inference, not HTTP/lifecycle acceptance",
+  "reports": {
+    "mini-official": {
+      "arguments": {
+        "model": "hunyuan-mini",
+        "path": "official",
+        "output": "output\\cuda-official-20261028\\mini-official",
+        "inputs": "vase,vase,chair,umbrella,bonsai,vase",
+        "resolution": 256,
+        "chunks": 8000,
+        "topk": "mean",
+        "offload": false,
+        "steps": null,
+        "seed": 12345
+      },
+      "model": {
+        "key": "mini",
+        "name": "Hunyuan3D-2mini-Turbo",
+        "series": "2.0",
+        "revision": "f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6",
+        "tag": "\u5feb\u901f",
+        "steps": 5,
+        "max_steps": 10,
+        "dit": "hunyuan3d-dit-v2-mini-turbo",
+        "vae": "hunyuan3d-vae-v2-mini-turbo",
+        "counts": [
+          560508992,
+          1136480768,
+          203690497
+        ]
+      },
+      "environment": {
+        "python": "3.12.12 (main, Oct 28 2025, 14:15:42) [MSC v.1944 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.22631-SP0",
+        "torch": "2.6.0+cu124",
+        "cuda": "12.4",
+        "gpu": "NVIDIA GeForce RTX 3060",
+        "gpuBytes": 12884377600,
+        "systemMemory": {
+          "total": 17009618944,
+          "available": 2156978176,
+          "percent": 87.3,
+          "used": 14852640768,
+          "free": 2156978176
+        },
+        "dependencies": {
+          "torchvision": "0.21.0+cu124",
+          "transformers": "4.49.0",
+          "diffusers": "0.32.2",
+          "accelerate": "1.15.0",
+          "numpy": "1.26.4",
+          "trimesh": "4.0.5"
+        }
+      },
+      "runs": [
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "2159965396368",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "timings": {
+            "preprocess": 0.19452499999999873,
+            "condition": 2.0478058999999575,
+            "vae": 0.10030030000007173,
+            "export": 2.712697100000014
+          },
+          "inferenceSeconds": 7.658541599999921,
+          "sampleAndOverheadSeconds": 2.703513599999951,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 5152702464,
+            "peakAllocatedBytes": 4328047616,
+            "peakReservedBytes": 5152702464,
+            "freeTotalBytes": [
+              6613368832,
+              12884377600
+            ],
+            "peakRssBytes": 1523941376,
+            "minimumSystemAvailableBytes": 1024000
+          },
+          "geometry": {
+            "faces": 667904,
+            "vertices": 174914,
+            "bounds": [
+              [
+                -0.6645863652229309,
+                -1.0004431009292603,
+                -0.6763827204704285
+              ],
+              [
+                0.6247612833976746,
+                0.9613338708877563,
+                0.6349532604217529
+              ]
+            ],
+            "extents": [
+              1.2893476486206055,
+              1.9617769718170166,
+              1.3113359808921814
+            ],
+            "watertight": false,
+            "volume": 1.4836974061858055,
+            "finite": true,
+            "sha256": "fe2afb14c76255c8d757a6958cdd14f76a47f5c9e298144a0c3147e0cc0de13a"
+          },
+          "status": "succeeded",
+          "officialReduction": {
+            "rawFaces": 667904,
+            "reducedFaces": 11999,
+            "reductionSeconds": 5.463128100000176,
+            "reducer": "Pinned upstream FaceReducer / pymeshlab"
+          }
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "2159965396368",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "timings": {
+            "preprocess": 0.057421499999918524,
+            "condition": 1.0282548000000133,
+            "vae": 0.027985800000010386,
+            "export": 1.3858648000000358
+          },
+          "inferenceSeconds": 4.598483200000032,
+          "sampleAndOverheadSeconds": 2.126942100000065,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 5152702464,
+            "peakAllocatedBytes": 4328048128,
+            "peakReservedBytes": 5152702464,
+            "freeTotalBytes": [
+              6613368832,
+              12884377600
+            ],
+            "peakRssBytes": 1233305600,
+            "minimumSystemAvailableBytes": 1024000
+          },
+          "geometry": {
+            "faces": 667904,
+            "vertices": 174914,
+            "bounds": [
+              [
+                -0.6645863652229309,
+                -1.0004431009292603,
+                -0.6763827204704285
+              ],
+              [
+                0.6247612833976746,
+                0.9613338708877563,
+                0.6349532604217529
+              ]
+            ],
+            "extents": [
+              1.2893476486206055,
+              1.9617769718170166,
+              1.3113359808921814
+            ],
+            "watertight": false,
+            "volume": 1.4836974061858055,
+            "finite": true,
+            "sha256": "fe2afb14c76255c8d757a6958cdd14f76a47f5c9e298144a0c3147e0cc0de13a"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "chair",
+          "inputSha256": "43a72eb6971fafd2176b87b9e5cbbd1790bbe8dfa3def3405e228ea8dafd1d68",
+          "instanceId": "2159965396368",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "timings": {
+            "preprocess": 0.10322919999998703,
+            "condition": 1.0048669999999902,
+            "vae": 0.03431910000006155,
+            "export": 2.0485405000000583
+          },
+          "inferenceSeconds": 5.396376000000032,
+          "sampleAndOverheadSeconds": 2.2397392999999965,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 5152702464,
+            "peakAllocatedBytes": 4328048128,
+            "peakReservedBytes": 5152702464,
+            "freeTotalBytes": [
+              6613368832,
+              12884377600
+            ],
+            "peakRssBytes": 1300725760,
+            "minimumSystemAvailableBytes": 1024000
+          },
+          "geometry": {
+            "faces": 526984,
+            "vertices": 161428,
+            "bounds": [
+              [
+                -0.6798356771469116,
+                -1.0020438432693481,
+                -0.5042780637741089
+              ],
+              [
+                0.6410279870033264,
+                0.9707003831863403,
+                0.4933781325817108
+              ]
+            ],
+            "extents": [
+              1.320863664150238,
+              1.9727442264556885,
+              0.9976561963558197
+            ],
+            "watertight": false,
+            "volume": 0.31989887266343364,
+            "finite": true,
+            "sha256": "e26d65f301e82d6d4ec8262eef9769bbf50bb2867d451de800299cf464173c80"
+          },
+          "status": "succeeded",
+          "officialReduction": {
+            "rawFaces": 526984,
+            "reducedFaces": 12000,
+            "reductionSeconds": 6.1690324999999575,
+            "reducer": "Pinned upstream FaceReducer / pymeshlab"
+          }
+        },
+        {
+          "input": "umbrella",
+          "inputSha256": "c79b4d5aaf8fdfcc048e6f17f0bc5d37195b23526a8aad38321ba8c6ab646741",
+          "instanceId": "2159965396368",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "timings": {
+            "preprocess": 0.050877700000000914,
+            "condition": 1.0265607999999702,
+            "vae": 0.016507899999965048,
+            "export": 0.9421327000000019
+          },
+          "inferenceSeconds": 4.213625800000045,
+          "sampleAndOverheadSeconds": 2.1940546000000722,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 5152702464,
+            "peakAllocatedBytes": 4328048128,
+            "peakReservedBytes": 5152702464,
+            "freeTotalBytes": [
+              6613368832,
+              12884377600
+            ],
+            "peakRssBytes": 1272573952,
+            "minimumSystemAvailableBytes": 1024000
+          },
+          "geometry": {
+            "faces": 213204,
+            "vertices": 104096,
+            "bounds": [
+              [
+                -0.7942226529121399,
+                -1.0001769065856934,
+                -0.811981737613678
+              ],
+              [
+                0.7550848126411438,
+                0.9594188928604126,
+                0.7714106440544128
+              ]
+            ],
+            "extents": [
+              1.5493074655532837,
+              1.959595799446106,
+              1.5833923816680908
+            ],
+            "watertight": false,
+            "volume": 0.047967248337647574,
+            "finite": true,
+            "sha256": "d1a44f05646006f4e69540e6ebbd5dc638c13b48aea45c4f1033d8e5ad2185e2"
+          },
+          "status": "succeeded",
+          "officialReduction": {
+            "rawFaces": 213204,
+            "reducedFaces": 11999,
+            "reductionSeconds": 3.9419540999999754,
+            "reducer": "Pinned upstream FaceReducer / pymeshlab"
+          }
+        },
+        {
+          "input": "bonsai",
+          "inputSha256": "a6fdcfa153818ac203cbf04e3031b166e88fdf0c2c63accfa8b3713c55752c1d",
+          "instanceId": "2159965396368",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "timings": {
+            "preprocess": 0.038808600000038496,
+            "condition": 0.9806409000000258,
+            "vae": 0.016662900000028458,
+            "export": 1.964801599999987
+          },
+          "inferenceSeconds": 5.065444200000002,
+          "sampleAndOverheadSeconds": 2.0811930999999504,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 5534384128,
+            "peakAllocatedBytes": 4543813120,
+            "peakReservedBytes": 5534384128,
+            "freeTotalBytes": [
+              6231687168,
+              12884377600
+            ],
+            "peakRssBytes": 1238081536,
+            "minimumSystemAvailableBytes": 1024000
+          },
+          "geometry": {
+            "faces": 679050,
+            "vertices": 215200,
+            "bounds": [
+              [
+                -0.9800500869750977,
+                -0.9522249698638916,
+                -0.47956743836402893
+              ],
+              [
+                0.9534342288970947,
+                0.911246657371521,
+                0.463849812746048
+              ]
+            ],
+            "extents": [
+              1.9334843158721924,
+              1.8634716272354126,
+              0.9434172511100769
+            ],
+            "watertight": false,
+            "volume": 0.6645548964714351,
+            "finite": true,
+            "sha256": "2663b97ba1580d125972838fc9efb197571b964302a84d10ced94cf7761af544"
+          },
+          "status": "succeeded",
+          "officialReduction": {
+            "rawFaces": 679050,
+            "reducedFaces": 11999,
+            "reductionSeconds": 7.24233809999987,
+            "reducer": "Pinned upstream FaceReducer / pymeshlab"
+          }
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "2159965396368",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "timings": {
+            "preprocess": 0.044745499999976346,
+            "condition": 0.98970010000005,
+            "vae": 0.02204230000006646,
+            "export": 1.4231687000000193
+          },
+          "inferenceSeconds": 4.563974700000017,
+          "sampleAndOverheadSeconds": 2.1063603999999714,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 5534384128,
+            "peakAllocatedBytes": 4328048128,
+            "peakReservedBytes": 5534384128,
+            "freeTotalBytes": [
+              6231687168,
+              12884377600
+            ],
+            "peakRssBytes": 1398190080,
+            "minimumSystemAvailableBytes": 1024000
+          },
+          "geometry": {
+            "faces": 667904,
+            "vertices": 174914,
+            "bounds": [
+              [
+                -0.6645863652229309,
+                -1.0004431009292603,
+                -0.6763827204704285
+              ],
+              [
+                0.6247612833976746,
+                0.9613338708877563,
+                0.6349532604217529
+              ]
+            ],
+            "extents": [
+              1.2893476486206055,
+              1.9617769718170166,
+              1.3113359808921814
+            ],
+            "watertight": false,
+            "volume": 1.4836974061858055,
+            "finite": true,
+            "sha256": "fe2afb14c76255c8d757a6958cdd14f76a47f5c9e298144a0c3147e0cc0de13a"
+          },
+          "status": "succeeded"
+        }
+      ],
+      "sourceVerification": [
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/__init__.py",
+          "sha256": "e1a0f10f65a41667fadafc1fa2fe31a5b2c7f5dea7a659b3039e029d75ce1db0"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/pipelines.py",
+          "sha256": "3eb438997fca59f682866f529f1984d4852d717577c24743e5d9bfd5566fa467"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/postprocessors.py",
+          "sha256": "3899ef49fbc7453553d264d16c14305a9ee9c6f8a3341a8850b960f018640a17"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/preprocessors.py",
+          "sha256": "284dc24fabbf974bd6793ebd58e95b7700550d90371cacb96ad0889ec558de1e"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/schedulers.py",
+          "sha256": "d3b25b84dac26f0e862cfc866da08df2d6592f01a0aaeda965782ab0fc1d8bba"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/surface_loaders.py",
+          "sha256": "59498b96540d3915c1afbdb52fa125b6e4564c6261a54de2d402a729b0ffc624"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/utils.py",
+          "sha256": "434987747ec07c734b64cc933f7829bf6d10800a7c5e97f649547aa5979c1fbd"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/__init__.py",
+          "sha256": "d233d923a912621c986201e482b1c7b9a5fc014974e6bb952ceb7b36f3c4020f"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/conditioner.py",
+          "sha256": "c735ef7abbdd0fad089e684a237ef30a6cb7616c2faa49a30571d3640c2865c9"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/__init__.py",
+          "sha256": "2f56106c91dfc126f3e20551e8a7a48f049be7b33eda814ae1c184bc979328fe"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/attention_blocks.py",
+          "sha256": "86590fe6b7dae1e3250d08df8291bc2825f754663a2335f31887c5f8065b6ed0"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/attention_processors.py",
+          "sha256": "9a461ddde9a2bf5ca0cd3961c3c1b86f9c81772066fe5b815bc497e0b5a8f053"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/model.py",
+          "sha256": "22ea23cb832017e628f139b06743de5ef54c4fcb298f532f94c99a4a25996893"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/surface_extractors.py",
+          "sha256": "4b53ab319955b22957963e7d9872de46e2c47b2aa5d5d897d62ede64aecc13cd"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/volume_decoders.py",
+          "sha256": "95ffab6bd0a11034bc2b7415fef1379e27c4d2238638f831a0456019d90484eb"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/__init__.py",
+          "sha256": "f1c91751fa8db7ecf531189aae33a59b5b9e3e10aa0d524edf33f6857eea8cfd"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/hunyuan3ddit.py",
+          "sha256": "0288db52767927a03bbbd687eba253f4567493d3d6c24c97b289ea7a1acd13c3"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/hunyuandit.py",
+          "sha256": "b9a51ac5338c6f886f4312a5967933a23969fb293cfc5c0b9c40236207cf89b5"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/moe_layers.py",
+          "sha256": "afd9ca7511c2cd028d220f18c4b4e31a457cda19a1de34bfb925af663a24f3af"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/__init__.py",
+          "sha256": "8ab24870a628fb94a3d903d7d149d3eb3d20b32cadf8f6680c6e457562384a41"
+        }
+      ],
+      "sourceRevision": "f8db63096c8282cb27354314d896feba5ba6ff8a",
+      "loadSeconds": 131.12329039999997,
+      "afterLoad": {
+        "allocatedBytes": 4030572544,
+        "reservedBytes": 4812963840,
+        "peakAllocatedBytes": 4686104064,
+        "peakReservedBytes": 4812963840,
+        "freeTotalBytes": [
+          6988759040,
+          12884377600
+        ],
+        "peakRssBytes": 9171607552,
+        "minimumSystemAvailableBytes": 1024000
+      },
+      "instanceId": "2159965396368",
+      "loadCount": 1,
+      "processMemory": {
+        "peakRssBytes": 1429987328,
+        "minimumSystemAvailableBytes": 1024000
+      }
+    },
+    "mini-project": {
+      "arguments": {
+        "model": "hunyuan-mini",
+        "path": "project",
+        "output": "output\\cuda-official-20261028\\mini-project",
+        "inputs": "vase,vase,chair,umbrella,bonsai,vase",
+        "resolution": 256,
+        "chunks": 2048,
+        "topk": "mean",
+        "chunks_list": null,
+        "topk_list": null,
+        "offload": false,
+        "steps": null,
+        "seed": 12345
+      },
+      "model": {
+        "key": "mini",
+        "name": "Hunyuan3D-2mini-Turbo",
+        "series": "2.0",
+        "revision": "f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6",
+        "tag": "\u5feb\u901f",
+        "steps": 5,
+        "max_steps": 10,
+        "dit": "hunyuan3d-dit-v2-mini-turbo",
+        "vae": "hunyuan3d-vae-v2-mini-turbo",
+        "counts": [
+          560508992,
+          1136480768,
+          203690497
+        ]
+      },
+      "environment": {
+        "python": "3.12.12 (main, Oct 28 2025, 14:15:42) [MSC v.1944 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.22631-SP0",
+        "torch": "2.6.0+cu124",
+        "cuda": "12.4",
+        "gpu": "NVIDIA GeForce RTX 3060",
+        "gpuBytes": 12884377600,
+        "systemMemory": {
+          "total": 17009618944,
+          "available": 6600855552,
+          "percent": 61.2,
+          "used": 10408763392,
+          "free": 6600855552
+        },
+        "dependencies": {
+          "torchvision": "0.21.0+cu124",
+          "transformers": "4.49.0",
+          "diffusers": "0.32.2",
+          "accelerate": "1.15.0",
+          "numpy": "1.26.4",
+          "trimesh": "4.0.5"
+        }
+      },
+      "runs": [
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "3075627676208",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 2048,
+          "topk": "merge",
+          "timings": {
+            "preprocess": 0.06500310000001264,
+            "condition": 1.3758053999999902,
+            "export": 2.2575646000000233,
+            "vae": 0.01820080000015878
+          },
+          "inferenceSeconds": 5.926002700000026,
+          "sampleAndOverheadSeconds": 2.2276296,
+          "memory": {
+            "allocatedBytes": 3811256320,
+            "reservedBytes": 4359979008,
+            "peakAllocatedBytes": 4093564416,
+            "peakReservedBytes": 4359979008,
+            "freeTotalBytes": [
+              7406092288,
+              12884377600
+            ],
+            "peakRssBytes": 1736912896,
+            "minimumSystemAvailableBytes": 5591003136
+          },
+          "geometry": {
+            "faces": 667980,
+            "vertices": 175004,
+            "bounds": [
+              [
+                -0.6649006009101868,
+                -0.9981161952018738,
+                -0.6763821244239807
+              ],
+              [
+                0.6251361966133118,
+                0.9592019319534302,
+                0.6350527405738831
+              ]
+            ],
+            "extents": [
+              1.2900367975234985,
+              1.957318127155304,
+              1.3114348649978638
+            ],
+            "watertight": false,
+            "volume": 1.483581194056032,
+            "finite": true,
+            "sha256": "91905cc173ab1872923daddba4aeed05bc17e869f08df981bbb6da4cb4f1dc4c"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "3075627676208",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 2048,
+          "topk": "merge",
+          "timings": {
+            "preprocess": 0.02860970000006091,
+            "condition": 1.0035043999998834,
+            "export": 1.5508436000000074,
+            "vae": 0.02299200000015844
+          },
+          "inferenceSeconds": 4.704480000000103,
+          "sampleAndOverheadSeconds": 2.1215223000001515,
+          "memory": {
+            "allocatedBytes": 3811256320,
+            "reservedBytes": 4359979008,
+            "peakAllocatedBytes": 4093564928,
+            "peakReservedBytes": 4359979008,
+            "freeTotalBytes": [
+              7406092288,
+              12884377600
+            ],
+            "peakRssBytes": 1832779776,
+            "minimumSystemAvailableBytes": 5629444096
+          },
+          "geometry": {
+            "faces": 667980,
+            "vertices": 175004,
+            "bounds": [
+              [
+                -0.6649006009101868,
+                -0.9981161952018738,
+                -0.6763821244239807
+              ],
+              [
+                0.6251361966133118,
+                0.9592019319534302,
+                0.6350527405738831
+              ]
+            ],
+            "extents": [
+              1.2900367975234985,
+              1.957318127155304,
+              1.3114348649978638
+            ],
+            "watertight": false,
+            "volume": 1.483581194056032,
+            "finite": true,
+            "sha256": "91905cc173ab1872923daddba4aeed05bc17e869f08df981bbb6da4cb4f1dc4c"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "chair",
+          "inputSha256": "43a72eb6971fafd2176b87b9e5cbbd1790bbe8dfa3def3405e228ea8dafd1d68",
+          "instanceId": "3075627676208",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 2048,
+          "topk": "merge",
+          "timings": {
+            "preprocess": 0.05367200000000594,
+            "condition": 0.98038530000008,
+            "export": 1.4554176999999981,
+            "vae": 0.01537770000004457
+          },
+          "inferenceSeconds": 4.65773299999978,
+          "sampleAndOverheadSeconds": 2.168257999999696,
+          "memory": {
+            "allocatedBytes": 3811256320,
+            "reservedBytes": 4359979008,
+            "peakAllocatedBytes": 4093564928,
+            "peakReservedBytes": 4359979008,
+            "freeTotalBytes": [
+              7406092288,
+              12884377600
+            ],
+            "peakRssBytes": 1829036032,
+            "minimumSystemAvailableBytes": 5668405248
+          },
+          "geometry": {
+            "faces": 526996,
+            "vertices": 160216,
+            "bounds": [
+              [
+                -0.6799295544624329,
+                -0.9991142749786377,
+                -0.5041664838790894
+              ],
+              [
+                0.6411094665527344,
+                0.9587076902389526,
+                0.4950810670852661
+              ]
+            ],
+            "extents": [
+              1.3210390210151672,
+              1.9578219652175903,
+              0.9992475509643555
+            ],
+            "watertight": false,
+            "volume": 0.32186083081871636,
+            "finite": true,
+            "sha256": "769f1638e9cb0563b50f755c89a2027ecfbbfe9321bf706b3e4e2306a0b58ade"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "umbrella",
+          "inputSha256": "c79b4d5aaf8fdfcc048e6f17f0bc5d37195b23526a8aad38321ba8c6ab646741",
+          "instanceId": "3075627676208",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 2048,
+          "topk": "merge",
+          "timings": {
+            "preprocess": 0.03754249999997228,
+            "condition": 0.9735364999999092,
+            "export": 0.9667924000000312,
+            "vae": 0.02192719999993642
+          },
+          "inferenceSeconds": 4.116721599999892,
+          "sampleAndOverheadSeconds": 2.138850199999979,
+          "memory": {
+            "allocatedBytes": 3811256320,
+            "reservedBytes": 4359979008,
+            "peakAllocatedBytes": 4093564928,
+            "peakReservedBytes": 4359979008,
+            "freeTotalBytes": [
+              7406092288,
+              12884377600
+            ],
+            "peakRssBytes": 1798090752,
+            "minimumSystemAvailableBytes": 5699993600
+          },
+          "geometry": {
+            "faces": 214688,
+            "vertices": 104650,
+            "bounds": [
+              [
+                -0.7949923872947693,
+                -0.9981611967086792,
+                -0.813971996307373
+              ],
+              [
+                0.7558768391609192,
+                0.9584996104240417,
+                0.7737038731575012
+              ]
+            ],
+            "extents": [
+              1.5508692264556885,
+              1.956660807132721,
+              1.5876758694648743
+            ],
+            "watertight": false,
+            "volume": 0.049343519688121264,
+            "finite": true,
+            "sha256": "89e057e804c3d0866e2ecb8d42b09693fc437fe0f600e78e97db30ca6123ef53"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "bonsai",
+          "inputSha256": "a6fdcfa153818ac203cbf04e3031b166e88fdf0c2c63accfa8b3713c55752c1d",
+          "instanceId": "3075627676208",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 2048,
+          "topk": "merge",
+          "timings": {
+            "preprocess": 0.033624199999849225,
+            "condition": 0.9641630000000987,
+            "export": 1.738968499999828,
+            "vae": 0.02015750000009575
+          },
+          "inferenceSeconds": 4.894110400000045,
+          "sampleAndOverheadSeconds": 2.157354700000269,
+          "memory": {
+            "allocatedBytes": 3811256320,
+            "reservedBytes": 4668260352,
+            "peakAllocatedBytes": 4299265024,
+            "peakReservedBytes": 4668260352,
+            "freeTotalBytes": [
+              7097810944,
+              12884377600
+            ],
+            "peakRssBytes": 1747578880,
+            "minimumSystemAvailableBytes": 5799489536
+          },
+          "geometry": {
+            "faces": 695816,
+            "vertices": 217852,
+            "bounds": [
+              [
+                -0.9806528091430664,
+                -0.9521635174751282,
+                -0.4797297716140747
+              ],
+              [
+                0.9555879831314087,
+                0.9116553664207458,
+                0.4636627435684204
+              ]
+            ],
+            "extents": [
+              1.936240792274475,
+              1.863818883895874,
+              0.9433925151824951
+            ],
+            "watertight": false,
+            "volume": 0.6763214055116884,
+            "finite": true,
+            "sha256": "e2d28b8081f5979d9a1b39e1ce208461c684838290a5f3ef1d222af26974b1ef"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "3075627676208",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 2048,
+          "topk": "merge",
+          "timings": {
+            "preprocess": 0.037377399999968475,
+            "condition": 0.9801320000001397,
+            "export": 1.350938799999767,
+            "vae": 0.014891000000034182
+          },
+          "inferenceSeconds": 4.450233300000036,
+          "sampleAndOverheadSeconds": 2.081785100000161,
+          "memory": {
+            "allocatedBytes": 3811256320,
+            "reservedBytes": 4668260352,
+            "peakAllocatedBytes": 4094371840,
+            "peakReservedBytes": 4668260352,
+            "freeTotalBytes": [
+              7097810944,
+              12884377600
+            ],
+            "peakRssBytes": 1840218112,
+            "minimumSystemAvailableBytes": 5774114816
+          },
+          "geometry": {
+            "faces": 667980,
+            "vertices": 175004,
+            "bounds": [
+              [
+                -0.6649006009101868,
+                -0.9981161952018738,
+                -0.6763821244239807
+              ],
+              [
+                0.6251361966133118,
+                0.9592019319534302,
+                0.6350527405738831
+              ]
+            ],
+            "extents": [
+              1.2900367975234985,
+              1.957318127155304,
+              1.3114348649978638
+            ],
+            "watertight": false,
+            "volume": 1.483581194056032,
+            "finite": true,
+            "sha256": "91905cc173ab1872923daddba4aeed05bc17e869f08df981bbb6da4cb4f1dc4c"
+          },
+          "status": "succeeded"
+        }
+      ],
+      "sourceVerification": [
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/__init__.py",
+          "sha256": "e1a0f10f65a41667fadafc1fa2fe31a5b2c7f5dea7a659b3039e029d75ce1db0"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/pipelines.py",
+          "sha256": "3eb438997fca59f682866f529f1984d4852d717577c24743e5d9bfd5566fa467"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/postprocessors.py",
+          "sha256": "3899ef49fbc7453553d264d16c14305a9ee9c6f8a3341a8850b960f018640a17"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/preprocessors.py",
+          "sha256": "284dc24fabbf974bd6793ebd58e95b7700550d90371cacb96ad0889ec558de1e"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/schedulers.py",
+          "sha256": "d3b25b84dac26f0e862cfc866da08df2d6592f01a0aaeda965782ab0fc1d8bba"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/surface_loaders.py",
+          "sha256": "59498b96540d3915c1afbdb52fa125b6e4564c6261a54de2d402a729b0ffc624"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/utils.py",
+          "sha256": "434987747ec07c734b64cc933f7829bf6d10800a7c5e97f649547aa5979c1fbd"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/__init__.py",
+          "sha256": "d233d923a912621c986201e482b1c7b9a5fc014974e6bb952ceb7b36f3c4020f"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/conditioner.py",
+          "sha256": "c735ef7abbdd0fad089e684a237ef30a6cb7616c2faa49a30571d3640c2865c9"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/__init__.py",
+          "sha256": "2f56106c91dfc126f3e20551e8a7a48f049be7b33eda814ae1c184bc979328fe"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/attention_blocks.py",
+          "sha256": "86590fe6b7dae1e3250d08df8291bc2825f754663a2335f31887c5f8065b6ed0"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/attention_processors.py",
+          "sha256": "9a461ddde9a2bf5ca0cd3961c3c1b86f9c81772066fe5b815bc497e0b5a8f053"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/model.py",
+          "sha256": "22ea23cb832017e628f139b06743de5ef54c4fcb298f532f94c99a4a25996893"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/surface_extractors.py",
+          "sha256": "4b53ab319955b22957963e7d9872de46e2c47b2aa5d5d897d62ede64aecc13cd"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/volume_decoders.py",
+          "sha256": "95ffab6bd0a11034bc2b7415fef1379e27c4d2238638f831a0456019d90484eb"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/__init__.py",
+          "sha256": "f1c91751fa8db7ecf531189aae33a59b5b9e3e10aa0d524edf33f6857eea8cfd"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/hunyuan3ddit.py",
+          "sha256": "0288db52767927a03bbbd687eba253f4567493d3d6c24c97b289ea7a1acd13c3"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/hunyuandit.py",
+          "sha256": "b9a51ac5338c6f886f4312a5967933a23969fb293cfc5c0b9c40236207cf89b5"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/moe_layers.py",
+          "sha256": "afd9ca7511c2cd028d220f18c4b4e31a457cda19a1de34bfb925af663a24f3af"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/__init__.py",
+          "sha256": "8ab24870a628fb94a3d903d7d149d3eb3d20b32cadf8f6680c6e457562384a41"
+        }
+      ],
+      "harnessSha256": "e47a1bf3bffd6f502de406049bfa5366c00e32b96921f028319d92f70c1f4cb7",
+      "sourceRevision": "f8db63096c8282cb27354314d896feba5ba6ff8a",
+      "loadSeconds": 26.95951570000011,
+      "afterLoad": {
+        "allocatedBytes": 3802736128,
+        "reservedBytes": 3909091328,
+        "peakAllocatedBytes": 3802736128,
+        "peakReservedBytes": 3909091328,
+        "freeTotalBytes": [
+          7892631552,
+          12884377600
+        ],
+        "peakRssBytes": 2941726720,
+        "minimumSystemAvailableBytes": 4053643264
+      },
+      "instanceId": "3075627676208",
+      "loadCount": 1,
+      "torchThreads": 4,
+      "processMemory": {
+        "peakRssBytes": 1934290944,
+        "minimumSystemAvailableBytes": 5761564672
+      }
+    },
+    "mini-official-sweep": {
+      "arguments": {
+        "model": "hunyuan-mini",
+        "path": "official",
+        "output": "output\\cuda-official-20261028\\mini-official-sweep",
+        "inputs": "vase,vase",
+        "resolution": 256,
+        "chunks": 8000,
+        "topk": "mean",
+        "chunks_list": "2048,8000,200000",
+        "topk_list": "mean,merge",
+        "threads": 4,
+        "extra_default_runs": true,
+        "offload": false,
+        "steps": null,
+        "seed": 12345
+      },
+      "model": {
+        "key": "mini",
+        "name": "Hunyuan3D-2mini-Turbo",
+        "series": "2.0",
+        "revision": "f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6",
+        "tag": "\u5feb\u901f",
+        "steps": 5,
+        "max_steps": 10,
+        "dit": "hunyuan3d-dit-v2-mini-turbo",
+        "vae": "hunyuan3d-vae-v2-mini-turbo",
+        "counts": [
+          560508992,
+          1136480768,
+          203690497
+        ]
+      },
+      "environment": {
+        "python": "3.12.12 (main, Oct 28 2025, 14:15:42) [MSC v.1944 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.22631-SP0",
+        "torch": "2.6.0+cu124",
+        "cuda": "12.4",
+        "gpu": "NVIDIA GeForce RTX 3060",
+        "gpuBytes": 12884377600,
+        "systemMemory": {
+          "total": 17009618944,
+          "available": 6825955328,
+          "percent": 59.9,
+          "used": 10183663616,
+          "free": 6825955328
+        },
+        "dependencies": {
+          "torchvision": "0.21.0+cu124",
+          "transformers": "4.49.0",
+          "diffusers": "0.32.2",
+          "accelerate": "1.15.0",
+          "numpy": "1.26.4",
+          "trimesh": "4.0.5"
+        }
+      },
+      "runs": [
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "1767174557760",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 2048,
+          "topk": "mean",
+          "timings": {
+            "preprocess": 0.31269560000009733,
+            "condition": 3.4315091999999368,
+            "vae": 0.03390229999990879,
+            "export": 2.8701673999999002
+          },
+          "inferenceSeconds": 9.489737500000047,
+          "sampleAndOverheadSeconds": 2.8753653000001123,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 5152702464,
+            "peakAllocatedBytes": 4328047616,
+            "peakReservedBytes": 5152702464,
+            "freeTotalBytes": [
+              6613368832,
+              12884377600
+            ],
+            "peakRssBytes": 1519681536,
+            "minimumSystemAvailableBytes": 7772758016
+          },
+          "geometry": {
+            "faces": 667904,
+            "vertices": 174914,
+            "bounds": [
+              [
+                -0.6645863652229309,
+                -1.0004431009292603,
+                -0.6763827204704285
+              ],
+              [
+                0.6247612833976746,
+                0.9613338708877563,
+                0.6349532604217529
+              ]
+            ],
+            "extents": [
+              1.2893476486206055,
+              1.9617769718170166,
+              1.3113359808921814
+            ],
+            "watertight": false,
+            "volume": 1.4836974429277836,
+            "finite": true,
+            "sha256": "a0ce194aac86ff34a0a96d30168b65c1c283c03a25fd9c1827988cf107bfc1e6"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "1767174557760",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 2048,
+          "topk": "mean",
+          "timings": {
+            "preprocess": 0.03499200000010205,
+            "condition": 1.0637188000000606,
+            "vae": 0.06917279999993298,
+            "export": 2.110425300000088
+          },
+          "inferenceSeconds": 5.630712899999935,
+          "sampleAndOverheadSeconds": 2.4215767999996842,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 5152702464,
+            "peakAllocatedBytes": 4328048128,
+            "peakReservedBytes": 5152702464,
+            "freeTotalBytes": [
+              6613368832,
+              12884377600
+            ],
+            "peakRssBytes": 1391747072,
+            "minimumSystemAvailableBytes": 8026628096
+          },
+          "geometry": {
+            "faces": 667904,
+            "vertices": 174914,
+            "bounds": [
+              [
+                -0.6645863652229309,
+                -1.0004431009292603,
+                -0.6763827204704285
+              ],
+              [
+                0.6247612833976746,
+                0.9613338708877563,
+                0.6349532604217529
+              ]
+            ],
+            "extents": [
+              1.2893476486206055,
+              1.9617769718170166,
+              1.3113359808921814
+            ],
+            "watertight": false,
+            "volume": 1.4836974429277836,
+            "finite": true,
+            "sha256": "a0ce194aac86ff34a0a96d30168b65c1c283c03a25fd9c1827988cf107bfc1e6"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "1767174557760",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "topk": "mean",
+          "timings": {
+            "preprocess": 0.03739960000007159,
+            "condition": 1.0774846999997862,
+            "vae": 0.022208699999964665,
+            "export": 1.717861399999947
+          },
+          "inferenceSeconds": 5.081308499999977,
+          "sampleAndOverheadSeconds": 2.2485628000001725,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 5152702464,
+            "peakAllocatedBytes": 4328048128,
+            "peakReservedBytes": 5152702464,
+            "freeTotalBytes": [
+              6613368832,
+              12884377600
+            ],
+            "peakRssBytes": 1458974720,
+            "minimumSystemAvailableBytes": 8058507264
+          },
+          "geometry": {
+            "faces": 667904,
+            "vertices": 174914,
+            "bounds": [
+              [
+                -0.6645863652229309,
+                -1.0004431009292603,
+                -0.6763827204704285
+              ],
+              [
+                0.6247612833976746,
+                0.9613338708877563,
+                0.6349532604217529
+              ]
+            ],
+            "extents": [
+              1.2893476486206055,
+              1.9617769718170166,
+              1.3113359808921814
+            ],
+            "watertight": false,
+            "volume": 1.4836974061858055,
+            "finite": true,
+            "sha256": "fe2afb14c76255c8d757a6958cdd14f76a47f5c9e298144a0c3147e0cc0de13a"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "1767174557760",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "topk": "mean",
+          "timings": {
+            "preprocess": 0.03765309999994315,
+            "condition": 1.0569030000001476,
+            "vae": 0.038528000000042084,
+            "export": 1.5625230000000556
+          },
+          "inferenceSeconds": 5.042832399999952,
+          "sampleAndOverheadSeconds": 2.3857532999998057,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 5152702464,
+            "peakAllocatedBytes": 4328048128,
+            "peakReservedBytes": 5152702464,
+            "freeTotalBytes": [
+              6613368832,
+              12884377600
+            ],
+            "peakRssBytes": 1392074752,
+            "minimumSystemAvailableBytes": 7969255424
+          },
+          "geometry": {
+            "faces": 667904,
+            "vertices": 174914,
+            "bounds": [
+              [
+                -0.6645863652229309,
+                -1.0004431009292603,
+                -0.6763827204704285
+              ],
+              [
+                0.6247612833976746,
+                0.9613338708877563,
+                0.6349532604217529
+              ]
+            ],
+            "extents": [
+              1.2893476486206055,
+              1.9617769718170166,
+              1.3113359808921814
+            ],
+            "watertight": false,
+            "volume": 1.4836974061858055,
+            "finite": true,
+            "sha256": "fe2afb14c76255c8d757a6958cdd14f76a47f5c9e298144a0c3147e0cc0de13a"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "1767174557760",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 200000,
+          "topk": "mean",
+          "timings": {
+            "preprocess": 0.03566200000000208,
+            "condition": 1.070695300000125,
+            "vae": 0.021228399999927205,
+            "export": 1.3381257999999434
+          },
+          "inferenceSeconds": 4.869718800000101,
+          "sampleAndOverheadSeconds": 2.42523570000003,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 8204058624,
+            "peakAllocatedBytes": 5239803392,
+            "peakReservedBytes": 8204058624,
+            "freeTotalBytes": [
+              3562012672,
+              12884377600
+            ],
+            "peakRssBytes": 1390936064,
+            "minimumSystemAvailableBytes": 8012091392
+          },
+          "geometry": {
+            "faces": 667900,
+            "vertices": 174911,
+            "bounds": [
+              [
+                -0.6645765900611877,
+                -1.000435471534729,
+                -0.6763752698898315
+              ],
+              [
+                0.6247616410255432,
+                0.9613338708877563,
+                0.6349577307701111
+              ]
+            ],
+            "extents": [
+              1.289338231086731,
+              1.9617693424224854,
+              1.3113330006599426
+            ],
+            "watertight": false,
+            "volume": 1.483697449257453,
+            "finite": true,
+            "sha256": "af6ec82356d9eeb4690eec06e34c85be6d8d36c1ec7a23800a708d762402f3c2"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "1767174557760",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 200000,
+          "topk": "mean",
+          "timings": {
+            "preprocess": 0.035762200000135635,
+            "condition": 1.100922399999945,
+            "vae": 0.039671699999871635,
+            "export": 1.4288837999999942
+          },
+          "inferenceSeconds": 5.015619699999888,
+          "sampleAndOverheadSeconds": 2.4500512999998136,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 8204058624,
+            "peakAllocatedBytes": 5239803392,
+            "peakReservedBytes": 8204058624,
+            "freeTotalBytes": [
+              3562012672,
+              12884377600
+            ],
+            "peakRssBytes": 1547476992,
+            "minimumSystemAvailableBytes": 7707615232
+          },
+          "geometry": {
+            "faces": 667900,
+            "vertices": 174911,
+            "bounds": [
+              [
+                -0.6645765900611877,
+                -1.000435471534729,
+                -0.6763752698898315
+              ],
+              [
+                0.6247616410255432,
+                0.9613338708877563,
+                0.6349577307701111
+              ]
+            ],
+            "extents": [
+              1.289338231086731,
+              1.9617693424224854,
+              1.3113330006599426
+            ],
+            "watertight": false,
+            "volume": 1.483697449257453,
+            "finite": true,
+            "sha256": "af6ec82356d9eeb4690eec06e34c85be6d8d36c1ec7a23800a708d762402f3c2"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "1767174557760",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 2048,
+          "topk": "merge",
+          "timings": {
+            "preprocess": 0.03635160000021642,
+            "condition": 1.0224815999999919,
+            "vae": 0.022481800000150542,
+            "export": 2.139749599999959
+          },
+          "inferenceSeconds": 5.610535099999879,
+          "sampleAndOverheadSeconds": 2.4119522999997116,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 8204058624,
+            "peakAllocatedBytes": 4328048128,
+            "peakReservedBytes": 8204058624,
+            "freeTotalBytes": [
+              3562012672,
+              12884377600
+            ],
+            "peakRssBytes": 1629335552,
+            "minimumSystemAvailableBytes": 7598084096
+          },
+          "geometry": {
+            "faces": 668004,
+            "vertices": 175022,
+            "bounds": [
+              [
+                -0.6648995280265808,
+                -0.9980472326278687,
+                -0.676423192024231
+              ],
+              [
+                0.6251378655433655,
+                0.9592194557189941,
+                0.6351081132888794
+              ]
+            ],
+            "extents": [
+              1.2900373935699463,
+              1.9572666883468628,
+              1.3115313053131104
+            ],
+            "watertight": false,
+            "volume": 1.4834393883820791,
+            "finite": true,
+            "sha256": "4d99f7ff2e6e4ddb7c79b937fa8d40d44ca1fbab38e5f9c39e5ca4231fb1c053"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "1767174557760",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 2048,
+          "topk": "merge",
+          "timings": {
+            "preprocess": 0.04774990000009893,
+            "condition": 1.047630799999979,
+            "vae": 0.038455300000123316,
+            "export": 2.736391899999944
+          },
+          "inferenceSeconds": 6.292932299999848,
+          "sampleAndOverheadSeconds": 2.4611596999998255,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 8204058624,
+            "peakAllocatedBytes": 4328048128,
+            "peakReservedBytes": 8204058624,
+            "freeTotalBytes": [
+              3562012672,
+              12884377600
+            ],
+            "peakRssBytes": 1724866560,
+            "minimumSystemAvailableBytes": 7344746496
+          },
+          "geometry": {
+            "faces": 668004,
+            "vertices": 175022,
+            "bounds": [
+              [
+                -0.6648995280265808,
+                -0.9980472326278687,
+                -0.676423192024231
+              ],
+              [
+                0.6251378655433655,
+                0.9592194557189941,
+                0.6351081132888794
+              ]
+            ],
+            "extents": [
+              1.2900373935699463,
+              1.9572666883468628,
+              1.3115313053131104
+            ],
+            "watertight": false,
+            "volume": 1.4834393883820791,
+            "finite": true,
+            "sha256": "4d99f7ff2e6e4ddb7c79b937fa8d40d44ca1fbab38e5f9c39e5ca4231fb1c053"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "1767174557760",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "topk": "merge",
+          "timings": {
+            "preprocess": 0.03478610000001936,
+            "condition": 1.0737521999999444,
+            "vae": 0.04276310000000194,
+            "export": 2.9840246000001116
+          },
+          "inferenceSeconds": 6.649600200000123,
+          "sampleAndOverheadSeconds": 2.5570373000000473,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 8204058624,
+            "peakAllocatedBytes": 4328048128,
+            "peakReservedBytes": 8204058624,
+            "freeTotalBytes": [
+              2810093568,
+              12884377600
+            ],
+            "peakRssBytes": 1725534208,
+            "minimumSystemAvailableBytes": 7202652160
+          },
+          "geometry": {
+            "faces": 668004,
+            "vertices": 175022,
+            "bounds": [
+              [
+                -0.6648995280265808,
+                -0.9980472326278687,
+                -0.676423192024231
+              ],
+              [
+                0.6251378655433655,
+                0.9592194557189941,
+                0.6351081132888794
+              ]
+            ],
+            "extents": [
+              1.2900373935699463,
+              1.9572666883468628,
+              1.3115313053131104
+            ],
+            "watertight": false,
+            "volume": 1.4834393954593468,
+            "finite": true,
+            "sha256": "abcbd053868636dfccb9b1da515f43be32d098bf38d1d6b59195a2191353b22e"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "1767174557760",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "topk": "merge",
+          "timings": {
+            "preprocess": 0.03335930000002918,
+            "condition": 1.0439840999999888,
+            "vae": 0.02842160000000149,
+            "export": 2.339288000000124
+          },
+          "inferenceSeconds": 5.872635400000036,
+          "sampleAndOverheadSeconds": 2.4560039999998935,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 8204058624,
+            "peakAllocatedBytes": 4328048128,
+            "peakReservedBytes": 8204058624,
+            "freeTotalBytes": [
+              3562012672,
+              12884377600
+            ],
+            "peakRssBytes": 1882095616,
+            "minimumSystemAvailableBytes": 7110623232
+          },
+          "geometry": {
+            "faces": 668004,
+            "vertices": 175022,
+            "bounds": [
+              [
+                -0.6648995280265808,
+                -0.9980472326278687,
+                -0.676423192024231
+              ],
+              [
+                0.6251378655433655,
+                0.9592194557189941,
+                0.6351081132888794
+              ]
+            ],
+            "extents": [
+              1.2900373935699463,
+              1.9572666883468628,
+              1.3115313053131104
+            ],
+            "watertight": false,
+            "volume": 1.4834393954593468,
+            "finite": true,
+            "sha256": "abcbd053868636dfccb9b1da515f43be32d098bf38d1d6b59195a2191353b22e"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "1767174557760",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 200000,
+          "topk": "merge",
+          "timings": {
+            "preprocess": 0.03439769999999953,
+            "condition": 1.1046636999999464,
+            "vae": 0.029167500000085056,
+            "export": 1.9379202000000078
+          },
+          "inferenceSeconds": 5.64127829999984,
+          "sampleAndOverheadSeconds": 2.564296699999886,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 8204058624,
+            "peakAllocatedBytes": 5235464704,
+            "peakReservedBytes": 8204058624,
+            "freeTotalBytes": [
+              3562012672,
+              12884377600
+            ],
+            "peakRssBytes": 1949401088,
+            "minimumSystemAvailableBytes": 7031341056
+          },
+          "geometry": {
+            "faces": 668004,
+            "vertices": 175024,
+            "bounds": [
+              [
+                -0.6649026274681091,
+                -0.9980341196060181,
+                -0.67641681432724
+              ],
+              [
+                0.6251317262649536,
+                0.9592194557189941,
+                0.6351112127304077
+              ]
+            ],
+            "extents": [
+              1.2900343537330627,
+              1.9572535753250122,
+              1.3115280270576477
+            ],
+            "watertight": false,
+            "volume": 1.4834370143719486,
+            "finite": true,
+            "sha256": "9e097885747b1ed930292472f27c748635654fefce64202b576e9f8967f21743"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "1767174557760",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 200000,
+          "topk": "merge",
+          "timings": {
+            "preprocess": 0.03749909999987722,
+            "condition": 1.0994379999999637,
+            "vae": 0.04320290000009663,
+            "export": 2.0691103999999996
+          },
+          "inferenceSeconds": 5.7414658999998665,
+          "sampleAndOverheadSeconds": 2.535418400000026,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 8204058624,
+            "peakAllocatedBytes": 5235464704,
+            "peakReservedBytes": 8204058624,
+            "freeTotalBytes": [
+              3562012672,
+              12884377600
+            ],
+            "peakRssBytes": 1882333184,
+            "minimumSystemAvailableBytes": 6998417408
+          },
+          "geometry": {
+            "faces": 668004,
+            "vertices": 175024,
+            "bounds": [
+              [
+                -0.6649026274681091,
+                -0.9980341196060181,
+                -0.67641681432724
+              ],
+              [
+                0.6251317262649536,
+                0.9592194557189941,
+                0.6351112127304077
+              ]
+            ],
+            "extents": [
+              1.2900343537330627,
+              1.9572535753250122,
+              1.3115280270576477
+            ],
+            "watertight": false,
+            "volume": 1.4834370143719486,
+            "finite": true,
+            "sha256": "9e097885747b1ed930292472f27c748635654fefce64202b576e9f8967f21743"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "1767174557760",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 384,
+          "chunks": 8000,
+          "topk": "mean",
+          "timings": {
+            "preprocess": 0.034958799999913026,
+            "condition": 1.0937078000001748,
+            "vae": 0.039186499999914304,
+            "export": 4.28497880000009
+          },
+          "inferenceSeconds": 7.947319999999991,
+          "sampleAndOverheadSeconds": 2.533674599999813,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 8204058624,
+            "peakAllocatedBytes": 4829981696,
+            "peakReservedBytes": 8204058624,
+            "freeTotalBytes": [
+              3562012672,
+              12884377600
+            ],
+            "peakRssBytes": 1983586304,
+            "minimumSystemAvailableBytes": 6795161600
+          },
+          "geometry": {
+            "faces": 1548808,
+            "vertices": 399719,
+            "bounds": [
+              [
+                -0.6624369621276855,
+                -1.0000298023223877,
+                -0.6742181181907654
+              ],
+              [
+                0.635671854019165,
+                0.9739985466003418,
+                0.6458199620246887
+              ]
+            ],
+            "extents": [
+              1.2981088161468506,
+              1.9740283489227295,
+              1.320038080215454
+            ],
+            "watertight": false,
+            "volume": 1.5131184599980863,
+            "finite": true,
+            "sha256": "4b9f62d1dd5149dc89871774b7fc2ec521f0a1c3685e0423018c5ae6fa1a8d39"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "1767174557760",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 384,
+          "chunks": 8000,
+          "topk": "mean",
+          "timings": {
+            "preprocess": 0.0436095000000023,
+            "condition": 1.1141238999998677,
+            "vae": 0.03763329999992493,
+            "export": 4.260810800000172
+          },
+          "inferenceSeconds": 8.0125101000001,
+          "sampleAndOverheadSeconds": 2.5939659000000574,
+          "memory": {
+            "allocatedBytes": 4039092736,
+            "reservedBytes": 8204058624,
+            "peakAllocatedBytes": 4829981696,
+            "peakReservedBytes": 8204058624,
+            "freeTotalBytes": [
+              3562012672,
+              12884377600
+            ],
+            "peakRssBytes": 2017193984,
+            "minimumSystemAvailableBytes": 6713790464
+          },
+          "geometry": {
+            "faces": 1548808,
+            "vertices": 399719,
+            "bounds": [
+              [
+                -0.6624369621276855,
+                -1.0000298023223877,
+                -0.6742181181907654
+              ],
+              [
+                0.635671854019165,
+                0.9739985466003418,
+                0.6458199620246887
+              ]
+            ],
+            "extents": [
+              1.2981088161468506,
+              1.9740283489227295,
+              1.320038080215454
+            ],
+            "watertight": false,
+            "volume": 1.5131184599980863,
+            "finite": true,
+            "sha256": "4b9f62d1dd5149dc89871774b7fc2ec521f0a1c3685e0423018c5ae6fa1a8d39"
+          },
+          "status": "succeeded"
+        }
+      ],
+      "sourceVerification": [
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/__init__.py",
+          "sha256": "e1a0f10f65a41667fadafc1fa2fe31a5b2c7f5dea7a659b3039e029d75ce1db0"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/pipelines.py",
+          "sha256": "3eb438997fca59f682866f529f1984d4852d717577c24743e5d9bfd5566fa467"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/postprocessors.py",
+          "sha256": "3899ef49fbc7453553d264d16c14305a9ee9c6f8a3341a8850b960f018640a17"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/preprocessors.py",
+          "sha256": "284dc24fabbf974bd6793ebd58e95b7700550d90371cacb96ad0889ec558de1e"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/schedulers.py",
+          "sha256": "d3b25b84dac26f0e862cfc866da08df2d6592f01a0aaeda965782ab0fc1d8bba"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/surface_loaders.py",
+          "sha256": "59498b96540d3915c1afbdb52fa125b6e4564c6261a54de2d402a729b0ffc624"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/utils.py",
+          "sha256": "434987747ec07c734b64cc933f7829bf6d10800a7c5e97f649547aa5979c1fbd"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/__init__.py",
+          "sha256": "d233d923a912621c986201e482b1c7b9a5fc014974e6bb952ceb7b36f3c4020f"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/conditioner.py",
+          "sha256": "c735ef7abbdd0fad089e684a237ef30a6cb7616c2faa49a30571d3640c2865c9"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/__init__.py",
+          "sha256": "2f56106c91dfc126f3e20551e8a7a48f049be7b33eda814ae1c184bc979328fe"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/attention_blocks.py",
+          "sha256": "86590fe6b7dae1e3250d08df8291bc2825f754663a2335f31887c5f8065b6ed0"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/attention_processors.py",
+          "sha256": "9a461ddde9a2bf5ca0cd3961c3c1b86f9c81772066fe5b815bc497e0b5a8f053"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/model.py",
+          "sha256": "22ea23cb832017e628f139b06743de5ef54c4fcb298f532f94c99a4a25996893"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/surface_extractors.py",
+          "sha256": "4b53ab319955b22957963e7d9872de46e2c47b2aa5d5d897d62ede64aecc13cd"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/volume_decoders.py",
+          "sha256": "95ffab6bd0a11034bc2b7415fef1379e27c4d2238638f831a0456019d90484eb"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/__init__.py",
+          "sha256": "f1c91751fa8db7ecf531189aae33a59b5b9e3e10aa0d524edf33f6857eea8cfd"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/hunyuan3ddit.py",
+          "sha256": "0288db52767927a03bbbd687eba253f4567493d3d6c24c97b289ea7a1acd13c3"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/hunyuandit.py",
+          "sha256": "b9a51ac5338c6f886f4312a5967933a23969fb293cfc5c0b9c40236207cf89b5"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/moe_layers.py",
+          "sha256": "afd9ca7511c2cd028d220f18c4b4e31a457cda19a1de34bfb925af663a24f3af"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/__init__.py",
+          "sha256": "8ab24870a628fb94a3d903d7d149d3eb3d20b32cadf8f6680c6e457562384a41"
+        }
+      ],
+      "harnessSha256": "17fc8f8e5586a34e21de899d39095ec336a95e5fd2b5ee1e4163b735dcf8a59f",
+      "sourceRevision": "f8db63096c8282cb27354314d896feba5ba6ff8a",
+      "loadSeconds": 142.70137019999993,
+      "afterLoad": {
+        "allocatedBytes": 4030572544,
+        "reservedBytes": 4812963840,
+        "peakAllocatedBytes": 4686104064,
+        "peakReservedBytes": 4812963840,
+        "freeTotalBytes": [
+          6988759040,
+          12884377600
+        ],
+        "peakRssBytes": 8600543232,
+        "minimumSystemAvailableBytes": 6905856
+      },
+      "instanceId": "1767174557760",
+      "loadCount": 1,
+      "torchThreads": 4,
+      "processMemory": {
+        "peakRssBytes": 2308800512,
+        "minimumSystemAvailableBytes": 6409527296
+      }
+    },
+    "turbo-official": {
+      "arguments": {
+        "model": "hunyuan-turbo",
+        "path": "official",
+        "output": "output\\cuda-official-20261028\\turbo-official",
+        "inputs": "vase,vase,chair,umbrella,bonsai,vase",
+        "resolution": 256,
+        "chunks": 8000,
+        "topk": "mean",
+        "chunks_list": null,
+        "topk_list": null,
+        "threads": 4,
+        "extra_default_runs": true,
+        "offload": false,
+        "steps": null,
+        "seed": 12345
+      },
+      "model": {
+        "key": "turbo",
+        "name": "Hunyuan3D-2-Turbo",
+        "series": "2.0",
+        "revision": "9cd649ba6913f7a852e3286bad86bfa9a2d83dcf",
+        "tag": "\u5747\u8861",
+        "steps": 5,
+        "max_steps": 10,
+        "dit": "hunyuan3d-dit-v2-0-turbo",
+        "vae": "hunyuan3d-vae-v2-0-turbo",
+        "counts": [
+          1114587200,
+          1136480768,
+          203690497
+        ]
+      },
+      "environment": {
+        "python": "3.12.12 (main, Oct 28 2025, 14:15:42) [MSC v.1944 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.22631-SP0",
+        "torch": "2.6.0+cu124",
+        "cuda": "12.4",
+        "gpu": "NVIDIA GeForce RTX 3060",
+        "gpuBytes": 12884377600,
+        "systemMemory": {
+          "total": 17009618944,
+          "available": 8546156544,
+          "percent": 49.8,
+          "used": 8463462400,
+          "free": 8546156544
+        },
+        "dependencies": {
+          "torchvision": "0.21.0+cu124",
+          "transformers": "4.49.0",
+          "diffusers": "0.32.2",
+          "accelerate": "1.15.0",
+          "numpy": "1.26.4",
+          "trimesh": "4.0.5"
+        }
+      },
+      "runs": [
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "2261905648928",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "topk": "mean",
+          "timings": {
+            "preprocess": 0.17624679999994441,
+            "condition": 1.033997799999952,
+            "vae": 0.12536599999998543,
+            "export": 2.7623484000000644
+          },
+          "inferenceSeconds": 7.6624541999999565,
+          "sampleAndOverheadSeconds": 3.6898611999999957,
+          "memory": {
+            "allocatedBytes": 5147273728,
+            "reservedBytes": 6157238272,
+            "peakAllocatedBytes": 5405307392,
+            "peakReservedBytes": 6157238272,
+            "freeTotalBytes": [
+              5608833024,
+              12884377600
+            ],
+            "peakRssBytes": 1740263424,
+            "minimumSystemAvailableBytes": 8471805952
+          },
+          "geometry": {
+            "faces": 650380,
+            "vertices": 179744,
+            "bounds": [
+              [
+                -0.6635798215866089,
+                -0.9986602067947388,
+                -0.6626472473144531
+              ],
+              [
+                0.6245176792144775,
+                0.9593185186386108,
+                0.6249257922172546
+              ]
+            ],
+            "extents": [
+              1.2880975008010864,
+              1.9579787254333496,
+              1.2875730395317078
+            ],
+            "watertight": false,
+            "volume": 1.4148736365578163,
+            "finite": true,
+            "sha256": "824a3b7390a490075ee662ea774d331251a9f9770069074e999a3bd8b1e6104f"
+          },
+          "status": "succeeded",
+          "officialReduction": {
+            "rawFaces": 650380,
+            "reducedFaces": 12000,
+            "reductionSeconds": 5.510230200000024,
+            "reducer": "Pinned upstream FaceReducer / pymeshlab"
+          }
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "2261905648928",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "topk": "mean",
+          "timings": {
+            "preprocess": 0.021939500000144108,
+            "condition": 0.21352660000002288,
+            "vae": 0.10914679999996224,
+            "export": 1.6050639000000047
+          },
+          "inferenceSeconds": 4.973776699999917,
+          "sampleAndOverheadSeconds": 3.133246699999745,
+          "memory": {
+            "allocatedBytes": 5147273728,
+            "reservedBytes": 6157238272,
+            "peakAllocatedBytes": 5404956160,
+            "peakReservedBytes": 6157238272,
+            "freeTotalBytes": [
+              5608833024,
+              12884377600
+            ],
+            "peakRssBytes": 1376800768,
+            "minimumSystemAvailableBytes": 8709029888
+          },
+          "geometry": {
+            "faces": 650380,
+            "vertices": 179744,
+            "bounds": [
+              [
+                -0.6635798215866089,
+                -0.9986602067947388,
+                -0.6626472473144531
+              ],
+              [
+                0.6245176792144775,
+                0.9593185186386108,
+                0.6249257922172546
+              ]
+            ],
+            "extents": [
+              1.2880975008010864,
+              1.9579787254333496,
+              1.2875730395317078
+            ],
+            "watertight": false,
+            "volume": 1.4148736365578163,
+            "finite": true,
+            "sha256": "824a3b7390a490075ee662ea774d331251a9f9770069074e999a3bd8b1e6104f"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "chair",
+          "inputSha256": "43a72eb6971fafd2176b87b9e5cbbd1790bbe8dfa3def3405e228ea8dafd1d68",
+          "instanceId": "2261905648928",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "topk": "mean",
+          "timings": {
+            "preprocess": 0.039301600000044346,
+            "condition": 0.21476979999988544,
+            "vae": 0.10856580000017857,
+            "export": 1.779763500000172
+          },
+          "inferenceSeconds": 5.284683100000166,
+          "sampleAndOverheadSeconds": 3.250848200000064,
+          "memory": {
+            "allocatedBytes": 5147273728,
+            "reservedBytes": 6157238272,
+            "peakAllocatedBytes": 5430044672,
+            "peakReservedBytes": 6157238272,
+            "freeTotalBytes": [
+              5608833024,
+              12884377600
+            ],
+            "peakRssBytes": 1423671296,
+            "minimumSystemAvailableBytes": 8522190848
+          },
+          "geometry": {
+            "faces": 504228,
+            "vertices": 151800,
+            "bounds": [
+              [
+                -0.6619052886962891,
+                -0.9984639286994934,
+                -0.512814998626709
+              ],
+              [
+                0.6230261921882629,
+                0.9587013721466064,
+                0.47712329030036926
+              ]
+            ],
+            "extents": [
+              1.284931480884552,
+              1.9571653008460999,
+              0.9899382889270782
+            ],
+            "watertight": false,
+            "volume": 0.29240655232568225,
+            "finite": true,
+            "sha256": "6b035e280b426c82ab817d3b260759fec7e851dbfc6bf296bcb1b8f5b8678dd4"
+          },
+          "status": "succeeded",
+          "officialReduction": {
+            "rawFaces": 504228,
+            "reducedFaces": 12000,
+            "reductionSeconds": 4.849659900000006,
+            "reducer": "Pinned upstream FaceReducer / pymeshlab"
+          }
+        },
+        {
+          "input": "umbrella",
+          "inputSha256": "c79b4d5aaf8fdfcc048e6f17f0bc5d37195b23526a8aad38321ba8c6ab646741",
+          "instanceId": "2261905648928",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "topk": "mean",
+          "timings": {
+            "preprocess": 0.032231400000000576,
+            "condition": 0.19960600000013073,
+            "vae": 0.10916629999996985,
+            "export": 1.0848051000000396
+          },
+          "inferenceSeconds": 4.458257200000162,
+          "sampleAndOverheadSeconds": 3.141614699999991,
+          "memory": {
+            "allocatedBytes": 5147273728,
+            "reservedBytes": 6159335424,
+            "peakAllocatedBytes": 5382159360,
+            "peakReservedBytes": 6159335424,
+            "freeTotalBytes": [
+              5606735872,
+              12884377600
+            ],
+            "peakRssBytes": 1392635904,
+            "minimumSystemAvailableBytes": 8588070912
+          },
+          "geometry": {
+            "faces": 187948,
+            "vertices": 92166,
+            "bounds": [
+              [
+                -0.7805402874946594,
+                -0.9986131191253662,
+                -0.7864164710044861
+              ],
+              [
+                0.7402950525283813,
+                0.9587345719337463,
+                0.7471627593040466
+              ]
+            ],
+            "extents": [
+              1.5208353400230408,
+              1.9573476910591125,
+              1.5335792303085327
+            ],
+            "watertight": false,
+            "volume": 0.03224723786481298,
+            "finite": true,
+            "sha256": "10144381b3b0a945b89a6ae89b5ff534bf70ff267f3d00a50a0ca560cc76b39e"
+          },
+          "status": "succeeded",
+          "officialReduction": {
+            "rawFaces": 187948,
+            "reducedFaces": 11999,
+            "reductionSeconds": 3.1308682000001227,
+            "reducer": "Pinned upstream FaceReducer / pymeshlab"
+          }
+        },
+        {
+          "input": "bonsai",
+          "inputSha256": "a6fdcfa153818ac203cbf04e3031b166e88fdf0c2c63accfa8b3713c55752c1d",
+          "instanceId": "2261905648928",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "topk": "mean",
+          "timings": {
+            "preprocess": 0.023496499999964726,
+            "condition": 0.1970221000001402,
+            "vae": 0.10937630000012177,
+            "export": 1.9694306000001234
+          },
+          "inferenceSeconds": 5.397590499999978,
+          "sampleAndOverheadSeconds": 3.20764129999975,
+          "memory": {
+            "allocatedBytes": 5147273728,
+            "reservedBytes": 6467616768,
+            "peakAllocatedBytes": 5540595712,
+            "peakReservedBytes": 6467616768,
+            "freeTotalBytes": [
+              5298454528,
+              12884377600
+            ],
+            "peakRssBytes": 1319321600,
+            "minimumSystemAvailableBytes": 8724467712
+          },
+          "geometry": {
+            "faces": 808842,
+            "vertices": 266144,
+            "bounds": [
+              [
+                -1.0099999904632568,
+                -0.9833807945251465,
+                -0.5160192847251892
+              ],
+              [
+                0.9490559697151184,
+                0.9323239922523499,
+                0.477169930934906
+              ]
+            ],
+            "extents": [
+              1.9590559601783752,
+              1.9157047867774963,
+              0.9931892156600952
+            ],
+            "watertight": false,
+            "volume": 0.7550060636076723,
+            "finite": true,
+            "sha256": "ef6fcb46bedd68f962f54796d19e2eb3f4616e7a64a91ebfb949067b4594bac8"
+          },
+          "status": "succeeded",
+          "officialReduction": {
+            "rawFaces": 808842,
+            "reducedFaces": 12000,
+            "reductionSeconds": 9.38008190000005,
+            "reducer": "Pinned upstream FaceReducer / pymeshlab"
+          }
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "2261905648928",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "topk": "mean",
+          "timings": {
+            "preprocess": 0.022292499999821302,
+            "condition": 0.23098040000013498,
+            "vae": 0.11367850000010549,
+            "export": 2.453786799999989
+          },
+          "inferenceSeconds": 6.2473620000000665,
+          "sampleAndOverheadSeconds": 3.5403023000001212,
+          "memory": {
+            "allocatedBytes": 5147273728,
+            "reservedBytes": 6467616768,
+            "peakAllocatedBytes": 5404171264,
+            "peakReservedBytes": 6467616768,
+            "freeTotalBytes": [
+              5298454528,
+              12884377600
+            ],
+            "peakRssBytes": 1386151936,
+            "minimumSystemAvailableBytes": 8596578304
+          },
+          "geometry": {
+            "faces": 650380,
+            "vertices": 179744,
+            "bounds": [
+              [
+                -0.6635798215866089,
+                -0.9986602067947388,
+                -0.6626472473144531
+              ],
+              [
+                0.6245176792144775,
+                0.9593185186386108,
+                0.6249257922172546
+              ]
+            ],
+            "extents": [
+              1.2880975008010864,
+              1.9579787254333496,
+              1.2875730395317078
+            ],
+            "watertight": false,
+            "volume": 1.4148736365578163,
+            "finite": true,
+            "sha256": "824a3b7390a490075ee662ea774d331251a9f9770069074e999a3bd8b1e6104f"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "2261905648928",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 384,
+          "chunks": 8000,
+          "topk": "mean",
+          "timings": {
+            "preprocess": 0.01958239999999023,
+            "condition": 0.20776279999995495,
+            "vae": 0.1090014000001247,
+            "export": 3.836728199999925
+          },
+          "inferenceSeconds": 7.325021200000037,
+          "sampleAndOverheadSeconds": 3.2609478000001673,
+          "memory": {
+            "allocatedBytes": 5147273728,
+            "reservedBytes": 7025459200,
+            "peakAllocatedBytes": 5934385152,
+            "peakReservedBytes": 7025459200,
+            "freeTotalBytes": [
+              4740612096,
+              12884377600
+            ],
+            "peakRssBytes": 1641910272,
+            "minimumSystemAvailableBytes": 8288714752
+          },
+          "geometry": {
+            "faces": 1578704,
+            "vertices": 410788,
+            "bounds": [
+              [
+                -0.6612836718559265,
+                -1.001421570777893,
+                -0.6603691577911377
+              ],
+              [
+                0.6352971196174622,
+                0.9749978184700012,
+                0.635668158531189
+              ]
+            ],
+            "extents": [
+              1.2965807914733887,
+              1.9764193892478943,
+              1.2960373163223267
+            ],
+            "watertight": false,
+            "volume": 1.4441578349922477,
+            "finite": true,
+            "sha256": "c23abfe5c7717b5b9db61db11448d3503bd00cb50af7c70dff40faab598513c7"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "2261905648928",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 384,
+          "chunks": 8000,
+          "topk": "mean",
+          "timings": {
+            "preprocess": 0.025115899999946123,
+            "condition": 0.22331979999989926,
+            "vae": 0.11089970000011817,
+            "export": 4.47692579999989
+          },
+          "inferenceSeconds": 8.534855000000107,
+          "sampleAndOverheadSeconds": 3.8094935000003716,
+          "memory": {
+            "allocatedBytes": 5147273728,
+            "reservedBytes": 7025459200,
+            "peakAllocatedBytes": 5934385152,
+            "peakReservedBytes": 7025459200,
+            "freeTotalBytes": [
+              4740612096,
+              12884377600
+            ],
+            "peakRssBytes": 2011758592,
+            "minimumSystemAvailableBytes": 7556079616
+          },
+          "geometry": {
+            "faces": 1578704,
+            "vertices": 410788,
+            "bounds": [
+              [
+                -0.6612836718559265,
+                -1.001421570777893,
+                -0.6603691577911377
+              ],
+              [
+                0.6352971196174622,
+                0.9749978184700012,
+                0.635668158531189
+              ]
+            ],
+            "extents": [
+              1.2965807914733887,
+              1.9764193892478943,
+              1.2960373163223267
+            ],
+            "watertight": false,
+            "volume": 1.4441578349922477,
+            "finite": true,
+            "sha256": "c23abfe5c7717b5b9db61db11448d3503bd00cb50af7c70dff40faab598513c7"
+          },
+          "status": "succeeded"
+        }
+      ],
+      "sourceVerification": [
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/__init__.py",
+          "sha256": "e1a0f10f65a41667fadafc1fa2fe31a5b2c7f5dea7a659b3039e029d75ce1db0"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/pipelines.py",
+          "sha256": "3eb438997fca59f682866f529f1984d4852d717577c24743e5d9bfd5566fa467"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/postprocessors.py",
+          "sha256": "3899ef49fbc7453553d264d16c14305a9ee9c6f8a3341a8850b960f018640a17"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/preprocessors.py",
+          "sha256": "284dc24fabbf974bd6793ebd58e95b7700550d90371cacb96ad0889ec558de1e"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/schedulers.py",
+          "sha256": "d3b25b84dac26f0e862cfc866da08df2d6592f01a0aaeda965782ab0fc1d8bba"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/surface_loaders.py",
+          "sha256": "59498b96540d3915c1afbdb52fa125b6e4564c6261a54de2d402a729b0ffc624"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/utils.py",
+          "sha256": "434987747ec07c734b64cc933f7829bf6d10800a7c5e97f649547aa5979c1fbd"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/__init__.py",
+          "sha256": "d233d923a912621c986201e482b1c7b9a5fc014974e6bb952ceb7b36f3c4020f"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/conditioner.py",
+          "sha256": "c735ef7abbdd0fad089e684a237ef30a6cb7616c2faa49a30571d3640c2865c9"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/__init__.py",
+          "sha256": "2f56106c91dfc126f3e20551e8a7a48f049be7b33eda814ae1c184bc979328fe"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/attention_blocks.py",
+          "sha256": "86590fe6b7dae1e3250d08df8291bc2825f754663a2335f31887c5f8065b6ed0"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/attention_processors.py",
+          "sha256": "9a461ddde9a2bf5ca0cd3961c3c1b86f9c81772066fe5b815bc497e0b5a8f053"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/model.py",
+          "sha256": "22ea23cb832017e628f139b06743de5ef54c4fcb298f532f94c99a4a25996893"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/surface_extractors.py",
+          "sha256": "4b53ab319955b22957963e7d9872de46e2c47b2aa5d5d897d62ede64aecc13cd"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/volume_decoders.py",
+          "sha256": "95ffab6bd0a11034bc2b7415fef1379e27c4d2238638f831a0456019d90484eb"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/__init__.py",
+          "sha256": "f1c91751fa8db7ecf531189aae33a59b5b9e3e10aa0d524edf33f6857eea8cfd"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/hunyuan3ddit.py",
+          "sha256": "0288db52767927a03bbbd687eba253f4567493d3d6c24c97b289ea7a1acd13c3"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/hunyuandit.py",
+          "sha256": "b9a51ac5338c6f886f4312a5967933a23969fb293cfc5c0b9c40236207cf89b5"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/moe_layers.py",
+          "sha256": "afd9ca7511c2cd028d220f18c4b4e31a457cda19a1de34bfb925af663a24f3af"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/__init__.py",
+          "sha256": "8ab24870a628fb94a3d903d7d149d3eb3d20b32cadf8f6680c6e457562384a41"
+        }
+      ],
+      "harnessSha256": "17fc8f8e5586a34e21de899d39095ec336a95e5fd2b5ee1e4163b735dcf8a59f",
+      "sourceRevision": "f8db63096c8282cb27354314d896feba5ba6ff8a",
+      "loadSeconds": 103.0338612999999,
+      "afterLoad": {
+        "allocatedBytes": 5138753536,
+        "reservedBytes": 5920260096,
+        "peakAllocatedBytes": 5794285056,
+        "peakReservedBytes": 5920260096,
+        "freeTotalBytes": [
+          5881462784,
+          12884377600
+        ],
+        "peakRssBytes": 9961394176,
+        "minimumSystemAvailableBytes": 120823808
+      },
+      "instanceId": "2261905648928",
+      "loadCount": 1,
+      "torchThreads": 4,
+      "processMemory": {
+        "peakRssBytes": 2011758592,
+        "minimumSystemAvailableBytes": 7556079616
+      }
+    },
+    "turbo-project": {
+      "arguments": {
+        "model": "hunyuan-turbo",
+        "path": "project",
+        "output": "output\\cuda-official-20261028\\turbo-project",
+        "inputs": "vase,vase,chair,umbrella,bonsai,vase",
+        "resolution": 256,
+        "chunks": 2048,
+        "topk": "mean",
+        "chunks_list": null,
+        "topk_list": null,
+        "threads": 4,
+        "extra_default_runs": false,
+        "offload": false,
+        "steps": null,
+        "seed": 12345
+      },
+      "model": {
+        "key": "turbo",
+        "name": "Hunyuan3D-2-Turbo",
+        "series": "2.0",
+        "revision": "9cd649ba6913f7a852e3286bad86bfa9a2d83dcf",
+        "tag": "\u5747\u8861",
+        "steps": 5,
+        "max_steps": 10,
+        "dit": "hunyuan3d-dit-v2-0-turbo",
+        "vae": "hunyuan3d-vae-v2-0-turbo",
+        "counts": [
+          1114587200,
+          1136480768,
+          203690497
+        ]
+      },
+      "environment": {
+        "python": "3.12.12 (main, Oct 28 2025, 14:15:42) [MSC v.1944 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.22631-SP0",
+        "torch": "2.6.0+cu124",
+        "cuda": "12.4",
+        "gpu": "NVIDIA GeForce RTX 3060",
+        "gpuBytes": 12884377600,
+        "systemMemory": {
+          "total": 17009618944,
+          "available": 8941133824,
+          "percent": 47.4,
+          "used": 8068485120,
+          "free": 8941133824
+        },
+        "dependencies": {
+          "torchvision": "0.21.0+cu124",
+          "transformers": "4.49.0",
+          "diffusers": "0.32.2",
+          "accelerate": "1.15.0",
+          "numpy": "1.26.4",
+          "trimesh": "4.0.5"
+        }
+      },
+      "runs": [
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "2275881448560",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 2048,
+          "topk": "merge",
+          "timings": {
+            "preprocess": 0.04277159999992364,
+            "condition": 0.6315726000000268,
+            "export": 2.3372033000000556,
+            "vae": 0.11036969999986468
+          },
+          "inferenceSeconds": 6.062142300000005,
+          "sampleAndOverheadSeconds": 3.050594799999999,
+          "memory": {
+            "allocatedBytes": 4919437312,
+            "reservedBytes": 5381292032,
+            "peakAllocatedBytes": 5200391168,
+            "peakReservedBytes": 5381292032,
+            "freeTotalBytes": [
+              6384779264,
+              12884377600
+            ],
+            "peakRssBytes": 1749557248,
+            "minimumSystemAvailableBytes": 6725160960
+          },
+          "geometry": {
+            "faces": 709844,
+            "vertices": 179847,
+            "bounds": [
+              [
+                -0.6636082530021667,
+                -0.9985890984535217,
+                -0.6628876328468323
+              ],
+              [
+                0.6246094107627869,
+                0.9594218730926514,
+                0.6251705884933472
+              ]
+            ],
+            "extents": [
+              1.2882176637649536,
+              1.958010971546173,
+              1.2880582213401794
+            ],
+            "watertight": false,
+            "volume": 1.4159840231083545,
+            "finite": true,
+            "sha256": "a697bae5401ead31dad939fdb596bba512c542ef785eb374a70a8cb75ea18b62"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "2275881448560",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 2048,
+          "topk": "merge",
+          "timings": {
+            "preprocess": 0.02862619999996241,
+            "condition": 0.22624769999993077,
+            "export": 3.4289953000002242,
+            "vae": 0.10902099999998427
+          },
+          "inferenceSeconds": 7.103465400000005,
+          "sampleAndOverheadSeconds": 3.419596199999887,
+          "memory": {
+            "allocatedBytes": 4919437312,
+            "reservedBytes": 5381292032,
+            "peakAllocatedBytes": 5200391168,
+            "peakReservedBytes": 5381292032,
+            "freeTotalBytes": [
+              6384779264,
+              12884377600
+            ],
+            "peakRssBytes": 1832759296,
+            "minimumSystemAvailableBytes": 6684704768
+          },
+          "geometry": {
+            "faces": 709844,
+            "vertices": 179847,
+            "bounds": [
+              [
+                -0.6636082530021667,
+                -0.9985890984535217,
+                -0.6628876328468323
+              ],
+              [
+                0.6246094107627869,
+                0.9594218730926514,
+                0.6251705884933472
+              ]
+            ],
+            "extents": [
+              1.2882176637649536,
+              1.958010971546173,
+              1.2880582213401794
+            ],
+            "watertight": false,
+            "volume": 1.4159840231083545,
+            "finite": true,
+            "sha256": "a697bae5401ead31dad939fdb596bba512c542ef785eb374a70a8cb75ea18b62"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "chair",
+          "inputSha256": "43a72eb6971fafd2176b87b9e5cbbd1790bbe8dfa3def3405e228ea8dafd1d68",
+          "instanceId": "2275881448560",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 2048,
+          "topk": "merge",
+          "timings": {
+            "preprocess": 0.028676399999994828,
+            "condition": 0.2165431000000808,
+            "export": 2.1755674999997154,
+            "vae": 0.10856710000007297
+          },
+          "inferenceSeconds": 5.440577399999938,
+          "sampleAndOverheadSeconds": 3.019790400000147,
+          "memory": {
+            "allocatedBytes": 4919437312,
+            "reservedBytes": 5416943616,
+            "peakAllocatedBytes": 5233597952,
+            "peakReservedBytes": 5416943616,
+            "freeTotalBytes": [
+              6349127680,
+              12884377600
+            ],
+            "peakRssBytes": 1839366144,
+            "minimumSystemAvailableBytes": 6665035776
+          },
+          "geometry": {
+            "faces": 477068,
+            "vertices": 151916,
+            "bounds": [
+              [
+                -0.6604936122894287,
+                -0.9983553290367126,
+                -0.512703001499176
+              ],
+              [
+                0.6214931011199951,
+                0.9589726328849792,
+                0.47679561376571655
+              ]
+            ],
+            "extents": [
+              1.2819867134094238,
+              1.957327961921692,
+              0.9894986152648926
+            ],
+            "watertight": false,
+            "volume": 0.29213162533706827,
+            "finite": true,
+            "sha256": "bb658b88849c1f4a3d43acd8f3762f259ef0e4e88771d13835f9a9aa08e05bdb"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "umbrella",
+          "inputSha256": "c79b4d5aaf8fdfcc048e6f17f0bc5d37195b23526a8aad38321ba8c6ab646741",
+          "instanceId": "2275881448560",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 2048,
+          "topk": "merge",
+          "timings": {
+            "preprocess": 0.030488300000115487,
+            "condition": 0.19817249999982778,
+            "export": 1.839061399999764,
+            "vae": 0.10876460000008592
+          },
+          "inferenceSeconds": 5.342808399999967,
+          "sampleAndOverheadSeconds": 3.27508620000026,
+          "memory": {
+            "allocatedBytes": 4919437312,
+            "reservedBytes": 5416943616,
+            "peakAllocatedBytes": 5147227648,
+            "peakReservedBytes": 5416943616,
+            "freeTotalBytes": [
+              6349127680,
+              12884377600
+            ],
+            "peakRssBytes": 1788559360,
+            "minimumSystemAvailableBytes": 6732984320
+          },
+          "geometry": {
+            "faces": 187472,
+            "vertices": 92209,
+            "bounds": [
+              [
+                -0.7803099751472473,
+                -0.998677670955658,
+                -0.7863927483558655
+              ],
+              [
+                0.7399213314056396,
+                0.9587765336036682,
+                0.7472606301307678
+              ]
+            ],
+            "extents": [
+              1.520231306552887,
+              1.9574542045593262,
+              1.5336533784866333
+            ],
+            "watertight": false,
+            "volume": 0.03242253150542142,
+            "finite": true,
+            "sha256": "63efaea02611772869e82de033fd31552bf0e983a48896aefef2d99cc2e36262"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "bonsai",
+          "inputSha256": "a6fdcfa153818ac203cbf04e3031b166e88fdf0c2c63accfa8b3713c55752c1d",
+          "instanceId": "2275881448560",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 2048,
+          "topk": "merge",
+          "timings": {
+            "preprocess": 0.02412189999995462,
+            "condition": 0.20172130000014477,
+            "export": 2.204443699999956,
+            "vae": 0.10960660000000644
+          },
+          "inferenceSeconds": 5.445228399999905,
+          "sampleAndOverheadSeconds": 3.01494149999985,
+          "memory": {
+            "allocatedBytes": 4919437312,
+            "reservedBytes": 5744099328,
+            "peakAllocatedBytes": 5394787328,
+            "peakReservedBytes": 5744099328,
+            "freeTotalBytes": [
+              6021971968,
+              12884377600
+            ],
+            "peakRssBytes": 1764704256,
+            "minimumSystemAvailableBytes": 6738100224
+          },
+          "geometry": {
+            "faces": 847652,
+            "vertices": 265908,
+            "bounds": [
+              [
+                -0.9945931434631348,
+                -0.9836833477020264,
+                -0.516226053237915
+              ],
+              [
+                0.9496648907661438,
+                0.9323812127113342,
+                0.47673553228378296
+              ]
+            ],
+            "extents": [
+              1.9442580342292786,
+              1.9160645604133606,
+              0.992961585521698
+            ],
+            "watertight": false,
+            "volume": 0.7565275885979764,
+            "finite": true,
+            "sha256": "93b021a36ed4c63600af2d5ea41fd483041da3ea02537f44e3cd90a68f42e1f0"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "2275881448560",
+          "steps": 5,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 2048,
+          "topk": "merge",
+          "timings": {
+            "preprocess": 0.02108060000000478,
+            "condition": 0.2020853999999872,
+            "export": 2.1673729999997704,
+            "vae": 0.11027120000017021
+          },
+          "inferenceSeconds": 5.31643710000003,
+          "sampleAndOverheadSeconds": 2.9258981000002677,
+          "memory": {
+            "allocatedBytes": 4919437312,
+            "reservedBytes": 5744099328,
+            "peakAllocatedBytes": 5198244352,
+            "peakReservedBytes": 5744099328,
+            "freeTotalBytes": [
+              6021971968,
+              12884377600
+            ],
+            "peakRssBytes": 1960841216,
+            "minimumSystemAvailableBytes": 6555787264
+          },
+          "geometry": {
+            "faces": 709844,
+            "vertices": 179847,
+            "bounds": [
+              [
+                -0.6636082530021667,
+                -0.9985890984535217,
+                -0.6628876328468323
+              ],
+              [
+                0.6246094107627869,
+                0.9594218730926514,
+                0.6251705884933472
+              ]
+            ],
+            "extents": [
+              1.2882176637649536,
+              1.958010971546173,
+              1.2880582213401794
+            ],
+            "watertight": false,
+            "volume": 1.4159840231083545,
+            "finite": true,
+            "sha256": "a697bae5401ead31dad939fdb596bba512c542ef785eb374a70a8cb75ea18b62"
+          },
+          "status": "succeeded"
+        }
+      ],
+      "sourceVerification": [
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/__init__.py",
+          "sha256": "e1a0f10f65a41667fadafc1fa2fe31a5b2c7f5dea7a659b3039e029d75ce1db0"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/pipelines.py",
+          "sha256": "3eb438997fca59f682866f529f1984d4852d717577c24743e5d9bfd5566fa467"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/postprocessors.py",
+          "sha256": "3899ef49fbc7453553d264d16c14305a9ee9c6f8a3341a8850b960f018640a17"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/preprocessors.py",
+          "sha256": "284dc24fabbf974bd6793ebd58e95b7700550d90371cacb96ad0889ec558de1e"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/schedulers.py",
+          "sha256": "d3b25b84dac26f0e862cfc866da08df2d6592f01a0aaeda965782ab0fc1d8bba"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/surface_loaders.py",
+          "sha256": "59498b96540d3915c1afbdb52fa125b6e4564c6261a54de2d402a729b0ffc624"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/utils.py",
+          "sha256": "434987747ec07c734b64cc933f7829bf6d10800a7c5e97f649547aa5979c1fbd"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/__init__.py",
+          "sha256": "d233d923a912621c986201e482b1c7b9a5fc014974e6bb952ceb7b36f3c4020f"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/conditioner.py",
+          "sha256": "c735ef7abbdd0fad089e684a237ef30a6cb7616c2faa49a30571d3640c2865c9"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/__init__.py",
+          "sha256": "2f56106c91dfc126f3e20551e8a7a48f049be7b33eda814ae1c184bc979328fe"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/attention_blocks.py",
+          "sha256": "86590fe6b7dae1e3250d08df8291bc2825f754663a2335f31887c5f8065b6ed0"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/attention_processors.py",
+          "sha256": "9a461ddde9a2bf5ca0cd3961c3c1b86f9c81772066fe5b815bc497e0b5a8f053"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/model.py",
+          "sha256": "22ea23cb832017e628f139b06743de5ef54c4fcb298f532f94c99a4a25996893"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/surface_extractors.py",
+          "sha256": "4b53ab319955b22957963e7d9872de46e2c47b2aa5d5d897d62ede64aecc13cd"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/volume_decoders.py",
+          "sha256": "95ffab6bd0a11034bc2b7415fef1379e27c4d2238638f831a0456019d90484eb"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/autoencoders/__init__.py",
+          "sha256": "f1c91751fa8db7ecf531189aae33a59b5b9e3e10aa0d524edf33f6857eea8cfd"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/hunyuan3ddit.py",
+          "sha256": "0288db52767927a03bbbd687eba253f4567493d3d6c24c97b289ea7a1acd13c3"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/hunyuandit.py",
+          "sha256": "b9a51ac5338c6f886f4312a5967933a23969fb293cfc5c0b9c40236207cf89b5"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/moe_layers.py",
+          "sha256": "afd9ca7511c2cd028d220f18c4b4e31a457cda19a1de34bfb925af663a24f3af"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2/hy3dgen/shapegen/models/denoisers/__init__.py",
+          "sha256": "8ab24870a628fb94a3d903d7d149d3eb3d20b32cadf8f6680c6e457562384a41"
+        }
+      ],
+      "harnessSha256": "17fc8f8e5586a34e21de899d39095ec336a95e5fd2b5ee1e4163b735dcf8a59f",
+      "sourceRevision": "f8db63096c8282cb27354314d896feba5ba6ff8a",
+      "loadSeconds": 19.289354100000082,
+      "afterLoad": {
+        "allocatedBytes": 4910917120,
+        "reservedBytes": 5016387584,
+        "peakAllocatedBytes": 4910917120,
+        "peakReservedBytes": 5016387584,
+        "freeTotalBytes": [
+          6785335296,
+          12884377600
+        ],
+        "peakRssBytes": 2913345536,
+        "minimumSystemAvailableBytes": 5584900096
+      },
+      "instanceId": "2275881448560",
+      "loadCount": 1,
+      "torchThreads": 4,
+      "processMemory": {
+        "peakRssBytes": 2158776320,
+        "minimumSystemAvailableBytes": 6374879232
+      }
+    },
+    "shape21-official": {
+      "arguments": {
+        "model": "hunyuan-2-1",
+        "path": "official",
+        "output": "output\\cuda-official-20261028\\shape21-official",
+        "inputs": "vase,vase,chair,umbrella,bonsai,vase",
+        "resolution": 256,
+        "chunks": 8000,
+        "topk": "mean",
+        "chunks_list": null,
+        "topk_list": null,
+        "threads": 4,
+        "extra_default_runs": true,
+        "offload": false,
+        "steps": null,
+        "seed": 12345
+      },
+      "model": {
+        "key": "2.1",
+        "name": "Hunyuan3D-2.1 Shape",
+        "series": "2.1",
+        "revision": "0b94677654c57bb9a6b6845cd7b704ccf551d327",
+        "tag": "\u7cbe\u7ec6",
+        "steps": 50,
+        "max_steps": 100,
+        "dit": "hunyuan3d-dit-v2-1",
+        "vae": null,
+        "counts": [
+          3050758720,
+          304368640,
+          327746177
+        ]
+      },
+      "environment": {
+        "python": "3.12.12 (main, Oct 28 2025, 14:15:42) [MSC v.1944 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.22631-SP0",
+        "torch": "2.6.0+cu124",
+        "cuda": "12.4",
+        "gpu": "NVIDIA GeForce RTX 3060",
+        "gpuBytes": 12884377600,
+        "systemMemory": {
+          "total": 17009618944,
+          "available": 7593816064,
+          "percent": 55.4,
+          "used": 9415802880,
+          "free": 7593816064
+        },
+        "dependencies": {
+          "torchvision": "0.21.0+cu124",
+          "transformers": "4.49.0",
+          "diffusers": "0.32.2",
+          "accelerate": "1.15.0",
+          "numpy": "1.26.4",
+          "trimesh": "4.0.5"
+        }
+      },
+      "runs": [
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "1904753606480",
+          "steps": 50,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "topk": null,
+          "timings": {
+            "preprocess": 0.39967799999976705,
+            "condition": 1.1086685000000216,
+            "vae": 0.16148829999974623,
+            "export": 39.406685599999946
+          },
+          "inferenceSeconds": 146.61630839999998,
+          "sampleAndOverheadSeconds": 105.70127630000025,
+          "memory": {
+            "allocatedBytes": 7374515200,
+            "reservedBytes": 8608808960,
+            "peakAllocatedBytes": 8189308928,
+            "peakReservedBytes": 8608808960,
+            "freeTotalBytes": [
+              2784378880,
+              12884377600
+            ],
+            "peakRssBytes": 2339983360,
+            "peakPrivateBytes": 21412433920,
+            "minimumSystemAvailableBytes": 6910541824
+          },
+          "geometry": {
+            "faces": 397408,
+            "vertices": 198685,
+            "bounds": [
+              [
+                -0.6487227082252502,
+                -0.9974699020385742,
+                -0.6562310457229614
+              ],
+              [
+                0.6410149335861206,
+                0.9897081851959229,
+                0.6467199325561523
+              ]
+            ],
+            "extents": [
+              1.2897376418113708,
+              1.987178087234497,
+              1.3029509782791138
+            ],
+            "watertight": false,
+            "volume": 1.452022894206385,
+            "finite": true,
+            "sha256": "fc776d9b1c9a9b1077c1c4b93c3cfef71f8680a1dc66b0e1676f7aa26af06a5d"
+          },
+          "status": "succeeded",
+          "officialReduction": {
+            "rawFaces": 397408,
+            "reducedFaces": 12000,
+            "reductionSeconds": 5.964083100000607,
+            "reducer": "Pinned upstream FaceReducer / pymeshlab"
+          }
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "1904753606480",
+          "steps": 50,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "topk": null,
+          "timings": {
+            "preprocess": 0.22546039999997447,
+            "condition": 0.14404229999991003,
+            "vae": 0.15959029999976337,
+            "export": 39.89322869999978
+          },
+          "inferenceSeconds": 146.54032760000018,
+          "sampleAndOverheadSeconds": 106.27759620000052,
+          "memory": {
+            "allocatedBytes": 7374515200,
+            "reservedBytes": 8608808960,
+            "peakAllocatedBytes": 8189308928,
+            "peakReservedBytes": 8608808960,
+            "freeTotalBytes": [
+              2805825536,
+              12884377600
+            ],
+            "peakRssBytes": 2209996800,
+            "peakPrivateBytes": 17055404032,
+            "minimumSystemAvailableBytes": 7201230848
+          },
+          "geometry": {
+            "faces": 397408,
+            "vertices": 198685,
+            "bounds": [
+              [
+                -0.6487227082252502,
+                -0.9974699020385742,
+                -0.6562310457229614
+              ],
+              [
+                0.6410149335861206,
+                0.9897081851959229,
+                0.6467199325561523
+              ]
+            ],
+            "extents": [
+              1.2897376418113708,
+              1.987178087234497,
+              1.3029509782791138
+            ],
+            "watertight": false,
+            "volume": 1.452022894206385,
+            "finite": true,
+            "sha256": "fc776d9b1c9a9b1077c1c4b93c3cfef71f8680a1dc66b0e1676f7aa26af06a5d"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "chair",
+          "inputSha256": "43a72eb6971fafd2176b87b9e5cbbd1790bbe8dfa3def3405e228ea8dafd1d68",
+          "instanceId": "1904753606480",
+          "steps": 50,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "topk": null,
+          "timings": {
+            "preprocess": 0.020002900000235968,
+            "condition": 0.05996920000006867,
+            "vae": 0.16325230000029478,
+            "export": 39.75902790000009
+          },
+          "inferenceSeconds": 147.77644099999998,
+          "sampleAndOverheadSeconds": 107.93744099999958,
+          "memory": {
+            "allocatedBytes": 7374515200,
+            "reservedBytes": 8608808960,
+            "peakAllocatedBytes": 8189308928,
+            "peakReservedBytes": 8608808960,
+            "freeTotalBytes": [
+              3157262336,
+              12884377600
+            ],
+            "peakRssBytes": 1162919936,
+            "peakPrivateBytes": 12024045568,
+            "minimumSystemAvailableBytes": 8882728960
+          },
+          "geometry": {
+            "faces": 333932,
+            "vertices": 166926,
+            "bounds": [
+              [
+                -0.6612955927848816,
+                -0.9979747533798218,
+                -0.5064842700958252
+              ],
+              [
+                0.6531033515930176,
+                0.9892845749855042,
+                0.499805212020874
+              ]
+            ],
+            "extents": [
+              1.3143989443778992,
+              1.987259328365326,
+              1.0062894821166992
+            ],
+            "watertight": true,
+            "volume": 0.3033169179692454,
+            "finite": true,
+            "sha256": "e95dace28879ad22175afe511a0d00e802f7199735a1100b544a966f6fde7b18"
+          },
+          "status": "succeeded",
+          "officialReduction": {
+            "rawFaces": 333932,
+            "reducedFaces": 12000,
+            "reductionSeconds": 5.4666689000005135,
+            "reducer": "Pinned upstream FaceReducer / pymeshlab"
+          }
+        },
+        {
+          "input": "umbrella",
+          "inputSha256": "c79b4d5aaf8fdfcc048e6f17f0bc5d37195b23526a8aad38321ba8c6ab646741",
+          "instanceId": "1904753606480",
+          "steps": 50,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "topk": null,
+          "timings": {
+            "preprocess": 0.03198599999996077,
+            "condition": 0.060609999999996944,
+            "vae": 0.1629424000002473,
+            "export": 40.131690100000014
+          },
+          "inferenceSeconds": 146.0158750999999,
+          "sampleAndOverheadSeconds": 105.79158899999993,
+          "memory": {
+            "allocatedBytes": 7374515200,
+            "reservedBytes": 8608808960,
+            "peakAllocatedBytes": 8189308928,
+            "peakReservedBytes": 8608808960,
+            "freeTotalBytes": [
+              2798399488,
+              12884377600
+            ],
+            "peakRssBytes": 1104953344,
+            "peakPrivateBytes": 11915894784,
+            "minimumSystemAvailableBytes": 8936341504
+          },
+          "geometry": {
+            "faces": 209796,
+            "vertices": 104900,
+            "bounds": [
+              [
+                -0.7519527673721313,
+                -0.9981353878974915,
+                -0.7821647524833679
+              ],
+              [
+                0.7447434663772583,
+                0.9904852509498596,
+                0.7736085653305054
+              ]
+            ],
+            "extents": [
+              1.4966962337493896,
+              1.988620638847351,
+              1.5557733178138733
+            ],
+            "watertight": true,
+            "volume": 0.06077409369641446,
+            "finite": true,
+            "sha256": "05b812e811068ef78562f9ea5d516a9c7c597e00982a9c2f1cd494a389ed9328"
+          },
+          "status": "succeeded",
+          "officialReduction": {
+            "rawFaces": 209796,
+            "reducedFaces": 12000,
+            "reductionSeconds": 2.9893691000006584,
+            "reducer": "Pinned upstream FaceReducer / pymeshlab"
+          }
+        },
+        {
+          "input": "bonsai",
+          "inputSha256": "a6fdcfa153818ac203cbf04e3031b166e88fdf0c2c63accfa8b3713c55752c1d",
+          "instanceId": "1904753606480",
+          "steps": 50,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "topk": null,
+          "timings": {
+            "preprocess": 0.025174599999900238,
+            "condition": 0.06019700000024386,
+            "vae": 0.16117430000031163,
+            "export": 39.853530899999896
+          },
+          "inferenceSeconds": 146.3946708000003,
+          "sampleAndOverheadSeconds": 106.45576830000027,
+          "memory": {
+            "allocatedBytes": 7374515200,
+            "reservedBytes": 8608808960,
+            "peakAllocatedBytes": 8189308928,
+            "peakReservedBytes": 8608808960,
+            "freeTotalBytes": [
+              2800758784,
+              12884377600
+            ],
+            "peakRssBytes": 1281916928,
+            "peakPrivateBytes": 11983904768,
+            "minimumSystemAvailableBytes": 8654344192
+          },
+          "geometry": {
+            "faces": 213824,
+            "vertices": 106908,
+            "bounds": [
+              [
+                -0.9950291514396667,
+                -0.880316972732544,
+                -0.4014429748058319
+              ],
+              [
+                0.9915340542793274,
+                0.8664348125457764,
+                0.39366474747657776
+              ]
+            ],
+            "extents": [
+              1.9865632057189941,
+              1.7467517852783203,
+              0.7951077222824097
+            ],
+            "watertight": true,
+            "volume": 0.3620946631390509,
+            "finite": true,
+            "sha256": "2ed36569d9b98a0637f40c1f5df304883e89aa9e976cb55c8ed1737635a2058e"
+          },
+          "status": "succeeded",
+          "officialReduction": {
+            "rawFaces": 213824,
+            "reducedFaces": 12000,
+            "reductionSeconds": 3.1339576000000307,
+            "reducer": "Pinned upstream FaceReducer / pymeshlab"
+          }
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "1904753606480",
+          "steps": 50,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 8000,
+          "topk": null,
+          "timings": {
+            "preprocess": 0.02029439999978422,
+            "condition": 0.060571600000002945,
+            "vae": 0.16071020000026692,
+            "export": 40.1318312999997
+          },
+          "inferenceSeconds": 146.12094789999992,
+          "sampleAndOverheadSeconds": 105.90825060000043,
+          "memory": {
+            "allocatedBytes": 7374515200,
+            "reservedBytes": 8608808960,
+            "peakAllocatedBytes": 8189308928,
+            "peakReservedBytes": 8608808960,
+            "freeTotalBytes": [
+              2789400576,
+              12884377600
+            ],
+            "peakRssBytes": 1273106432,
+            "peakPrivateBytes": 11985727488,
+            "minimumSystemAvailableBytes": 8248291328
+          },
+          "geometry": {
+            "faces": 397408,
+            "vertices": 198685,
+            "bounds": [
+              [
+                -0.6487227082252502,
+                -0.9974699020385742,
+                -0.6562310457229614
+              ],
+              [
+                0.6410149335861206,
+                0.9897081851959229,
+                0.6467199325561523
+              ]
+            ],
+            "extents": [
+              1.2897376418113708,
+              1.987178087234497,
+              1.3029509782791138
+            ],
+            "watertight": false,
+            "volume": 1.452022894206385,
+            "finite": true,
+            "sha256": "fc776d9b1c9a9b1077c1c4b93c3cfef71f8680a1dc66b0e1676f7aa26af06a5d"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "1904753606480",
+          "steps": 50,
+          "seed": 12345,
+          "resolution": 384,
+          "chunks": 8000,
+          "topk": null,
+          "timings": {
+            "preprocess": 0.01393759999973554,
+            "condition": 0.06080870000005234,
+            "vae": 0.16699890000018058,
+            "export": 135.05583950000027
+          },
+          "inferenceSeconds": 242.26390850000007,
+          "sampleAndOverheadSeconds": 107.13332270000001,
+          "memory": {
+            "allocatedBytes": 7374515200,
+            "reservedBytes": 9265217536,
+            "peakAllocatedBytes": 8193657344,
+            "peakReservedBytes": 9265217536,
+            "freeTotalBytes": [
+              2160717824,
+              12884377600
+            ],
+            "peakRssBytes": 2289102848,
+            "peakPrivateBytes": 12993978368,
+            "minimumSystemAvailableBytes": 7087964160
+          },
+          "geometry": {
+            "faces": 893412,
+            "vertices": 446708,
+            "bounds": [
+              [
+                -0.6482707262039185,
+                -0.9996863007545471,
+                -0.6555019617080688
+              ],
+              [
+                0.6431667804718018,
+                0.9949168562889099,
+                0.6486798524856567
+              ]
+            ],
+            "extents": [
+              1.2914375066757202,
+              1.994603157043457,
+              1.3041818141937256
+            ],
+            "watertight": true,
+            "volume": 1.458162184676679,
+            "finite": true,
+            "sha256": "c55caecf7c4adc15b70a376491295d9ea39c0bb95d25ebf1053793cf671cca37"
+          },
+          "status": "succeeded"
+        },
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "1904753606480",
+          "steps": 50,
+          "seed": 12345,
+          "resolution": 384,
+          "chunks": 8000,
+          "topk": null,
+          "timings": {
+            "preprocess": 0.014290600000094855,
+            "condition": 0.062296600000081526,
+            "vae": 0.16205669999999373,
+            "export": 134.8915896999997
+          },
+          "inferenceSeconds": 240.5969825000002,
+          "sampleAndOverheadSeconds": 105.6288056000003,
+          "memory": {
+            "allocatedBytes": 7374515200,
+            "reservedBytes": 9265217536,
+            "peakAllocatedBytes": 8193657344,
+            "peakReservedBytes": 9265217536,
+            "freeTotalBytes": [
+              2154668032,
+              12884377600
+            ],
+            "peakRssBytes": 2410717184,
+            "peakPrivateBytes": 13776424960,
+            "minimumSystemAvailableBytes": 6797791232
+          },
+          "geometry": {
+            "faces": 893412,
+            "vertices": 446708,
+            "bounds": [
+              [
+                -0.6482707262039185,
+                -0.9996863007545471,
+                -0.6555019617080688
+              ],
+              [
+                0.6431667804718018,
+                0.9949168562889099,
+                0.6486798524856567
+              ]
+            ],
+            "extents": [
+              1.2914375066757202,
+              1.994603157043457,
+              1.3041818141937256
+            ],
+            "watertight": true,
+            "volume": 1.458162184676679,
+            "finite": true,
+            "sha256": "c55caecf7c4adc15b70a376491295d9ea39c0bb95d25ebf1053793cf671cca37"
+          },
+          "status": "succeeded"
+        }
+      ],
+      "sourceVerification": [
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/__init__.py",
+          "sha256": "d233d923a912621c986201e482b1c7b9a5fc014974e6bb952ceb7b36f3c4020f"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/__init__.py",
+          "sha256": "2f56106c91dfc126f3e20551e8a7a48f049be7b33eda814ae1c184bc979328fe"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/autoencoders/__init__.py",
+          "sha256": "f1c91751fa8db7ecf531189aae33a59b5b9e3e10aa0d524edf33f6857eea8cfd"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/autoencoders/attention_blocks.py",
+          "sha256": "1cbd34f21102a33eed2106e445ec6a96b896b80e187564f40e2029779bb2cba8"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/autoencoders/attention_processors.py",
+          "sha256": "9a461ddde9a2bf5ca0cd3961c3c1b86f9c81772066fe5b815bc497e0b5a8f053"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/autoencoders/model.py",
+          "sha256": "b81a4586cc1148def7fe157c18071fb7dc50753cfbf1930932bbcbecbcb35829"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/autoencoders/surface_extractors.py",
+          "sha256": "203d1551ccef37e86f9809b9ac0fac68e8e4a2f633ca72a85408535595ae68e5"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/autoencoders/volume_decoders.py",
+          "sha256": "95ffab6bd0a11034bc2b7415fef1379e27c4d2238638f831a0456019d90484eb"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/conditioner.py",
+          "sha256": "137434197ff42e337cfb83fb67c317cce42c5b73c256bec5744af1497dc98cde"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/denoisers/__init__.py",
+          "sha256": "8ab24870a628fb94a3d903d7d149d3eb3d20b32cadf8f6680c6e457562384a41"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/denoisers/hunyuan3ddit.py",
+          "sha256": "0e47af4644344c0900adb216164b3be26b2d97085017711a72f27fda66f2b755"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/denoisers/hunyuandit.py",
+          "sha256": "cb4d9f3504dea0ed3eba94963a8efd7bf92221b26613a7c8bba58e4ef7b6cd25"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/denoisers/moe_layers.py",
+          "sha256": "a8d756a5fbe6941ad0dd68e4d1b0ea4fc6a84418f4c2e2b0a28cb4f2144ec240"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/pipelines.py",
+          "sha256": "80d3d66be03e2ebe2f988cefcf488f2e5fa52656e8547c72dd44aaae4ad45714"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/postprocessors.py",
+          "sha256": "3899ef49fbc7453553d264d16c14305a9ee9c6f8a3341a8850b960f018640a17"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/preprocessors.py",
+          "sha256": "284dc24fabbf974bd6793ebd58e95b7700550d90371cacb96ad0889ec558de1e"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/rembg.py",
+          "sha256": "e372426c19bc51447129b72862e330777e7ce4a9e07212c1abdff5d1947292dc"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/schedulers.py",
+          "sha256": "d3b25b84dac26f0e862cfc866da08df2d6592f01a0aaeda965782ab0fc1d8bba"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/surface_loaders.py",
+          "sha256": "c4a821fffd9ea9f121ac07a034faaa9e52350859cc667db955ae91c17ee1c001"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/utils/__init__.py",
+          "sha256": "0be86a4b0a9c7885550f80fd6f9900855246f6fb0d8df6000e07414258d6590f"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/utils/ema.py",
+          "sha256": "cadb5b3a3ac8fb23a8fb3554fac3ac45c147f99d765cfa1f0af0db5f8ac9476c"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/utils/misc.py",
+          "sha256": "12d3378fa71c2569897ac27f8dbf3dcd3857b25f8d008c564e6b8e1df73ea3d0"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/utils/utils.py",
+          "sha256": "09fda07cb7e7aafbbc2d0a0a808d312d6687bcb1a939c33cdf9f88dc07d42ca0"
+        }
+      ],
+      "harnessSha256": "846e9b9ff648090dfae1ffb3b92b4400bab5f161db06310b706d618d88134d70",
+      "sourceRevision": "82920d643c0dc2f7bfd7255f45f62d386edfe60c",
+      "loadSeconds": 304.7033888000001,
+      "afterLoad": {
+        "allocatedBytes": 7365994496,
+        "reservedBytes": 7388266496,
+        "peakAllocatedBytes": 7365994496,
+        "peakReservedBytes": 7388266496,
+        "freeTotalBytes": [
+          4413456384,
+          12884377600
+        ],
+        "peakRssBytes": 11014909952,
+        "peakPrivateBytes": 29766045696,
+        "minimumSystemAvailableBytes": 135168
+      },
+      "instanceId": "1904753606480",
+      "loadCount": 1,
+      "torchThreads": 4,
+      "processMemory": {
+        "peakRssBytes": 2410717184,
+        "peakPrivateBytes": 13776424960,
+        "minimumSystemAvailableBytes": 6797791232
+      }
+    },
+    "shape21-project": {
+      "arguments": {
+        "model": "hunyuan-2-1",
+        "path": "project",
+        "output": "output\\cuda-official-20261028\\shape21-project",
+        "inputs": "vase,bonsai",
+        "resolution": 256,
+        "chunks": 2048,
+        "topk": "mean",
+        "chunks_list": null,
+        "topk_list": null,
+        "threads": 4,
+        "extra_default_runs": false,
+        "compare_decoders": true,
+        "offload": false,
+        "steps": null,
+        "seed": 12345
+      },
+      "model": {
+        "key": "2.1",
+        "name": "Hunyuan3D-2.1 Shape",
+        "series": "2.1",
+        "revision": "0b94677654c57bb9a6b6845cd7b704ccf551d327",
+        "tag": "\u7cbe\u7ec6",
+        "steps": 50,
+        "max_steps": 100,
+        "dit": "hunyuan3d-dit-v2-1",
+        "vae": null,
+        "counts": [
+          3050758720,
+          304368640,
+          327746177
+        ]
+      },
+      "environment": {
+        "python": "3.12.12 (main, Oct 28 2025, 14:15:42) [MSC v.1944 64 bit (AMD64)]",
+        "platform": "Windows-11-10.0.22631-SP0",
+        "torch": "2.6.0+cu124",
+        "cuda": "12.4",
+        "gpu": "NVIDIA GeForce RTX 3060",
+        "gpuBytes": 12884377600,
+        "systemMemory": {
+          "total": 17009618944,
+          "available": 8638402560,
+          "percent": 49.2,
+          "used": 8371216384,
+          "free": 8638402560
+        },
+        "dependencies": {
+          "torchvision": "0.21.0+cu124",
+          "transformers": "4.49.0",
+          "diffusers": "0.32.2",
+          "accelerate": "1.15.0",
+          "numpy": "1.26.4",
+          "trimesh": "4.0.5"
+        }
+      },
+      "runs": [
+        {
+          "input": "vase",
+          "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+          "instanceId": "2260813782464",
+          "steps": 50,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 2048,
+          "topk": null,
+          "timings": {
+            "preprocess": 0.032385599999997794,
+            "condition": 0.3579541999997673,
+            "export": 5.674838500000078,
+            "vae": 0.15983000000005632
+          },
+          "inferenceSeconds": 110.55962069999987,
+          "sampleAndOverheadSeconds": 104.49444240000003,
+          "memory": {
+            "allocatedBytes": 7375039488,
+            "reservedBytes": 8579448832,
+            "peakAllocatedBytes": 8189308928,
+            "peakReservedBytes": 8579448832,
+            "freeTotalBytes": [
+              2789388288,
+              12884377600
+            ],
+            "peakRssBytes": 1697259520,
+            "peakPrivateBytes": 11891159040,
+            "minimumSystemAvailableBytes": 7640240128
+          },
+          "geometry": {
+            "faces": 678440,
+            "vertices": 195778,
+            "bounds": [
+              [
+                -0.6469898223876953,
+                -0.997356116771698,
+                -0.6556781530380249
+              ],
+              [
+                0.6393266320228577,
+                0.9896376729011536,
+                0.6460720300674438
+              ]
+            ],
+            "extents": [
+              1.286316454410553,
+              1.9869937896728516,
+              1.3017501831054688
+            ],
+            "watertight": false,
+            "volume": 1.4489945607967378,
+            "finite": true,
+            "sha256": "97aa3bb7f3493dbe4eeb6ed6bb9b397a0dde73df433c5f37584aee560fc235fe"
+          },
+          "status": "succeeded",
+          "latentSha256": "b24bc8ce081cfc10a59aeb27f66591301f734e73764ae4d44f3cf6858fa5e458",
+          "decoderComparison": [
+            {
+              "decoder": "project-hierarchical",
+              "chunks": 8000,
+              "resolution": 256,
+              "seconds": 4.516137500000241,
+              "peakAllocatedBytes": 7686837760,
+              "status": "succeeded",
+              "faces": 678440,
+              "bounds": [
+                [
+                  -0.6469898223876953,
+                  -0.997356116771698,
+                  -0.6556781530380249
+                ],
+                [
+                  0.6393266320228577,
+                  0.9896376729011536,
+                  0.6460720300674438
+                ]
+              ],
+              "volume": 1.448994560691179,
+              "sha256": "1096b0b23290ac5d4e2ac977dc83af4efaac6d4bdca21e8a03a344b679d158cd"
+            },
+            {
+              "decoder": "official-hierarchical",
+              "chunks": 8000,
+              "resolution": 256,
+              "status": "failed",
+              "seconds": 1.5743191000001389,
+              "error": "Traceback (most recent call last):\n  File \"C:\\data\\code\\huzz-open\\g-studio\\tests\\generation_cuda_experiment.py\", line 205, in main\n    other = engine.mesh(latent, resolution, chunks=8000)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\data\\code\\huzz-open\\g-studio\\services\\generation-python\\runtime.py\", line 170, in mesh\n    mesh = self.pipeline._export(latents, output_type='trimesh', octree_resolution=resolution,\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\data\\code\\huzz-open\\g-studio\\tests\\generation_cuda_experiment.py\", line 123, in measured\n    return original(*a, **kw)\n           ^^^^^^^^^^^^^^^^^^\n  File \"C:\\data\\code\\huzz-open\\g-studio\\runtime\\generation\\vendor\\Hunyuan3D-2.1\\hy3dshape\\hy3dshape\\pipelines.py\", line 672, in _export\n    outputs = self.vae.latents2mesh(\n              ^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\data\\code\\huzz-open\\g-studio\\runtime\\generation\\vendor\\Hunyuan3D-2.1\\hy3dshape\\hy3dshape\\models\\autoencoders\\model.py\", line 213, in latents2mesh\n    grid_logits = self.volume_decoder(latents, self.geo_decoder, **kwargs)\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\data\\code\\huzz-open\\g-studio\\runtime\\generation\\platforms\\win32-x64\\python-cu124\\python\\cpython-3.12.12-windows-x86_64-none\\Lib\\site-packages\\torch\\utils\\_contextlib.py\", line 116, in decorate_context\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\data\\code\\huzz-open\\g-studio\\runtime\\generation\\vendor\\Hunyuan3D-2.1\\hy3dshape\\hy3dshape\\models\\autoencoders\\volume_decoders.py\", line 272, in __call__\n    grid_logits = torch.cat(batch_logits, dim=1)\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nRuntimeError: torch.cat(): expected a non-empty list of Tensors\n"
+            },
+            {
+              "decoder": "official-dense",
+              "chunks": 8000,
+              "resolution": 256,
+              "seconds": 39.906696699999884,
+              "peakAllocatedBytes": 7701539840,
+              "status": "succeeded",
+              "faces": 391552,
+              "bounds": [
+                [
+                  -0.6469898223876953,
+                  -0.997356116771698,
+                  -0.6556781530380249
+                ],
+                [
+                  0.6393266320228577,
+                  0.9896376729011536,
+                  0.6460720300674438
+                ]
+              ],
+              "volume": 1.448994560796737,
+              "sha256": "ea23085db4d0322cc76d32e106879cfc77cb4bcb97021f19a86f6ecf09ec17fa"
+            }
+          ]
+        },
+        {
+          "input": "bonsai",
+          "inputSha256": "a6fdcfa153818ac203cbf04e3031b166e88fdf0c2c63accfa8b3713c55752c1d",
+          "instanceId": "2260813782464",
+          "steps": 50,
+          "seed": 12345,
+          "resolution": 256,
+          "chunks": 2048,
+          "topk": null,
+          "timings": {
+            "preprocess": 0.022126899999875604,
+            "condition": 0.06090750000021217,
+            "export": 3.8516352999995433,
+            "vae": 0.16185069999937696
+          },
+          "inferenceSeconds": 109.99397749999935,
+          "sampleAndOverheadSeconds": 106.05930779999971,
+          "memory": {
+            "allocatedBytes": 7375039488,
+            "reservedBytes": 8610906112,
+            "peakAllocatedBytes": 8189308928,
+            "peakReservedBytes": 8610906112,
+            "freeTotalBytes": [
+              2687922176,
+              12884377600
+            ],
+            "peakRssBytes": 1749266432,
+            "peakPrivateBytes": 11982233600,
+            "minimumSystemAvailableBytes": 7463809024
+          },
+          "geometry": {
+            "faces": 331916,
+            "vertices": 106764,
+            "bounds": [
+              [
+                -0.9951275587081909,
+                -0.8802342414855957,
+                -0.40140634775161743
+              ],
+              [
+                0.9914815425872803,
+                0.8661593198776245,
+                0.39368128776550293
+              ]
+            ],
+            "extents": [
+              1.9866091012954712,
+              1.7463935613632202,
+              0.7950876355171204
+            ],
+            "watertight": false,
+            "volume": 0.36214335158422883,
+            "finite": true,
+            "sha256": "86ffb7de75b209619cc6bcf4ea7c8216e726d6c5fdcea841b9ffa10ef79be5da"
+          },
+          "status": "succeeded",
+          "latentSha256": "307622abc1dd02363469287efec25a4aa1866196179391031dee7e3f987f7929",
+          "decoderComparison": [
+            {
+              "decoder": "project-hierarchical",
+              "chunks": 8000,
+              "resolution": 256,
+              "seconds": 3.068540100000064,
+              "peakAllocatedBytes": 7670185984,
+              "status": "succeeded",
+              "faces": 331916,
+              "bounds": [
+                [
+                  -0.9951275587081909,
+                  -0.8802342414855957,
+                  -0.40140634775161743
+                ],
+                [
+                  0.9914803504943848,
+                  0.8661593198776245,
+                  0.39368128776550293
+                ]
+              ],
+              "volume": 0.36214335122948826,
+              "sha256": "e0f52df9491d129b1b4d31fde8e55dfbf370298fdb3189a2a5a1aa6fdd3eff64"
+            },
+            {
+              "decoder": "official-hierarchical",
+              "chunks": 8000,
+              "resolution": 256,
+              "status": "failed",
+              "seconds": 1.260277500000484,
+              "error": "Traceback (most recent call last):\n  File \"C:\\data\\code\\huzz-open\\g-studio\\tests\\generation_cuda_experiment.py\", line 205, in main\n    other = engine.mesh(latent, resolution, chunks=8000)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\data\\code\\huzz-open\\g-studio\\services\\generation-python\\runtime.py\", line 170, in mesh\n    mesh = self.pipeline._export(latents, output_type='trimesh', octree_resolution=resolution,\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\data\\code\\huzz-open\\g-studio\\tests\\generation_cuda_experiment.py\", line 123, in measured\n    return original(*a, **kw)\n           ^^^^^^^^^^^^^^^^^^\n  File \"C:\\data\\code\\huzz-open\\g-studio\\runtime\\generation\\vendor\\Hunyuan3D-2.1\\hy3dshape\\hy3dshape\\pipelines.py\", line 672, in _export\n    outputs = self.vae.latents2mesh(\n              ^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\data\\code\\huzz-open\\g-studio\\runtime\\generation\\vendor\\Hunyuan3D-2.1\\hy3dshape\\hy3dshape\\models\\autoencoders\\model.py\", line 213, in latents2mesh\n    grid_logits = self.volume_decoder(latents, self.geo_decoder, **kwargs)\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\data\\code\\huzz-open\\g-studio\\runtime\\generation\\platforms\\win32-x64\\python-cu124\\python\\cpython-3.12.12-windows-x86_64-none\\Lib\\site-packages\\torch\\utils\\_contextlib.py\", line 116, in decorate_context\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\data\\code\\huzz-open\\g-studio\\runtime\\generation\\vendor\\Hunyuan3D-2.1\\hy3dshape\\hy3dshape\\models\\autoencoders\\volume_decoders.py\", line 272, in __call__\n    grid_logits = torch.cat(batch_logits, dim=1)\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nRuntimeError: torch.cat(): expected a non-empty list of Tensors\n"
+            },
+            {
+              "decoder": "official-dense",
+              "chunks": 8000,
+              "resolution": 256,
+              "seconds": 39.934979900000144,
+              "peakAllocatedBytes": 7701539840,
+              "status": "succeeded",
+              "faces": 213540,
+              "bounds": [
+                [
+                  -0.9951275587081909,
+                  -0.8802342414855957,
+                  -0.40140634775161743
+                ],
+                [
+                  0.9914803504943848,
+                  0.8661593198776245,
+                  0.39368128776550293
+                ]
+              ],
+              "volume": 0.3621433513146983,
+              "sha256": "6f60d3e642b987247be09ff9e8b6a2bfd71de396fde66b3bcc307bf11dff46e1"
+            }
+          ]
+        }
+      ],
+      "sourceVerification": [
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/__init__.py",
+          "sha256": "d233d923a912621c986201e482b1c7b9a5fc014974e6bb952ceb7b36f3c4020f"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/__init__.py",
+          "sha256": "2f56106c91dfc126f3e20551e8a7a48f049be7b33eda814ae1c184bc979328fe"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/autoencoders/__init__.py",
+          "sha256": "f1c91751fa8db7ecf531189aae33a59b5b9e3e10aa0d524edf33f6857eea8cfd"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/autoencoders/attention_blocks.py",
+          "sha256": "1cbd34f21102a33eed2106e445ec6a96b896b80e187564f40e2029779bb2cba8"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/autoencoders/attention_processors.py",
+          "sha256": "9a461ddde9a2bf5ca0cd3961c3c1b86f9c81772066fe5b815bc497e0b5a8f053"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/autoencoders/model.py",
+          "sha256": "b81a4586cc1148def7fe157c18071fb7dc50753cfbf1930932bbcbecbcb35829"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/autoencoders/surface_extractors.py",
+          "sha256": "203d1551ccef37e86f9809b9ac0fac68e8e4a2f633ca72a85408535595ae68e5"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/autoencoders/volume_decoders.py",
+          "sha256": "95ffab6bd0a11034bc2b7415fef1379e27c4d2238638f831a0456019d90484eb"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/conditioner.py",
+          "sha256": "137434197ff42e337cfb83fb67c317cce42c5b73c256bec5744af1497dc98cde"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/denoisers/__init__.py",
+          "sha256": "8ab24870a628fb94a3d903d7d149d3eb3d20b32cadf8f6680c6e457562384a41"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/denoisers/hunyuan3ddit.py",
+          "sha256": "0e47af4644344c0900adb216164b3be26b2d97085017711a72f27fda66f2b755"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/denoisers/hunyuandit.py",
+          "sha256": "cb4d9f3504dea0ed3eba94963a8efd7bf92221b26613a7c8bba58e4ef7b6cd25"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/models/denoisers/moe_layers.py",
+          "sha256": "a8d756a5fbe6941ad0dd68e4d1b0ea4fc6a84418f4c2e2b0a28cb4f2144ec240"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/pipelines.py",
+          "sha256": "80d3d66be03e2ebe2f988cefcf488f2e5fa52656e8547c72dd44aaae4ad45714"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/postprocessors.py",
+          "sha256": "3899ef49fbc7453553d264d16c14305a9ee9c6f8a3341a8850b960f018640a17"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/preprocessors.py",
+          "sha256": "284dc24fabbf974bd6793ebd58e95b7700550d90371cacb96ad0889ec558de1e"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/rembg.py",
+          "sha256": "e372426c19bc51447129b72862e330777e7ce4a9e07212c1abdff5d1947292dc"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/schedulers.py",
+          "sha256": "d3b25b84dac26f0e862cfc866da08df2d6592f01a0aaeda965782ab0fc1d8bba"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/surface_loaders.py",
+          "sha256": "c4a821fffd9ea9f121ac07a034faaa9e52350859cc667db955ae91c17ee1c001"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/utils/__init__.py",
+          "sha256": "0be86a4b0a9c7885550f80fd6f9900855246f6fb0d8df6000e07414258d6590f"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/utils/ema.py",
+          "sha256": "cadb5b3a3ac8fb23a8fb3554fac3ac45c147f99d765cfa1f0af0db5f8ac9476c"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/utils/misc.py",
+          "sha256": "12d3378fa71c2569897ac27f8dbf3dcd3857b25f8d008c564e6b8e1df73ea3d0"
+        },
+        {
+          "path": "vendor/Hunyuan3D-2.1/hy3dshape/hy3dshape/utils/utils.py",
+          "sha256": "09fda07cb7e7aafbbc2d0a0a808d312d6687bcb1a939c33cdf9f88dc07d42ca0"
+        }
+      ],
+      "harnessSha256": "04fcfde5875e62b6674bb94ad8ba3be65d74de30109e383e8a263e82f8cf7de6",
+      "sourceRevision": "82920d643c0dc2f7bfd7255f45f62d386edfe60c",
+      "loadSeconds": 20.8886322999997,
+      "afterLoad": {
+        "allocatedBytes": 7365994496,
+        "reservedBytes": 7472152576,
+        "peakAllocatedBytes": 7365994496,
+        "peakReservedBytes": 7472152576,
+        "freeTotalBytes": [
+          4329570304,
+          12884377600
+        ],
+        "peakRssBytes": 6811226112,
+        "peakPrivateBytes": 16978391040,
+        "minimumSystemAvailableBytes": 2279280640
+      },
+      "instanceId": "2260813782464",
+      "loadCount": 1,
+      "torchThreads": 4,
+      "processMemory": {
+        "peakRssBytes": 2152030208,
+        "peakPrivateBytes": 12395855872,
+        "minimumSystemAvailableBytes": 7249879040
+      }
+    }
+  },
+  "summary": {
+    "mini-official": {
+      "loadSeconds": 131.12329039999997,
+      "successfulRuns": 6,
+      "firstSeconds": 7.658541599999921,
+      "remainingMedianSeconds": 4.598483200000032,
+      "peakAllocatedGiB": 4.23175573348999,
+      "peakReservedGiB": 5.154296875,
+      "loadPeakRssGiB": 8.541725158691406
+    },
+    "mini-project": {
+      "loadSeconds": 26.95951570000011,
+      "successfulRuns": 6,
+      "firstSeconds": 5.926002700000026,
+      "remainingMedianSeconds": 4.65773299999978,
+      "peakAllocatedGiB": 4.004002571105957,
+      "peakReservedGiB": 4.34765625,
+      "loadPeakRssGiB": 2.739696502685547
+    },
+    "mini-official-sweep": {
+      "loadSeconds": 142.70137019999993,
+      "successfulRuns": 12,
+      "firstSeconds": 9.489737500000047,
+      "remainingMedianSeconds": null,
+      "peakAllocatedGiB": 4.879947185516357,
+      "peakReservedGiB": 7.640625,
+      "loadPeakRssGiB": 8.009880065917969,
+      "note": "Parameter sweep: no aggregate inference median across different configurations."
+    },
+    "turbo-official": {
+      "loadSeconds": 103.0338612999999,
+      "successfulRuns": 6,
+      "firstSeconds": 7.6624541999999565,
+      "remainingMedianSeconds": 5.284683100000166,
+      "peakAllocatedGiB": 5.16008186340332,
+      "peakReservedGiB": 6.0234375,
+      "loadPeakRssGiB": 9.277271270751953
+    },
+    "turbo-project": {
+      "loadSeconds": 19.289354100000082,
+      "successfulRuns": 6,
+      "firstSeconds": 6.062142300000005,
+      "remainingMedianSeconds": 5.440577399999938,
+      "peakAllocatedGiB": 5.024287223815918,
+      "peakReservedGiB": 5.349609375,
+      "loadPeakRssGiB": 2.7132644653320312
+    },
+    "shape21-official": {
+      "loadSeconds": 304.7033888000001,
+      "successfulRuns": 6,
+      "firstSeconds": 146.61630839999998,
+      "remainingMedianSeconds": 146.3946708000003,
+      "peakAllocatedGiB": 7.626888275146484,
+      "peakReservedGiB": 8.017578125,
+      "loadPeakRssGiB": 10.258434295654297
+    },
+    "shape21-project": {
+      "loadSeconds": 20.8886322999997,
+      "successfulRuns": 2,
+      "firstSeconds": 110.55962069999987,
+      "remainingMedianSeconds": 109.99397749999935,
+      "peakAllocatedGiB": 7.626888275146484,
+      "peakReservedGiB": 8.01953125,
+      "loadPeakRssGiB": 6.343448638916016
+    }
+  },
+  "policySnapshot": {
+    "snapshot": {
+      "os": "Windows-11-10.0.22631-SP0",
+      "processor": "Intel64 Family 6 Model 167 Stepping 1, GenuineIntel",
+      "systemTotal": 17009618944,
+      "systemAvailable": 8061476864,
+      "deviceAvailable": 11801722880,
+      "gpu": "NVIDIA GeForce RTX 3060"
+    },
+    "singleModelPlans": {
+      "hunyuan-mini": {
+        "strategies": {},
+        "errors": {
+          "hunyuan-mini": "Insufficient startup capacity even for staged inference; free memory or explicitly configure a smaller enabled set/precision and restart."
+        },
+        "precision": "fp16",
+        "budgetBytes": 5913993216,
+        "plannedPeakBytes": 0,
+        "residentBytes": 0,
+        "systemReserveBytes": 2147483648,
+        "workspaceReserveBytes": 4294967296,
+        "workspaceByModel": {
+          "hunyuan-mini": 4294967296
+        },
+        "residentWorkspaceBytes": 0,
+        "loadingReserveBytes": 1073741824,
+        "mode": "auto"
+      },
+      "hunyuan-turbo": {
+        "strategies": {},
+        "errors": {
+          "hunyuan-turbo": "Insufficient startup capacity even for staged inference; free memory or explicitly configure a smaller enabled set/precision and restart."
+        },
+        "precision": "fp16",
+        "budgetBytes": 5913993216,
+        "plannedPeakBytes": 0,
+        "residentBytes": 0,
+        "systemReserveBytes": 2147483648,
+        "workspaceReserveBytes": 4294967296,
+        "workspaceByModel": {
+          "hunyuan-turbo": 4294967296
+        },
+        "residentWorkspaceBytes": 0,
+        "loadingReserveBytes": 1073741824,
+        "mode": "auto"
+      },
+      "hunyuan-2-1": {
+        "strategies": {},
+        "errors": {
+          "hunyuan-2-1": "Insufficient startup capacity even for staged inference; free memory or explicitly configure a smaller enabled set/precision and restart."
+        },
+        "precision": "fp16",
+        "budgetBytes": 5913993216,
+        "plannedPeakBytes": 0,
+        "residentBytes": 0,
+        "systemReserveBytes": 2147483648,
+        "workspaceReserveBytes": 4294967296,
+        "workspaceByModel": {
+          "hunyuan-2-1": 4294967296
+        },
+        "residentWorkspaceBytes": 0,
+        "loadingReserveBytes": 1073741824,
+        "mode": "auto"
+      }
+    }
+  },
+  "decoderGeometryComparison": {
+    "0-vase": {
+      "project-hierarchical": {
+        "rawFaces": 678440,
+        "nondegenerateFaces": 391542,
+        "vertices": 195778,
+        "bounds": [
+          [
+            -0.6469898223876953,
+            -0.997356116771698,
+            -0.6556781530380249
+          ],
+          [
+            0.6393266320228577,
+            0.9896376729011536,
+            0.6460720300674438
+          ]
+        ],
+        "watertight": false,
+        "volume": 1.4489945606901948
+      },
+      "official-dense": {
+        "rawFaces": 391552,
+        "nondegenerateFaces": 391542,
+        "vertices": 195778,
+        "bounds": [
+          [
+            -0.6469898223876953,
+            -0.997356116771698,
+            -0.6556781530380249
+          ],
+          [
+            0.6393266320228577,
+            0.9896376729011536,
+            0.6460720300674438
+          ]
+        ],
+        "watertight": false,
+        "volume": 1.4489945607957537
+      },
+      "bidirectionalVertexNearestDistance": {
+        "mean": 9.133505007006502e-12,
+        "p95": 0.0,
+        "max": 1.3113021850585938e-06,
+        "fractionWithinOneGridSpacing": 1.0,
+        "gridSpacing": 0.007890625,
+        "note": "Vertex-set distance, not exact surface/Hausdorff distance or semantic quality score. Raw common coordinates."
+      },
+      "vertexMappingBijective": true,
+      "sameUndirectedFacesAfterVertexMapping": true
+    },
+    "1-bonsai": {
+      "project-hierarchical": {
+        "rawFaces": 331916,
+        "nondegenerateFaces": 213538,
+        "vertices": 106764,
+        "bounds": [
+          [
+            -0.9951275587081909,
+            -0.8802342414855957,
+            -0.40140634775161743
+          ],
+          [
+            0.9914803504943848,
+            0.8661593198776245,
+            0.39368128776550293
+          ]
+        ],
+        "watertight": false,
+        "volume": 0.3621433512292869
+      },
+      "official-dense": {
+        "rawFaces": 213540,
+        "nondegenerateFaces": 213538,
+        "vertices": 106764,
+        "bounds": [
+          [
+            -0.9951275587081909,
+            -0.8802342414855957,
+            -0.40140634775161743
+          ],
+          [
+            0.9914803504943848,
+            0.8661593198776245,
+            0.39368128776550293
+          ]
+        ],
+        "watertight": false,
+        "volume": 0.36214335131449715
+      },
+      "bidirectionalVertexNearestDistance": {
+        "mean": 1.2919043244965754e-11,
+        "p95": 0.0,
+        "max": 1.3792887330055237e-06,
+        "fractionWithinOneGridSpacing": 1.0,
+        "gridSpacing": 0.007890625,
+        "note": "Vertex-set distance, not exact surface/Hausdorff distance or semantic quality score. Raw common coordinates."
+      },
+      "vertexMappingBijective": true,
+      "sameUndirectedFacesAfterVertexMapping": true
+    }
+  },
+  "validation": {
+    "pythonCompile": "passed (3 experiment scripts)",
+    "adapterTests": "4 passed after Windows mmap fixture correction",
+    "build": "npm run build passed; existing chunk-size warning",
+    "primaryGenerationRuns": 50,
+    "plannedDecoderComparisons": 6,
+    "failedUpstreamHierarchicalComparisons": 2
+  }
+}

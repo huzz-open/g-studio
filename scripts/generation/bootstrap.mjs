@@ -135,13 +135,17 @@ export async function preparePython() {
       if (!python) throw Error('Python installation did not produce a working interpreter');
     }
     const issues = inspect(python, requirements, layout.variant).issues || [];
+    if (issues.length) {
+      console.log('[generation] Local runtime needs repair:');
+      for (const issue of issues) console.log(`[generation]   ${issue.package}: ${issue.reason}`);
+    }
     const broken = [...new Set(issues.filter(i => !['python', 'torch', 'torchvision'].includes(i.package)).map(i => i.package))];
     const needsTorch = layout.variant !== 'base' && issues.some(i => ['torch', 'torchvision'].includes(i.package));
     if (process.env.GEN_OFFLINE !== '1' && (needsTorch || broken.length)) {
       const indexes = torchIndexArgs(root, layout.variant);
       const wheels = layout.variant === 'base' ? [] : await downloadTorchWheels(indexes[1], home, info.tag, layout.variant);
-      const dependencies = await downloadDependencies({ root, home, python, platform: info.tag, requirements, torchWheels: wheels, uvRun });
-      await uvRun(['pip', 'install', '--python', python, '--break-system-packages', '--offline', '--no-index', '--no-deps', ...wheels, ...dependencies, ...[...broken, ...(needsTorch ? ['torch', 'torchvision'] : [])].flatMap(p => ['--reinstall-package', p])], 'Installing verified local dependencies');
+      const dependencies = await downloadDependencies({ root, home, python, platform: info.tag, requirements, torchWheels: wheels, repairPackages: broken, uvRun });
+      await uvRun(['pip', 'install', '--python', python, '--break-system-packages', '--offline', '--no-index', '--no-deps', ...(needsTorch ? wheels : []), ...dependencies, ...[...broken, ...(needsTorch ? ['torch', 'torchvision'] : [])].flatMap(p => ['--reinstall-package', p])], 'Installing verified local dependencies');
     } else {
       if (needsTorch) await uvRun(['pip', 'install', '--python', python, '--break-system-packages', 'torch==2.6.0', 'torchvision==0.21.0', ...torchIndexArgs(root, layout.variant), '--reinstall-package', 'torch', '--reinstall-package', 'torchvision'], 'Preparing cached PyTorch', true);
       if (broken.length) await uvRun(['pip', 'install', '--python', python, '--break-system-packages', '-r', requirements, ...broken.flatMap(p => ['--reinstall-package', p])], 'Preparing cached Python dependencies');

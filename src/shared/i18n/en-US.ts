@@ -787,6 +787,7 @@ export default {
   'sceneLight.dragPosition': 'Drag to move light',
   'parts.properties': 'Object properties',
   'parts.selectInScene': 'Select an object in the viewport',
+  'parts.clearSelection': 'Deselect object',
   'parts.noMatches': 'No matching parts',
   'parts.addNamed': 'Add {name}',
   'parts.addShort': 'Add',

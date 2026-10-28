@@ -787,6 +787,7 @@ export default {
   'sceneLight.dragPosition': '拖动调整位置',
   'parts.properties': '物品属性',
   'parts.selectInScene': '选择视口中的物品',
+  'parts.clearSelection': '取消选中',
   'parts.noMatches': '没有匹配的部件',
   'parts.addNamed': '加入 {name}',
   'parts.addShort': '加入',

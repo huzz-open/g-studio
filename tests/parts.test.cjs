@@ -1,6 +1,6 @@
 const { test } = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), ts = require('typescript')
 require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, filename)
-const { createPart, clonePart, validatePart, validateInstances, sameSource, partRenderKey, nextPartRevision } = require('../src/shared/parts/schema.ts')
+const { createPart, clonePart, validatePart, validateInstances, partRenderKey, nextPartRevision } = require('../src/shared/parts/schema.ts')
 const { buildPartGeometry, meshExtents, alignedBounds } = require('../src/modules/scene-lighting/part-geometry.ts')
 const { createBuiltinParts, isBuiltinPart } = require('../src/shared/parts/builtins.ts')
 const { validateGsFile, validateSpriteData } = require('../src/shared/gs-format/schema.ts')
@@ -29,11 +29,10 @@ test('asset validation rejects invalid versions, unsafe image sources and malfor
   const mutations=[p=>p.version=9,p=>p.id='__proto__',p=>p.image.uri='https://example.com/private.png',p=>p.normal.normalStrength=Infinity,p=>delete p.normal.invertX,p=>p.geometry.size[1]=-2,p=>p.geometry.kind='unknown',p=>p.geometry={kind:'template',template:'unknown',size:[1,1,1]},p=>p.alignment.anchor[0]=2,p=>p.geometry={kind:'compound',size:[1,1,1],parts:[]},p=>p.source={sheetHash:'bad'}]
   for(const mutate of mutations){const p=make();mutate(p);assert.throws(()=>validatePart(p))}
 })
-test('stable provenance survives renames but a different crop or pixels are distinct', () => {
+test('source metadata is preserved independently of asset names', () => {
   const part=make(),source={sheetHash:'a'.repeat(64),pixelHash:'b'.repeat(64),fileName:'sheet.png',rect:[4,8,1,1]}
   part.source=source;validatePart(part);part.name='renamed'
-  assert.ok(sameSource(part,clonePart(source)))
-  assert.ok(!sameSource(part,{...source,rect:[5,8,1,1]}));assert.ok(!sameSource(part,{...source,pixelHash:'c'.repeat(64)}))
+  assert.deepEqual(clonePart(part).source,source)
 })
 test('asset revisions and names do not invalidate geometry; normal and alignment changes do', () => {
   const p=make(),key=partRenderKey(p);p.name='new name';p.revision++

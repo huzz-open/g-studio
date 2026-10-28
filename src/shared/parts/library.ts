@@ -1,6 +1,6 @@
 import { shallowReactive, ref, watch, type Ref } from 'vue'
 import { generatedModels, loadGeneratedModels, resolvePartModels } from '../generation/models'
-import { clonePart, validatePart, sameSource, nextPartRevision, type PartAsset } from './schema'
+import { clonePart, validatePart, nextPartRevision, type PartAsset } from './schema'
 import { createBuiltinParts } from './builtins'
 
 const hotState=import.meta.hot?.data
@@ -90,7 +90,6 @@ export async function hydrateParts(parts: PartAsset[]) {
   })
   writes = operation.catch(() => undefined); return operation
 }
-export function findSourcePart(source: NonNullable<PartAsset['source']>) { return Object.values(partLibrary).find(p => sameSource(p, source)) }
 export async function importPart(value: unknown) {
   validatePart(value); await loadPartLibrary()
   const imported = clonePart(value), existing = partLibrary[imported.id]

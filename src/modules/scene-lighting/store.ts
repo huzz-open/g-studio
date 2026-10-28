@@ -22,7 +22,7 @@ export function sceneHistory(doc: SceneDocument) {
       capture: () => clonePart({...doc.state, selected: '', tool: 'objects', zoom: 14, target: undefined}),
       restore: snapshot => {
         const selected=doc.state.selected, zoom=doc.state.zoom, target=doc.state.target
-        doc.state=clonePart({...snapshot,zoom,target,selected:snapshot.items.some(i=>i.id===selected)?selected:snapshot.items[0]?.id??''})
+        doc.state=clonePart({...snapshot,zoom,target,selected:selected===''||snapshot.items.some(i=>i.id===selected)?selected:snapshot.items[0]?.id??''})
       },
     })
     histories.set(doc.id,history)

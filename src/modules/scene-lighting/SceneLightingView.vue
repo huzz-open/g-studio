@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from '../../shared/components/toast'
+import { modalBlocksEditor } from '../../shared/history/interaction'
 import { needsGenerationSetup } from '../../shared/settings-dialog'
 import { createGenerationJob, generationJobs, loadGenerationJobs, type LocalJob } from '../../shared/generation/jobs'
 import { snapshotGenerationConnection } from '../../shared/generation/request-snapshot'
@@ -77,6 +78,12 @@ const tabs = computed(() => manager.instances.value.map(doc => ({id: doc.id, lab
 const leftPanel = definePanelConfig('scene-lighting-sidebar-width', 300)
 const rightPanel = definePanelConfig('scene-lighting-properties-width', 260)
 const viewport = ref<InstanceType<typeof LightingViewport>>()
+function onKeyDown(event: KeyboardEvent) {
+  if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || modalBlocksEditor()) return
+  event.preventDefault()
+  event.stopPropagation()
+  viewport.value?.clearSelection()
+}
 function dropPart(part:PartAsset,x:number,y:number){const point=viewport.value?.dropPoint(x,y);if(point)void add([part],point)}
 const selected = computed(() => state.value.items.find(i => i.id === state.value.selected))
 const asset = computed(() => selected.value ? partLibrary[selected.value.assetId] : undefined)
@@ -127,7 +134,7 @@ onMounted(async()=>{try{await initializeScene()}catch(e){error.value=String(e)}}
 </script>
 <template>
   <EditorShell :history="history" :tabs="tabs" :active-tab-id="manager.activeTabId.value" tab-add-mode="empty" :tab-add-label="t('parts.newScene')" tab-accept=".json,application/json" :left-panel="leftPanel" :right-panel="rightPanel" :left-collapsed="leftCollapsed"
-    @tab-switch="manager.switchTab" @tab-close="closeSceneTab" @tab-pin="manager.setPinned" @tab-rename="renameTab" @tab-add-empty="newTab" @tab-add-file="importAssetFile($event,true)" @tab-load-file="importAssetFile($event,false)" @update:left-collapsed="leftCollapsed=$event">
+    @keydown="onKeyDown" @tab-switch="manager.switchTab" @tab-close="closeSceneTab" @tab-pin="manager.setPinned" @tab-rename="renameTab" @tab-add-empty="newTab" @tab-add-file="importAssetFile($event,true)" @tab-load-file="importAssetFile($event,false)" @update:left-collapsed="leftCollapsed=$event">
     <template #tab-actions><button v-if="closedScenes.length" class="reopen-tab" :title="t('parts.reopenScene')" :aria-label="t('parts.reopenScene')" @click="reopenSceneTab"><SvgIcon name="undo" :size="13"/></button></template>
     <template #left><ScrollArea class="lighting-sidebar" :label="t('parts.sceneSettings')">
       <div v-if="error||libraryError||sceneStorageError" class="error" role="alert">{{error||libraryError||sceneStorageError}}</div>
@@ -158,6 +165,7 @@ onMounted(async()=>{try{await initializeScene()}catch(e){error.value=String(e)}}
     <template #right><ScrollArea class="lighting-sidebar properties-sidebar" :label="t('parts.properties')">
       <p v-if="!selected" class="property-empty">{{t('parts.selectInScene')}}</p>
       <SidebarSection v-if="selected" :key="selected.id" :title="asset?.name??t('parts.missing')" :collapsible="false">
+        <template #header-extra><button type="button" class="clear-selection" :title="t('parts.clearSelection')+' (Esc)'" :aria-label="t('parts.clearSelection')" @click.stop="viewport?.clearSelection()"><SvgIcon name="close" :size="14" aria-hidden="true"/></button></template>
         <img v-if="asset" class="property-image" :src="partImageUrl(asset)" alt=""/><div class="row"><button class="primary" :disabled="!asset" @click="edit(selected.assetId)">{{t('parts.edit')}}</button><button @click="removeSceneItem(selected.id)">{{t('parts.removeInstance')}}</button></div>
 
         <SliderRow v-model="objectX" :default-value="state.room.width/2" :label="t('sceneLight.positionX')" :min="limits.minX-bounds.minX" :max="limits.maxX-bounds.minX" :step="0.01" :precision="2" />
@@ -171,5 +179,6 @@ onMounted(async()=>{try{await initializeScene()}catch(e){error.value=String(e)}}
   </EditorShell>
 </template>
 <style scoped>
+.clear-selection{display:grid;place-items:center;flex:none;width:24px;height:24px;padding:0;border:0;border-radius:4px;background:transparent;color:#888}.clear-selection:hover{background:#333;color:#ddd}.clear-selection:focus-visible{outline:2px solid #8ab4f8;outline-offset:2px}
 .lighting-sidebar{background:#202020;color:#ccc}.row{display:flex;gap:6px;margin:8px 0}.row>*{flex:1}button{font:inherit;color:inherit;cursor:pointer;background:#2c3430;border:1px solid #48514e;border-radius:5px;padding:7px;font-size:11px}button:disabled{opacity:.4;cursor:default}.primary{background:#355344;border-color:#688b75}.wide{width:100%;margin-top:8px}.library-scroll{flex:none;height:auto;max-height:300px;margin-top:6px}.library-scroll :deep(.scroll-viewport){height:auto;max-height:300px}.library-scroll :deep(.scroll-content){min-height:0}.view-controls{display:flex;flex-direction:column;gap:10px}.property-empty{padding:20px 12px;color:#888;font-size:12px;text-align:center}.property-image{display:block;width:100%;height:104px;object-fit:contain;image-rendering:pixelated;margin:10px 0}.search{width:100%;box-sizing:border-box;background:#292929;border:1px solid #444;color:#ddd;border-radius:4px;padding:7px;margin-top:8px}.lighting-info{padding:10px;border-top:1px solid #333}.note{font-size:11px;color:#888;margin:4px 0}.error{color:#eab2a5;font-size:11px;padding:9px;overflow-wrap:anywhere}.reopen-tab{width:28px;border:0;border-radius:0;background:none;color:#888;display:grid;place-items:center;padding:0}.reopen-tab:hover{background:#2d2d2d;color:#ddd}.viewport-undo{display:grid;place-items:center;padding:5px;background:none;border-color:transparent;color:#aaa}
 </style>

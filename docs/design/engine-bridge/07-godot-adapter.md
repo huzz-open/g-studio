@@ -8,6 +8,8 @@ Godot 适配器是 Engine Adapter 抽象的第一个具体实现。它作为 God
 
 ## 插件目录结构
 
+当前源码集中在 [`integrations/godot/`](../../../integrations/godot/README.md)。安装时将其中的 `addons/g_studio/` 复制到目标 Godot 项目同名目录。下面是历史规划结构；当前文件轮询已合并到 `gs_scene_manager.gd`，实际文件列表和运行时遮挡组件见上述目录说明。
+
 ```
 addons/g_studio/
 ├── plugin.cfg                     # 插件描述文件

@@ -3,13 +3,14 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { downloadFile } from './download-file.mjs';
 import { readMirrorProfile, CN_MIRRORS } from './mirrors.mjs';
+import { prepareSourceWheels } from './source-wheels.mjs';
 
 export function pythonSources(root, env = process.env) {
   const domestic = [CN_MIRRORS.pythonIndex, 'https://mirrors.aliyun.com/pypi/simple'];
   return [...new Set([env.UV_DEFAULT_INDEX || env.UV_INDEX_URL, ...(readMirrorProfile(root) === 'cn' ? domestic : []), 'https://pypi.org/simple'].filter(Boolean))];
 }
 
-export async function indexWheels(index, name, fetchIndex = fetch) {
+export async function indexArtifacts(index, name, fetchIndex = fetch) {
   const page = `${index.replace(/\/$/, '')}/${name.replaceAll('_', '-')}/`;
   const response = await fetchIndex(page, { signal: AbortSignal.timeout(15000) });
   if (!response.ok) throw Error(`Index HTTP ${response.status}`);
@@ -20,7 +21,11 @@ export async function indexWheels(index, name, fetchIndex = fetch) {
     const filename = decodeURIComponent(url.pathname.split('/').at(-1));
     url.hash = '';
     return { url: url.href, filename, hash };
-  }).filter(wheel => wheel.filename.endsWith('.whl') && wheel.hash);
+  }).filter(file => file.hash);
+}
+
+export async function indexWheels(index, name, fetchIndex = fetch) {
+  return (await indexArtifacts(index, name, fetchIndex)).filter(file => file.filename.endsWith('.whl'));
 }
 
 export async function downloadDependency(wheel, sources, directory, { download = downloadFile, lookup = indexWheels } = {}) {
@@ -46,11 +51,12 @@ export async function downloadDependency(wheel, sources, directory, { download =
   throw failure;
 }
 
-export async function downloadDependencies({ root, home, python, platform, requirements, torchWheels = [], uvRun }) {
+export async function downloadDependencies({ root, home, python, platform, requirements, torchWheels = [], repairPackages = null, uvRun }) {
   const sources = pythonSources(root);
   const directory = join(home, 'downloads', 'wheels');
   const work = join(home, 'platforms', platform, 'dependency-plan');
   await mkdir(work, { recursive: true });
+  const localWheels = await prepareSourceWheels({ home, python, requirements, sources, uvRun });
   // Bootstrap the tag parser as a pure Python wheel, also through the measured downloader.
   let packaging, failure;
   for (const source of sources) {
@@ -64,7 +70,7 @@ export async function downloadDependencies({ root, home, python, platform, requi
   }
   if (!packaging) throw failure;
   const input = join(work, 'requirements.in'), lock = join(work, 'pylock.toml');
-  await writeFile(input, [`-r ${requirements.replaceAll('\\', '/')}`, ...torchWheels.map(path => path.replaceAll('\\', '/'))].join('\n') + '\n');
+  await writeFile(input, [`-r ${requirements.replaceAll('\\', '/')}`, ...[...torchWheels, ...localWheels.map(wheel => wheel.path)].map(path => path.replaceAll('\\', '/'))].join('\n') + '\n');
   let resolved = false;
   for (const source of sources) {
     try {
@@ -79,9 +85,10 @@ export async function downloadDependencies({ root, home, python, platform, requi
     } catch (error) { failure = error; console.warn(`[generation] Resolver source failed: ${error.message}; trying next source`); }
   }
   if (!resolved) throw failure;
-  const selection = spawnSync(python, ['-I', join(root, 'scripts/generation/select-wheels.py'), packaging, lock, platform], { encoding: 'utf8', windowsHide: true, timeout: 30000, maxBuffer: 8 * 1024 ** 2 });
+  const selection = spawnSync(python, ['-I', join(root, 'scripts/generation/select-wheels.py'), packaging, lock, platform, JSON.stringify({ localWheels, repairPackages })], { encoding: 'utf8', windowsHide: true, timeout: 30000, maxBuffer: 8 * 1024 ** 2 });
   if (selection.status !== 0) throw Error(selection.stderr || selection.error?.message || 'Wheel selection failed');
-  const wheels = JSON.parse(selection.stdout), paths = [];
+  const selected = JSON.parse(selection.stdout);
+  const wheels = selected.filter(wheel => !wheel.path), paths = selected.filter(wheel => wheel.path).map(wheel => wheel.path);
   console.log(`[generation] Downloading ${wheels.length} dependencies with byte progress and MiB/s`);
   for (let i = 0; i < wheels.length; i++) {
     console.log(`[generation] Dependency ${i + 1}/${wheels.length}: ${wheels[i].name}`);

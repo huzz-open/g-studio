@@ -10,7 +10,7 @@ const OPACITY_PREFIX = "occlude_opacity_"
 
 @export var sprite: Sprite2D
 @export var detection_area: Area2D
-@export var occlude_shader: Shader = preload("res://shaders/occlude.gdshader")
+@export var occlude_shader: Shader = preload("shaders/occlude.gdshader")
 
 class OccludeData:
 	var area: Area2D
@@ -36,7 +36,7 @@ func _ready() -> void:
 
 func _ensure_shader_material() -> void:
 	if sprite.material is ShaderMaterial:
-		printerr("OccludeHandler: Sprite2D '%s' 已有 ShaderMaterial，遮挡 shader 未自动挂载。\n如需遮挡功能，请在自定义 shader 中 #include \"occlude.gdshaderinc\"。" % sprite.name)
+		printerr("OccludeHandler: Sprite2D '%s' 已有 ShaderMaterial，遮挡 shader 未自动挂载。\n如需遮挡功能，请参考插件 runtime/shaders/occlude.gdshader，将遮挡逻辑及 uniform 参数合并到自定义 shader。" % sprite.name)
 		return
 	var mat := ShaderMaterial.new()
 	mat.shader = occlude_shader
