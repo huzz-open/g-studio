@@ -4,7 +4,7 @@ import { PITCH, RIGHT, UP, YAW, type SceneState } from './model'
 export const DEFAULT_SCENE_TARGET: Vec3 = [0, 1.15, 0]
 
 export function sceneCamera(state: SceneState, aspect: number) {
-  return camera({ yaw: YAW, pitch: PITCH, distance: state.zoom, projection: 'orthographic' }, aspect, state.target ?? DEFAULT_SCENE_TARGET)
+  return camera({ yaw: state.mode==='sprites'?YAW:state.inspectionYaw??YAW, pitch: state.mode==='sprites'?PITCH:state.inspectionPitch??PITCH, distance: state.zoom, projection: 'orthographic' }, aspect, state.target ?? DEFAULT_SCENE_TARGET)
 }
 
 /** Move the camera opposite the pointer so every world point follows the drag. */

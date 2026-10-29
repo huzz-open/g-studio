@@ -13,6 +13,9 @@ export interface PartGeometry {
   defaultSize?: Triple
   template?: TemplateId
   mesh?: MeshGeometry
+  /** Explicitly adopted model snapshots do not follow background regeneration. */
+  frozen?: boolean
+  original?: boolean
   repair?: GeometryRepair
   /** Projection registration; size is the baseline for subsequent manual edits. */
   imageFit?: {
@@ -30,6 +33,11 @@ export interface PartAsset {
   image: { uri: string; width: number; height: number }
   normal: NormalSettings
   geometry: PartGeometry
+  modelComparison?: {
+    source: PartGeometry; sourceAlignment: PartAsset['alignment']; inputKey: string
+    candidate?: PartGeometry; candidateAlignment?: PartAsset['alignment']
+    selected: 'original' | 'optimized'
+  }
   /** Previously selected shapes, including embedded models, for switching back. */
   geometryAlternatives?: PartGeometry[]
   alignment: { anchor: [number, number]; offset: [number, number]; scale: number; height?: number }
@@ -71,6 +79,16 @@ export function validatePart(value: unknown): asserts value is PartAsset {
   const g = v.geometry
   validateGeometry(g, v.version, fail)
   if (!isPartGeometryAllowed(v as PartAsset, g)) fail('geometry does not belong to this part')
+  if(v.modelComparison!==undefined){
+    const c=v.modelComparison
+    if(!object(c)||!['original','optimized'].includes(c.selected)||typeof c.inputKey!=='string'||c.inputKey.length>200)fail('model comparison')
+    validateGeometry(c.source,v.version,fail)
+    if(c.source.kind!=='mesh'||!c.source.original||!c.source.frozen)fail('comparison source')
+    if(g.kind!=='mesh'||!g.frozen||g.mesh.sha256!==c.source.mesh.sha256||(c.selected==='original'&&!g.original)||(c.selected==='optimized'&&(g.original||!c.candidate)))fail('comparison selection')
+    const alignment=(a:any)=>object(a)&&tuple(a.anchor,2,0,1)&&tuple(a.offset,2,-4,4)&&finite(a.scale,.25,3)&&finite(a.height,.001,64)
+    if(!alignment(c.sourceAlignment))fail('comparison alignment')
+    if(c.candidate!==undefined){validateGeometry(c.candidate,v.version,fail);if(c.candidate.kind!=='mesh'||!c.candidate.frozen||c.candidate.original||c.candidate.mesh.sha256!==c.source.mesh.sha256||!alignment(c.candidateAlignment))fail('comparison candidate')}
+  }
   if (v.geometryAlternatives !== undefined) {
     if (!Array.isArray(v.geometryAlternatives) || v.geometryAlternatives.length > 32) fail('geometry alternatives')
     for (const alternative of v.geometryAlternatives) {
@@ -90,6 +108,8 @@ export function validatePart(value: unknown): asserts value is PartAsset {
 function validateGeometry(g: any, version: number, fail: (message: string) => never) {
   if (!object(g) || !['silhouette', 'template', 'mesh'].includes(g.kind) || !tuple(g.size, 3, .02, 8)) fail('geometry')
   if (g.defaultSize !== undefined && !tuple(g.defaultSize, 3, .02, 8)) fail('geometry default size')
+  if(g.frozen!==undefined&&typeof g.frozen!=='boolean')fail('frozen geometry')
+  if(g.original!==undefined&&(typeof g.original!=='boolean'||g.kind!=='mesh'||(g.original&&(g.imageFit||g.repair))))fail('original geometry')
   if(g.repair!==undefined){
     const r=g.repair
     if(g.kind!=='mesh'||!object(r)||![1,2].includes(r.version)||typeof r.enabled!=='boolean'||typeof r.key!=='string'||r.key.length>16384

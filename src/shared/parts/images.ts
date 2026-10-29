@@ -2,7 +2,7 @@ import { computeNormals } from '../../modules/sprite-slicer/core/normal/client'
 import type { PartAsset } from './schema'
 import { clonePart } from './schema'
 import { resolvePartModels } from '../generation/models'
-import { repairKey } from '../../modules/scene-lighting/geometry-repair'
+import { repairKey, comparisonInputKey } from '../../modules/scene-lighting/geometry-repair'
 
 export function partImageUrl(part: PartAsset) {
   return part.image.uri.startsWith('builtin:') ? `${import.meta.env.BASE_URL}scene-lighting/${part.image.uri.slice(8)}.png` : part.image.uri
@@ -37,11 +37,15 @@ export function normalImageUrl(part: PartAsset): Promise<string> {
 export async function portablePart(part: PartAsset): Promise<PartAsset> {
   const copy = clonePart(resolvePartModels(part))
   if (copy.image.uri.startsWith('builtin:')) {
+    const comparisonValid=copy.modelComparison?.inputKey===comparisonInputKey(copy)
+    const c=copy.modelComparison,candidateValid=c?.candidate&&c.candidateAlignment&&c.candidate.repair?.key===repairKey({...copy,geometry:c.candidate,alignment:c.candidateAlignment})
     const valid=copy.geometry.repair?.key===repairKey(copy)
     const alternatives=copy.geometryAlternatives?.map(geometry=>geometry.repair?.key===repairKey({...copy,geometry}))
     copy.image.uri = pixelsUrl((await partPixels(copy)).pixels)
     if(valid&&copy.geometry.repair)copy.geometry.repair.key=repairKey(copy)
     copy.geometryAlternatives?.forEach((geometry,i)=>{if(alternatives?.[i]&&geometry.repair)geometry.repair.key=repairKey({...copy,geometry})})
+    if(c&&comparisonValid)c.inputKey=comparisonInputKey(copy)
+    if(candidateValid&&c?.candidate?.repair&&c.candidateAlignment)c.candidate.repair.key=repairKey({...copy,geometry:c.candidate,alignment:c.candidateAlignment})
   }
   return copy
 }

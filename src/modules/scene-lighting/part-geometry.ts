@@ -38,6 +38,7 @@ export function buildPartGeometry(part: PartAsset, pixels: { width: number; heig
   if (!isPartGeometryAllowed(part, g)) throw new Error('Unsupported part geometry')
   if (g.kind === 'mesh' || g.kind === 'template') {
     const source = g.kind === 'mesh' ? decodeMesh(g.mesh!.uri) : buildItem(g.template!)
+    if(g.original)return source
     if (!g.imageFit) return resize(source, g.size)
     const resized = resize(source, g.imageFit.size)
     const oriented = g.imageFit.rotation ? rotateMesh(resized, g.imageFit.rotation) : resized

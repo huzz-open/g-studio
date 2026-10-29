@@ -19,6 +19,7 @@ function imageKey(uri:string){
   const key=`${uri.length}:${a>>>0}:${b>>>0}`;imageKeys.set(uri,key);while(imageKeys.size>32)imageKeys.delete(imageKeys.keys().next().value!)
   return key
 }
+export function comparisonInputKey(part:Pick<PartAsset,'image'>){return `${part.image.width}:${part.image.height}:${imageKey(part.image.uri)}`}
 /** Content fingerprint is a cache invalidator, not an integrity/security hash. */
 export function repairKey(part: PartAsset) { return JSON.stringify([part.geometry.mesh?.sha256,part.geometry.size,part.geometry.imageFit,part.alignment,part.image.width,part.image.height,imageKey(part.image.uri)]) }
 export function repairSpec(part: PartAsset, pixels: {width:number;height:number;data:Uint8ClampedArray}, bounds: GeometryRepair['bounds']): GeometryRepair {

@@ -17,6 +17,9 @@ export interface SceneState {
   items: SceneItem[]; light: Vec3; ambient: number; power: number
   showNames: boolean; shadows: boolean; filtered: boolean; zoom: number
   target?: Vec3
+  /** Inspection camera only; sprite relighting keeps its calibrated camera. */
+  inspectionYaw?: number
+  inspectionPitch?: number
 }
 export const PITCH = 20, YAW = 25, ROOM = { minX: -5.5, maxX: 5.5, minZ: -4, maxZ: 5, height: 4.8 }
 const yaw = YAW * Math.PI / 180, pitch = PITCH * Math.PI / 180

@@ -37,6 +37,7 @@
 | --- | --- | --- |
 | [生成服务架构](design/model-generation.md) | 已接入架构的职责与设计决定；部署参数引用当前服务文档 | ZH |
 | [模型与图片轮廓配准](design/silhouette-registration.md) | 无 AI 的通用三维朝向、等比尺寸与位置校准，目标函数、算法来源及验证 | ZH |
+| [原始模型与优化候选](design/model-comparison.md) | 同步滑动对比、原始快照与显式采用，计算不自动替换选择 | ZH |
 | [原图约束的几何修复](design/image-constrained-geometry-repair.md) | 保留真实透明孔洞，裁剪多余几何并插值小缺口 | ZH |
 | [几何模型与推理服务改造](design/model-generation-upgrade.md) | 已实施的服务机制、固定资源与未关闭的 Mini 正确性/性能问题 | ZH |
 | [Mini 推理异常与性能调查](design/mini-inference-investigation.md) | 优先待修复：平板退化、FP32 规避办法、常驻预算与官方 FlashVDM 对照及验收 | ZH |

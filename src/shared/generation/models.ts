@@ -29,6 +29,7 @@ export function publishModel(job: ModelRecord) {
   generatedModels.set(job.modelId, JSON.parse(JSON.stringify(job.geometry)))
 }
 export function resolveModelGeometry(geometry: PartGeometry): PartGeometry {
+  if(geometry.frozen)return geometry
   if (!geometry.mesh) return geometry
   const id = geometry.mesh.modelId || legacyModels.get(legacyKey(geometry))
   const latest = id ? generatedModels.get(id) : undefined

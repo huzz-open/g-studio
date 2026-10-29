@@ -19,7 +19,7 @@
     "test:compute": "node --test tests/latest-task.test.cjs",
     "test:shadows": "node --test tests/shadow-geometry.test.cjs",
     "test:scene-lighting": "node --test tests/scene-lighting.test.cjs tests/scene-environment.test.cjs tests/direction-control.test.cjs tests/default-scene.test.cjs",
-    "test:parts": "node --test tests/parts.test.cjs tests/sprite-assets.test.cjs tests/part-preview.test.cjs tests/parameter-defaults.test.cjs tests/image-fit.test.cjs tests/orientation-fit.test.cjs tests/geometry-repair.test.cjs",
+    "test:parts": "node --test tests/parts.test.cjs tests/sprite-assets.test.cjs tests/part-preview.test.cjs tests/parameter-defaults.test.cjs tests/image-fit.test.cjs tests/orientation-fit.test.cjs tests/geometry-repair.test.cjs tests/model-comparison.test.cjs",
     "preview": "vite preview",
     "dev:web": "vite",
     "dev:gensvc": "node scripts/generation/start.mjs start",

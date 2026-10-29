@@ -15,7 +15,7 @@ import { sunAnchor, sunDirection } from './lighting-math'
 import type { Vec3 } from '../experiments/umbrella/math'
 
 const props = withDefaults(defineProps<{ state: SceneState; assets: PartAsset[]; compact?: boolean; editable?: boolean; controls?: boolean; showShadowPoints?: boolean; fitView?: () => void; autoFit?: boolean }>(), { compact: false, editable: true, controls: true, showShadowPoints: false })
-const emit = defineEmits<{ edit: [assetId: string]; coverage: [value: Record<string, number>]; zoom: []; pan: [] }>()
+const emit = defineEmits<{ edit: [assetId: string]; coverage: [value: Record<string, number>]; zoom: []; pan: []; ready: [] }>()
 const { t } = useI18n(), canvas = ref<HTMLCanvasElement>(), ready = ref(false), busy = ref(false), error = ref('')
 const assetsById = computed(() => Object.fromEntries(props.assets.map(a => [a.id, a])))
 const markers = ref<{ id: string; x: number; y: number }[]>([]), lightMarker = ref({ x: -100, y: -100 }), lightFoot = ref({ x: -100, y: -100 })
@@ -59,7 +59,7 @@ const updates = createLatestTask<PartAsset[], boolean>({
   // Publish finished normal-map frames while the next slider value computes.
   // Changes to images, geometry or membership still invalidate an old snapshot.
   async run(parts) { const key=surfaceKey(parts); return renderer!.syncAssets(parts,()=>surfaceKey(props.assets)===key) },
-  apply(committed) { if(!committed)return; ready.value = true; error.value = ''; if(props.autoFit)props.fitView?.(); emit('coverage', renderer!.coverage()); draw() },
+  apply(committed) { if(!committed)return; ready.value = true; error.value = ''; if(props.autoFit)props.fitView?.(); emit('coverage', renderer!.coverage()); draw();emit('ready') },
 })
 function refresh() { if (renderer) { error.value = ''; updates.request(props.assets.map(clonePart), true) } }
 // The editor passes a fresh [draft] array on render. Compare content, not array
