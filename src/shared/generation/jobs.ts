@@ -7,6 +7,7 @@ import type {
 } from "../../../packages/generation-protocol/types";
 import { GenerationClient, sha256 } from "./client";
 import type { GenerationConnection } from "./settings";
+import type { GenerationRequestSnapshot } from './request-snapshot';
 import { decodeMesh, meshDataUri } from "../parts/mesh";
 import type { PartGeometry, Triple } from "../parts/schema";
 import { meshExtents } from "../../modules/scene-lighting/part-geometry";
@@ -19,6 +20,7 @@ export interface LocalJob {
   supersededTaskIds?: string[];
   replaces?: { jobId: string; modelId: string; revision: number };
   name: string;
+  providerName: string;
   image: string;
   connection: GenerationConnection;
   request: GenerationRequest;
@@ -84,7 +86,7 @@ async function commitResult(job: LocalJob, geometry: PartGeometry) {
         failure = Error('The model was replaced in another editor. Reopen it before retrying.'); tx.abort(); return;
       }
       result = { ...target, geometry, modelRevision:expected.revision + 1, connection:job.connection,
-        request:job.request, remote:job.remote, deviceType:job.deviceType, createdAt:job.createdAt,
+        request:job.request, providerName:job.providerName, remote:job.remote, deviceType:job.deviceType, createdAt:job.createdAt,
         saved:false, error:undefined, resultRejected:false,
         supersededTaskIds:[...(target.supersededTaskIds || []),job.localId] };
       identifyModel(result);
@@ -157,6 +159,7 @@ async function inspect(job: LocalJob) {
           sha256: output.sha256,
           inputSha256: result.inputSha256,
           providerId: result.providerId,
+          providerName: job.providerName,
           providerVersion: result.providerVersion,
           generation: {
             seed: job.request.seed,
@@ -218,7 +221,7 @@ export async function submitJob(job: LocalJob) {
 export async function createGenerationJob(
   name: string,
   image: string,
-  connection: GenerationConnection,
+  connection: GenerationRequestSnapshot,
   source?: LocalJob['source'],
   onCreated?: (job: LocalJob) => void,
   replaces?: LocalJob['replaces'],
@@ -228,6 +231,7 @@ export async function createGenerationJob(
   const job: LocalJob = {
     localId: crypto.randomUUID(),
     name,
+    providerName: connection.providerName,
     image,
     connection: { ...connection },
     createdAt: Date.now(),
@@ -253,7 +257,7 @@ export async function createGenerationJob(
   await submitJob(reactiveJob).catch(() => {});
   return reactiveJob;
 }
-export async function regenerateModel(target: LocalJob, mode: 'overwrite' | 'new', connection: GenerationConnection, onCreated?: (job: LocalJob) => void, source?: LocalJob['source']) {
+export async function regenerateModel(target: LocalJob, mode: 'overwrite' | 'new', connection: GenerationRequestSnapshot, onCreated?: (job: LocalJob) => void, source?: LocalJob['source']) {
   if (!target.geometry?.mesh || target.replaces) throw Error('Open a completed model before regenerating');
   identifyModel(target);
   if (mode === 'new') return createGenerationJob(target.name, target.image, connection, source || target.source, onCreated);
@@ -276,7 +280,7 @@ export async function registerExistingModel(name: string, image: string, origina
     ? job.modelId === mesh.modelId : job.geometry.mesh.sha256 === mesh.sha256 && job.request.inputSha256 === mesh.inputSha256));
   if (existing) return existing;
   if (await sha256(await (await fetch(image)).arrayBuffer()) !== mesh.inputSha256) throw Error('The original model image is unavailable');
-  const job: LocalJob = { localId:crypto.randomUUID(), name, image, connection, source, geometry,
+  const job: LocalJob = { localId:crypto.randomUUID(), name, providerName:mesh.providerName || mesh.providerId, image, connection, source, geometry,
     modelId:mesh.modelId, modelRevision:mesh.modelRevision, legacyModelKeys:legacyKeysFor(mesh.modelId), createdAt:Date.now(),
     request:{ protocolVersion:1, clientRequestId:crypto.randomUUID(), providerId:mesh.providerId,
       inputSha256:mesh.inputSha256, targetFaces:mesh.generation?.targetFaces ?? connection.targetFaces,

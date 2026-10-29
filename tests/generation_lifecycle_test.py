@@ -182,6 +182,26 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.service.backend,'mps');self.assertEqual(self.state['strategy'],'resident')
         self.assertEqual(len(self.fake.calls),2)  # No automatic retries.
 
+    async def test_task_logs_identify_each_jobs_model_at_every_stage(self):
+        self.ready()
+        self.service.provider_states['hunyuan-turbo'].update(state='ready', acceptsJobs=True, strategy='resident')
+        self.service.residents['hunyuan-turbo'] = self.fake
+        with patch('builtins.print') as output:
+            first = await self.submit('hunyuan-mini')
+            self.assertEqual((await self.terminal(first['id']))['status'], 'succeeded')
+            self.fake.error = 'CUDA out of memory'
+            second = await self.submit('hunyuan-turbo')
+            self.assertEqual((await self.terminal(second['id']))['status'], 'failed')
+        lines = [str(call.args[0]) for call in output.call_args_list]
+        for job, provider, terminal in [(first, 'hunyuan-mini', 'succeeded'), (second, 'hunyuan-turbo', 'failed')]:
+            task_lines = [line for line in lines if f"[任务 {job['id']}]" in line]
+            self.assertEqual(len(task_lines), 3)
+            for line in task_lines:
+                self.assertIn(f"{server.PROVIDERS[provider].name} ({provider})", line)
+            self.assertIn('已排队', task_lines[0])
+            self.assertIn('开始生成', task_lines[1])
+            self.assertIn(terminal, task_lines[2])
+
     async def prepare_with_low_memory(self, load_error=None, diagnostics_error=False):
         self.service.enabled = ['hunyuan-mini']
         process = Mock()

@@ -103,11 +103,15 @@ test('task snapshots record provider defaults and keep input preferences indepen
   settings.parametersByProvider = { 'hunyuan-mini': { steps: 7 } }
   const before = JSON.stringify(settings)
   const snapshot = snapshotGenerationConnection()
+  assert.equal(snapshot.providerName, 'Hunyuan')
   assert.deepEqual(snapshot.parametersByProvider['hunyuan-mini'], { steps: 7, resolution: 256 })
   assert.equal(JSON.stringify(settings), before)
   settings.seed = 99
   settings.parametersByProvider['hunyuan-mini']!.steps = 9
   assert.equal(snapshot.seed, 42)
+  state.capabilities!.providers[1]!.name = 'Changed service name'
+  assert.equal(snapshot.providerName, 'Hunyuan', 'the submitted name does not follow current service metadata')
+  assert.equal(JSON.parse(JSON.stringify(snapshot)).providerName, 'Hunyuan')
   assert.equal(snapshot.parametersByProvider['hunyuan-mini']!.steps, 7)
   snapshot.parametersByProvider['hunyuan-mini']!.resolution = 128
   assert.equal(settings.parametersByProvider['hunyuan-mini']!.resolution, undefined)

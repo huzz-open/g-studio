@@ -77,7 +77,7 @@ function value(number: number | undefined) { return number === undefined ? '—'
         <TextRow :label="t('generation.targetFaces')" :model-value="value(job.request.targetFaces)" readonly />
         <TextRow :label="t('generation.seed')" :model-value="value(job.request.seed)" readonly />
         <TextRow v-for="(number,key) in parameters" :key="key" :label="t('generation.parameter.'+key) === 'generation.parameter.'+key ? key : t('generation.parameter.'+key)" :model-value="value(number)" readonly />
-        <TextRow :label="t('generation.provider')" :model-value="job.request.providerId" readonly stacked />
+        <TextRow :label="t('generation.provider')" :model-value="job.providerName" :title="job.request.providerId" readonly stacked />
       </SidebarSection>
       <SidebarSection v-if="job.geometry" :title="t('generation.modelProperties')">
         <TextRow :label="t('generation.actualFaces')" :model-value="value(triangles)" readonly />

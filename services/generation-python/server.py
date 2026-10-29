@@ -222,7 +222,7 @@ class Service:
             execution = now - clock[1] if clock[1] is not None else 0.
             job['timings'] = dict(totalSeconds=total, executionSeconds=execution, queueSeconds=max(0., total-execution))
             if job.get('result'): job['result']['timings'] = job['timings']
-            print(f"[任务 {job['id']}] {job['status']} | 总耗时 {total:.2f} 秒 | 执行 {execution:.2f} 秒" + (f" | {job['error']['message']}" if job.get('error') else ''), flush=True)
+            print(f"[任务 {job['id']}] {job['status']} | 模型 {PROVIDERS[job['providerId']].name} ({job['providerId']}) | 总耗时 {total:.2f} 秒 | 执行 {execution:.2f} 秒" + (f" | {job['error']['message']}" if job.get('error') else ''), flush=True)
         job['expiresAt'] = time.time() + 86400
         job['_logged'] = True
         self.save(job)
@@ -330,7 +330,7 @@ class Service:
         self.jobs[id] = job
         self.save(job)
         self.clocks[id] = [received, None]
-        print(f'[任务 {id}] 已排队，等待模型与执行空位', flush=True)
+        print(f"[任务 {id}] 已排队，等待模型与执行空位 | 模型 {PROVIDERS[job['providerId']].name} ({job['providerId']})", flush=True)
         self.wake.set()
         return job
 
@@ -433,7 +433,7 @@ class Service:
                 self.clocks[job['id']][1] = time.monotonic()
                 job.update(status='running', phase='starting')
                 self.save(job)
-                print(f"[任务 {job['id']}] 开始生成", flush=True)
+                print(f"[任务 {job['id']}] 开始生成 | 模型 {PROVIDERS[job['providerId']].name} ({job['providerId']})", flush=True)
                 folder = JOBS / job['id']
                 try:
                     client = self.residents.get(job['providerId'])

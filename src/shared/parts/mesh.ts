@@ -15,6 +15,8 @@ export interface MeshGeometry {
   uri: string;
   sha256: string;
   providerId: string;
+  /** Display name captured when this model was generated. */
+  providerName?: string;
   inputSha256: string;
   warnings: string[];
 }
