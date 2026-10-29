@@ -53,11 +53,11 @@ export function createDefaultScene(): SceneState {
 }
 
 export interface Mesh { vertices: Float32Array; triangles: Vec3[][] }
-export function meshBuilder() {
+export function meshBuilder(minimumDoubleArea = 1e-8) {
   const vertices: number[] = [], triangles: Vec3[][] = []
   function tri(a: Vec3, b: Vec3, c: Vec3, color: Vec3, normals?: Vec3[]) {
     const n = normalize(cross(sub(b, a), sub(c, a)))
-    if (Math.hypot(...cross(sub(b, a), sub(c, a))) < 1e-8) return
+    if (Math.hypot(...cross(sub(b, a), sub(c, a))) <= minimumDoubleArea) return
     triangles.push([a, b, c])
     for (const [i, p] of [a, b, c].entries()) vertices.push(...p, ...(normals?.[i] && Math.hypot(...normals[i]) > 1e-8 ? normalize(normals[i]) : n), ...color.map(v => v ** 2.2))
   }
@@ -170,7 +170,8 @@ export function rayHit(origin: Vec3, target: Vec3, triangles: Vec3[][]): number 
   let nearest = Infinity
   for (const [a, b, c] of triangles) {
     const e1 = sub(b, a), e2 = sub(c, a), p = cross(direction, e2), det = dot(e1, p)
-    if (Math.abs(det) < 1e-9) continue
+    const determinantScale=Math.hypot(...e1)*Math.hypot(...p)
+    if (determinantScale===0||Math.abs(det)<=1e-12*determinantScale) continue
     const inv = 1 / det, t = sub(origin, a), u = dot(t, p) * inv
     if (u < 0 || u > 1) continue
     const q = cross(t, e1), v = dot(direction, q) * inv

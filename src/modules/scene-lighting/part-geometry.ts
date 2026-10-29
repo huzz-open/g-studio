@@ -3,6 +3,14 @@ import { resolveModelGeometry } from '../../shared/generation/models'
 import { isPartGeometryAllowed, type PartAsset, type PartGeometry, type TemplateId, type Triple } from '../../shared/parts/schema'
 import { buildItem, meshBuilder, roomBounds, type RoomSize, spriteBounds, YAW, type Mesh } from './model'
 import { normalize, type Vec3 } from '../experiments/umbrella/math'
+import { fitMeshProjection, visiblePixelBounds } from './image-fit'
+import { rotateMesh } from './orientation-fit'
+import { cachedRepair, cachedRepairBounds, repairKey } from './geometry-repair'
+
+export function activeRepair(part:PartAsset){
+  const g=resolveModelGeometry(part.geometry),spec=g.repair
+  return spec?.enabled&&spec.version===2&&spec.key===repairKey({...part,geometry:g})?spec:undefined
+}
 
 export function meshExtents(mesh: Mesh) {
   const min: Triple = [Infinity, Infinity, Infinity], max: Triple = [-Infinity, -Infinity, -Infinity]
@@ -24,10 +32,21 @@ function resize(mesh: Mesh, size: Triple): Mesh {
 }
 export function templateGeometry(id: TemplateId): PartGeometry { return { kind: 'template', template: id, size: meshExtents(buildItem(id)).size } }
 export function buildPartGeometry(part: PartAsset, pixels: { width: number; height: number; data: Uint8ClampedArray }): Mesh {
+  const ready=activeRepair(part)
+  if(ready){const cached=cachedRepair(ready);if(cached)return cached.mesh}
   const g = resolveModelGeometry(part.geometry), color: Vec3 = [.56, .58, .53]
   if (!isPartGeometryAllowed(part, g)) throw new Error('Unsupported part geometry')
-  if (g.kind === 'mesh') return resize(decodeMesh(g.mesh!.uri), g.size)
-  if (g.kind === 'template') return resize(buildItem(g.template!), g.size)
+  if (g.kind === 'mesh' || g.kind === 'template') {
+    const source = g.kind === 'mesh' ? decodeMesh(g.mesh!.uri) : buildItem(g.template!)
+    if (!g.imageFit) return resize(source, g.size)
+    const resized = resize(source, g.imageFit.size)
+    const oriented = g.imageFit.rotation ? rotateMesh(resized, g.imageFit.rotation) : resized
+    const mesh=fitMeshProjection(oriented, g.imageFit.target, g.size.map((v, i) => v / g.imageFit!.size[i]) as Vec3, g.imageFit.mode === 'similarity', g.imageFit.projection)
+    const spec=activeRepair(part)
+    // Synchronous consumers (framing/movement) may use conservative source
+    // bounds while cold. Actual rendering must await buildPartGeometryAsync.
+    return spec?cachedRepair(spec)?.mesh??mesh:mesh
+  }
   const builder = meshBuilder()
   // Explicitly approximate: an upright thin silhouette, not an inferred solid object.
   const ratio = Math.min(1, 64 / Math.max(pixels.width, pixels.height))
@@ -46,12 +65,36 @@ export function buildPartGeometry(part: PartAsset, pixels: { width: number; heig
   mesh.triangles = mesh.triangles.map(tri => tri.map(rotate)); return mesh
 }
 export function alignedBounds(part: PartAsset, mesh: Mesh) {
-  const base = spriteBounds(mesh, part.image.width / part.image.height)
+  const imageHeight = part.alignment.height ?? spriteBounds(mesh, part.image.width / part.image.height).height
+  const base = { height: imageHeight, width: imageHeight * part.image.width / part.image.height }
   const width = base.width * part.alignment.scale, height = base.height * part.alignment.scale
   return { width, height, left: -width * part.alignment.anchor[0] + part.alignment.offset[0], bottom: -height * (1 - part.alignment.anchor[1]) + part.alignment.offset[1] }
 }
+/** Freeze the image rectangle and register the model to its visible pixels.
+ * Called on a draft: original GLB bytes and source images remain untouched. */
+export function alignPartGeometry(part: PartAsset, pixels: { width: number; height: number; data: Uint8ClampedArray }) {
+  if (part.geometry.kind === 'silhouette') throw new Error('Image alignment requires solid geometry')
+  const visible = visiblePixelBounds(pixels)
+  const mesh = buildPartGeometry(part, pixels), bounds = alignedBounds(part, mesh)
+  part.alignment.height ??= bounds.height / part.alignment.scale
+  const rotation = part.geometry.imageFit?.rotation
+  part.geometry.imageFit = { size: [...part.geometry.size], mode: 'similarity', ...(rotation ? { rotation: [...rotation] as Triple } : {}), target: [
+    bounds.left + visible.left * bounds.width, bounds.bottom + visible.bottom * bounds.height,
+    visible.width * bounds.width, visible.height * bounds.height,
+  ] }
+}
 export function partMovementLimits(part: PartAsset | undefined, scale = 1, room?: RoomSize) {
   const ROOM=roomBounds(room)
+  const repair=part?activeRepair(part):undefined,readyBounds=repair?cachedRepairBounds(repair):undefined
+  if (part?.geometry.imageFit && part.geometry.kind !== 'silhouette' && (!repair||readyBounds)) {
+    const { min, max } = readyBounds??meshExtents(buildPartGeometry(part, { width: 0, height: 0, data: new Uint8ClampedArray() }))
+    const limits = (a: number, b: number, lo: number, hi: number) => {
+      const lower = Math.ceil((lo - a * scale + .05) * 100) / 100, upper = Math.floor((hi - b * scale - .05) * 100) / 100
+      return lower <= upper ? [lower, upper] : [(lower + upper) / 2, (lower + upper) / 2]
+    }
+    const [minX, maxX] = limits(min[0], max[0], ROOM.minX, ROOM.maxX), [minZ, maxZ] = limits(min[2], max[2], ROOM.minZ, ROOM.maxZ)
+    return { minX, maxX, minZ, maxZ }
+  }
   let width=part?.geometry.size[0]??1,depth=part?.geometry.size[2]??1
   if(part?.geometry.kind==='silhouette'){const angle=YAW*Math.PI/180;[width,depth]=[width*Math.cos(angle)+depth*Math.sin(angle),width*Math.sin(angle)+depth*Math.cos(angle)]}
   const w = Math.min(ROOM.maxX - ROOM.minX - .1, width * scale)

@@ -59,7 +59,7 @@ const updates = createLatestTask<PartAsset[], boolean>({
   // Publish finished normal-map frames while the next slider value computes.
   // Changes to images, geometry or membership still invalidate an old snapshot.
   async run(parts) { const key=surfaceKey(parts); return renderer!.syncAssets(parts,()=>surfaceKey(props.assets)===key) },
-  apply(committed) { if(!committed)return; ready.value = true; error.value = ''; emit('coverage', renderer!.coverage()); draw() },
+  apply(committed) { if(!committed)return; ready.value = true; error.value = ''; if(props.autoFit)props.fitView?.(); emit('coverage', renderer!.coverage()); draw() },
 })
 function refresh() { if (renderer) { error.value = ''; updates.request(props.assets.map(clonePart), true) } }
 // The editor passes a fresh [draft] array on render. Compare content, not array

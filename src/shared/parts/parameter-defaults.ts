@@ -18,6 +18,7 @@ export function partParameterDefaults(part: PartAsset) {
     const generic = createPart('Part defaults', part.image, part.id)
     defaults.geometry = generic.geometry
   }
+  if (part.geometry.imageFit) defaults.geometry.size = [...part.geometry.imageFit.size]
   if (part.geometry.defaultSize) defaults.geometry.size = [...part.geometry.defaultSize]
   return defaults
 }

@@ -7,13 +7,18 @@ import { useI18n } from '../i18n'
 import { NORMAL_RANGES } from '../types/normal-settings'
 import { clonePart, validatePart, type PartAsset, type PartGeometry } from './schema'
 import { partLibrary, savePart } from './library'
-import { partImageUrl, normalImageUrl, portablePart } from './images'
+import { partImageUrl, normalImageUrl, portablePart, partPixels } from './images'
 import { closePartEditor, openPartEditor } from './editor-session'
 import { openPartInSlicer } from './slicer-bridge'
 import { createLatestTask } from '../utils/latest-task'
 import { downloadBlob } from '../utils/download'
 import { confirm } from '../components/confirm'
 import { partParameterDefaults } from './parameter-defaults'
+import { alignedBounds, alignPartGeometry, buildPartGeometry } from '../../modules/scene-lighting/part-geometry'
+import { orientationReference, ORIENTATION_METHOD } from './orientation-reference'
+import { repairSpec, repairKey } from '../../modules/scene-lighting/geometry-repair'
+import { computeGeometryRepair } from '../../modules/scene-lighting/geometry-repair-client'
+import { searchOrientation } from '../../modules/scene-lighting/orientation-client'
 import { createPartPreview, fitPartPreview } from './preview-state'
 import { geometryKey, matchingModelJobs, partGeometryOptions, selectPartGeometry } from './geometry-options'
 import { generationJobs, loadGenerationJobs } from '../generation/jobs'
@@ -38,9 +43,63 @@ watch(() => [...generatedModels.values()], () => {
   baseline.value = resolvePartModels(baseline.value)
 }, { flush:'sync' })
 const saving=ref(false),error=ref(''),view=ref<'original'|'normal'|'preview'>('preview'),normalUrl=ref(''),normalBusy=ref(false)
-const confirming=ref(false),showGeneration=ref(false)
+const confirming=ref(false),showGeneration=ref(false),aligning=ref(false)
+const alignmentProgress=ref(0),repairing=ref(false)
+let alignmentController:AbortController|undefined,disposed=false,pendingOrientation=false
 const geometrySelect=ref<InstanceType<typeof GeometrySelect>>()
-function applyGenerated(part:PartAsset){geometryChosen.value=true;selectPartGeometry(draft.value,part.geometry);showGeneration.value=false;framePreview()}
+async function applyGenerated(part:PartAsset){geometryChosen.value=true;if(await selectAlignedGeometry(part.geometry)){showGeneration.value=false;framePreview()}}
+async function selectAlignedGeometry(geometry?:PartGeometry){
+  if(aligning.value)return false
+  aligning.value=true;error.value='';alignmentProgress.value=0
+  const controller=new AbortController();alignmentController=controller
+  const before=JSON.stringify(draft.value),copy=clonePart(draft.value),choice=geometry?clonePart(geometry):undefined
+  try{
+    const {pixels}=await partPixels(copy)
+    if(choice?.kind==='mesh'&&copy.alignment.height===undefined){
+      copy.alignment.height=alignedBounds(copy,buildPartGeometry(copy,pixels)).height/copy.alignment.scale
+    }
+    if(choice)selectPartGeometry(copy,choice)
+    if(copy.geometry.kind==='mesh'&&(!choice||copy.geometry.imageFit?.orientation?.meshSha256!==copy.geometry.mesh!.sha256||copy.geometry.imageFit?.orientation?.method!==ORIENTATION_METHOD)){
+      const referenceRotation=orientationReference(copy.geometry)
+      alignPartGeometry(copy,pixels)
+      const fit=copy.geometry.imageFit!
+      const source=buildPartGeometry({...copy,geometry:{...copy.geometry,imageFit:undefined}},pixels)
+      const result=await searchOrientation(source,pixels,referenceRotation,controller.signal,value=>{alignmentProgress.value=value})
+      fit.rotation=[...result.rotation];fit.projection=[...result.projection]
+      fit.orientation={...result,rotation:[...result.rotation],projection:[...result.projection],meshSha256:copy.geometry.mesh!.sha256,method:ORIENTATION_METHOD,referenceRotation,alignmentKey:JSON.stringify(copy.alignment)}
+    }
+    validatePart(copy)
+    if(controller.signal.aborted||disposed||before!==JSON.stringify(draft.value))return false
+    draft.value=copy;return true
+  }catch(e){if(!controller.signal.aborted)error.value=String(e);return false}finally{
+    aligning.value=false;alignmentController=undefined
+    if(pendingOrientation&&!disposed){pendingOrientation=false;void selectAlignedGeometry()}
+  }
+}
+async function repairCurrentGeometry(){
+  if(aligning.value||saving.value)return
+  aligning.value=true;repairing.value=true;error.value=''
+  const controller=new AbortController();alignmentController=controller
+  const before=JSON.stringify(draft.value),copy=clonePart(draft.value)
+  try{
+    delete copy.geometry.repair
+    const {pixels}=await partPixels(copy),mesh=buildPartGeometry(copy,pixels),bounds=alignedBounds(copy,mesh)
+    const spec=repairSpec(copy,pixels,[bounds.left,bounds.bottom,bounds.width,bounds.height])
+    const result=await computeGeometryRepair(mesh,spec,controller.signal)
+    spec.status=result.stats.status
+    copy.geometry.repair=spec;validatePart(copy)
+    if(!disposed&&!controller.signal.aborted&&before===JSON.stringify(draft.value))draft.value=copy
+  }catch(e){if(!controller.signal.aborted)error.value=String(e)}finally{aligning.value=false;repairing.value=false;alignmentController=undefined;if(pendingOrientation&&!disposed){pendingOrientation=false;void selectAlignedGeometry()}}
+}
+const repairCurrent=computed(()=>draft.value.geometry.repair?.version===2&&draft.value.geometry.repair.key===repairKey(draft.value))
+watch(()=>draft.value.geometry.mesh?.sha256,(sha,previous)=>{
+  if(!sha||sha===previous||draft.value.geometry.imageFit?.orientation?.meshSha256===sha)return
+  if(aligning.value){pendingOrientation=true;alignmentController?.abort()}else void selectAlignedGeometry()
+})
+const orientationScore=computed(()=>{
+  const g=draft.value.geometry,fit=g.imageFit,result=fit?.orientation
+  return result&&result.alignmentKey===JSON.stringify(draft.value.alignment)&&result.meshSha256===g.mesh?.sha256&&JSON.stringify(result.rotation)===JSON.stringify(fit?.rotation)&&JSON.stringify(g.size)===JSON.stringify(fit?.size)&&JSON.stringify(result.projection)===JSON.stringify(fit?.projection)?result:undefined
+})
 const panel=ref<HTMLElement>(),previewAutoFit=ref(true)
 const dirty=computed(()=>JSON.stringify(draft.value)!==JSON.stringify(baseline.value))
 const conflict=computed(()=>partLibrary[props.asset.id]?.revision!==baseline.value.revision)
@@ -76,7 +135,7 @@ const normals=createLatestTask<PartAsset,string>({interval:160,acceptIntermediat
 watch(()=>[view.value,draft.value.image,draft.value.normal],()=>{if(view.value==='normal')normals.request(clonePart(draft.value))},{deep:true})
 function chooseGeometry(value:string){
   const geometry=geometryOptions.value.find(option=>geometryKey(option)===value)
-  if(geometry){geometryChosen.value=true;selectPartGeometry(draft.value,geometry)}
+  if(geometry){geometryChosen.value=true;void selectAlignedGeometry(geometry)}
 }
 watch(()=>draft.value.image,async(image,_,onCleanup)=>{
   let current=true;onCleanup(()=>{current=false});inputHash.value=''
@@ -89,15 +148,15 @@ watch(()=>draft.value.image,async(image,_,onCleanup)=>{
 watch(()=>modelJobs.value[0],job=>{
   // Respect an explicit choice, including one saved in a previous editing session.
   if(job?.geometry&&!geometryChosen.value&&draft.value.geometry.kind!=='mesh'&&draft.value.geometryAlternatives===undefined){
-    selectPartGeometry(draft.value,job.geometry);framePreview()
+    void selectAlignedGeometry(job.geometry).then(ok=>{if(ok)framePreview()})
   }
 },{immediate:true})
 async function save():Promise<PartAsset|undefined>{
-  if(saving.value)return
+  if(saving.value||aligning.value)return
   saving.value=true;error.value=''
   try{validatePart(draft.value);const result=dirty.value?await savePart(clonePart(draft.value),baseline.value.revision):partLibrary[draft.value.id]??draft.value;baseline.value=clonePart(result);draft.value=clonePart(result);return result}catch(e){error.value=String(e)}finally{saving.value=false}
 }
-async function leave(){if(saving.value||confirming.value)return;if(dirty.value){confirming.value=true;const discard=await confirm({title:t('parts.discardTitle'),message:t('parts.discardMessage'),confirmText:t('parts.discard')});confirming.value=false;if(!discard)return}closePartEditor()}
+async function leave(){if(saving.value||confirming.value)return;alignmentController?.abort();if(dirty.value){confirming.value=true;const discard=await confirm({title:t('parts.discardTitle'),message:t('parts.discardMessage'),confirmText:t('parts.discard')});confirming.value=false;if(!discard)return}closePartEditor()}
 async function saveAndClose(){if(await save())closePartEditor()}
 async function addToScene(){const part=await save();if(!part)return;try{await addPartsToScene([part]);closePartEditor();await router.push('/scene-lighting')}catch(e){error.value=String(e)}}
 async function locate(){
@@ -128,22 +187,37 @@ function captureKey(event:KeyboardEvent){
   else if(event.key==='Tab'&&panel.value){const elements=[...panel.value.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]')].filter(el=>el.offsetParent!==null);const first=elements[0],last=elements.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus()}}
 }
 const normalKeys=['normalStrength','shapeStrength','detailStrength','detailScale','shapeRadius','shapeSoftness','alphaThreshold'] as const
-onMounted(()=>{framePreview();panel.value?.focus();document.addEventListener('keydown',captureKey,true);void loadGenerationJobs().catch(e=>{error.value=String(e)})})
-onUnmounted(()=>{normals.dispose();document.removeEventListener('keydown',captureKey,true)})
+onMounted(()=>{if(draft.value.geometry.kind==='mesh'&&(draft.value.geometry.imageFit?.orientation?.meshSha256!==draft.value.geometry.mesh?.sha256||draft.value.geometry.imageFit?.orientation?.method!==ORIENTATION_METHOD))void selectAlignedGeometry().then(ok=>{if(ok)framePreview()});framePreview();panel.value?.focus();document.addEventListener('keydown',captureKey,true);void loadGenerationJobs().catch(e=>{error.value=String(e)})})
+onUnmounted(()=>{disposed=true;alignmentController?.abort();normals.dispose();document.removeEventListener('keydown',captureKey,true)})
 </script>
 <template>
   <Teleport to="body"><div class="part-editor-overlay"><section ref="panel" tabindex="-1" class="part-editor" role="dialog" aria-modal="true" :aria-label="t('parts.editor')">
-    <header><div><strong>{{t('parts.editor')}}</strong><InfoHint :label="t('parts.edit')" :text="t('parts.sharedHint')"/><span>{{draft.name}} · {{draft.image.width}} × {{draft.image.height}} {{dirty?'●':''}}</span></div><button :disabled="saving" :aria-label="t('common.close')" @click="leave">✕</button></header>
+    <header><div><strong>{{t('parts.editor')}}</strong><InfoHint :label="t('parts.edit')" :text="t('parts.sharedHint')"/><span>{{draft.name}} · {{draft.image.width}} × {{draft.image.height}} {{dirty?'●':''}}</span></div><button :disabled="saving||aligning" :aria-label="t('common.close')" @click="leave">✕</button></header>
     <div v-if="error||conflict" class="editor-error" role="alert">{{error||t('parts.conflict')}}</div>
     <div class="editor-body"><aside class="part-sidebar" :aria-label="t('parts.partSettings')">
       <div class="preview-controls">
         <SegmentedControl v-model="view" :options="(['original','normal','preview'] as const).map(value=>({value,label:t('parts.view.'+value)}))" role="group" :aria-label="t('parts.previewMode')"/>
         <SceneViewControls v-if="view==='preview'" :state="preview"/>
       </div>
-      <ScrollArea class="part-properties-scroll" :label="t('parts.properties')"><fieldset class="part-properties" :disabled="saving">
+      <div v-if="aligning" class="alignment-progress" role="status">{{t(repairing?'parts.repairing':'parts.aligning')}} <span v-if="!repairing">{{alignmentProgress}}%</span> <button @click="alignmentController?.abort()">{{t('common.cancel')}}</button></div>
+      <ScrollArea class="part-properties-scroll" :label="t('parts.properties')"><fieldset class="part-properties" :disabled="saving||aligning">
       <SidebarSection :title="t('parts.asset')" :collapsible="false"><label class="name-field">{{t('parts.name')}}<input v-model="draft.name" maxlength="120" :aria-label="t('parts.name')"/></label></SidebarSection>
       <SidebarSection v-if="view==='preview'" :title="t('parts.geometry')" :collapsible="false">
-        <GeometrySelect ref="geometrySelect" :part="draft" :model-value="geometryChoice" :options="geometryOptions.map(geometry=>({value:geometryKey(geometry),label:geometryLabel(geometry),geometry}))" :disabled="saving" @update:model-value="chooseGeometry" @preview="hoveredGeometry=$event" @generate="showGeneration=true"/>
+        <GeometrySelect ref="geometrySelect" :part="draft" :model-value="geometryChoice" :options="geometryOptions.map(geometry=>({value:geometryKey(geometry),label:geometryLabel(geometry),geometry}))" :disabled="saving||aligning" @update:model-value="chooseGeometry" @preview="hoveredGeometry=$event" @generate="showGeneration=true"/>
+        <button v-if="draft.geometry.kind==='mesh'" class="wide" :disabled="aligning" @click="selectAlignedGeometry()">{{aligning?t('parts.aligning')+' '+alignmentProgress+'%':t('parts.autoAlign')}}</button>
+        <p v-if="draft.geometry.kind==='mesh'" class="note">{{t('parts.autoAlignHint')}}</p>
+        <p v-if="orientationScore" class="note">{{t('parts.contourMatch')}} {{(orientationScore.initialScore*100).toFixed(1)}}% → {{(orientationScore.score*100).toFixed(1)}}%</p>
+        <p v-if="orientationScore?.reviewRequired" class="note" role="status">{{t('parts.orientationReview')}}</p>
+        <template v-if="draft.geometry.kind==='mesh'&&draft.geometry.imageFit">
+          <button class="wide" @click="repairCurrentGeometry">{{t('parts.repairGeometry')}}</button>
+          <p class="note">{{t('parts.repairHint')}}</p>
+          <p v-if="repairCurrent&&draft.geometry.repair?.status&&draft.geometry.repair.status!=='repaired'" class="note" role="status">{{t('parts.repairUnsupported')}}</p>
+          <InlineSwitch v-if="draft.geometry.repair&&repairCurrent" v-model="draft.geometry.repair.enabled" :label="t('parts.repairEnabled')" block/>
+          <p v-if="draft.geometry.repair&&!repairCurrent" class="note">{{t('parts.repairStale')}}</p>
+        </template>
+        <template v-if="draft.geometry.imageFit?.rotation">
+          <SliderRow v-for="(label,i) in ['parts.modelPitch','parts.modelYaw','parts.modelRoll']" :key="label" v-model="draft.geometry.imageFit.rotation[i]" :default-value="draft.geometry.imageFit.orientation?.rotation[i]??0" :label="t(label)" :min="-180" :max="180" :step="0.1" :precision="1" suffix="°"/>
+        </template>
         <SliderRow v-for="(label,i) in ['parts.width','parts.height','parts.depth']" :key="label" v-model="draft.geometry.size[i]" :default-value="parameterDefaults.geometry.size[i]" :label="t(label)" :min="0.02" :max="8" :step="0.01" :precision="2"/>
       </SidebarSection>
       <SidebarSection v-if="view==='preview'&&preview.mode==='sprites'" :title="t('parts.alignment')">
@@ -167,10 +241,11 @@ onUnmounted(()=>{normals.dispose();document.removeEventListener('keydown',captur
       </div>
       <LightingViewport v-else :state="preview" :assets="[previewPart]" compact :editable="false" :controls="false" :fit-view="framePreview" :auto-fit="previewAutoFit" @zoom="previewAutoFit=false" @pan="previewAutoFit=false"/>
     </main></div>
-    <footer><div class="button-row"><button :disabled="saving" @click="exportAsset">{{t('parts.exportAsset')}}</button><button :disabled="saving" @click="exportPackage">{{t('parts.exportPackage')}}</button><button v-if="origin==='scene'" :disabled="saving" @click="locate">{{t('parts.locateSlicer')}}</button></div><div class="button-row"><button :disabled="saving" @click="addToScene">{{t('parts.addOne')}}</button><button :disabled="saving" @click="leave">{{t(origin==='scene'?'parts.backScene':'parts.backSlicer')}}</button><button class="primary" :disabled="saving||conflict" @click="saveAndClose">{{t(saving?'common.loading':'parts.saveReturn')}}</button></div></footer>
+    <footer><div class="button-row"><button :disabled="saving||aligning" @click="exportAsset">{{t('parts.exportAsset')}}</button><button :disabled="saving||aligning" @click="exportPackage">{{t('parts.exportPackage')}}</button><button v-if="origin==='scene'" :disabled="saving||aligning" @click="locate">{{t('parts.locateSlicer')}}</button></div><div class="button-row"><button :disabled="saving||aligning" @click="addToScene">{{t('parts.addOne')}}</button><button :disabled="saving||aligning" @click="leave">{{t(origin==='scene'?'parts.backScene':'parts.backSlicer')}}</button><button class="primary" :disabled="saving||aligning||conflict" @click="saveAndClose">{{t(saving?'common.loading':'parts.saveReturn')}}</button></div></footer>
   </section></div><div v-if="showGeneration" class="generation-overlay"><GenerationPanel :part="draft" :origin="origin" @apply="applyGenerated" @close="showGeneration=false"/></div></Teleport>
 </template>
 <style scoped>
+.alignment-progress{padding:8px 10px;font-size:11px;color:#b8d3c1;display:flex;align-items:center;justify-content:space-between}
 .generation-overlay{position:fixed;inset:4vh 3vw;z-index:1800;border:1px solid #555;border-radius:9px;overflow:hidden;box-shadow:0 0 0 100vmax #0009}
 .part-editor-overlay{position:fixed;inset:0;z-index:1700;background:#000b;display:flex;align-items:center;justify-content:center}.part-editor{width:min(1300px,96vw);height:92vh;display:flex;flex-direction:column;background:#202526;border:1px solid #56625b;border-radius:9px;overflow:hidden;color:#d6ded9;outline:none;box-shadow:0 15px 70px #0008}.part-editor header{display:flex;align-items:center;justify-content:space-between;padding:12px 15px;background:#2a3230}.part-editor header>div{display:flex;gap:16px;align-items:center}.part-editor header span{font-size:12px;color:#a8b5ad}.part-editor button{font:inherit;font-size:11px;color:inherit;cursor:pointer;border:1px solid #536058;border-radius:4px;background:#303c35;padding:7px 10px}.part-editor button:disabled{opacity:.45;cursor:default}.part-editor button.primary{background:#426b53;border-color:#84ab8d}.editor-body{display:flex;flex:1;min-height:0}.part-sidebar{display:flex;flex-direction:column;flex:0 0 285px;width:285px;min-width:0;min-height:0;border-right:1px solid #333}.part-properties-scroll{flex:1;min-height:0}.preview-controls{padding:12px 10px;display:flex;flex-direction:column;gap:10px;border-bottom:1px solid #39443c;background:#252e29}.preview-controls :deep(.seg-control){flex-wrap:wrap}.preview-controls :deep(.seg-label){flex-basis:100%}.view-hint{font-size:11px;line-height:1.6;color:#9eafa4;margin:0}.part-properties{width:100%;min-width:0;padding:0;margin:0;border:0;box-sizing:border-box}.name-field{display:flex;flex-direction:column;font-size:11px;gap:7px}.name-field input,select{box-sizing:border-box;width:100%;border:1px solid #4c5850;border-radius:4px;padding:7px;background:#2b3330;color:#e0e8e1;font-size:12px}.note{font-size:10px;color:#a0b0a5;line-height:1.6;margin:8px 0}.approximation{color:#d5bd8b}.button-row{display:flex;gap:6px;flex-wrap:wrap}.wide{width:100%;margin-top:7px}.part-preview{display:flex;flex-direction:column;min-width:0;flex:1}.flat-preview{position:relative;flex:1;min-height:0;display:flex;overflow:hidden}.preview-status{position:absolute;top:12px;left:12px;padding:6px;background:#222b;font-size:11px;pointer-events:none}.part-caption{font-size:10px;padding:8px 12px;color:#9dab9f;background:#202923}.part-editor footer{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 13px;border-top:1px solid #46534a;background:#28322c}.editor-error{font-size:11px;padding:8px 14px;background:#512b28;color:#ffd4c6;overflow-wrap:anywhere}@media(max-width:800px){.part-sidebar{flex-basis:250px;width:250px}.part-editor header>div{gap:7px;flex-wrap:wrap}.part-editor footer{padding:7px}.part-editor button{padding:6px;font-size:10px}}@media(max-width:560px){.editor-body{flex-direction:column;overflow:auto}.part-sidebar{width:100%;flex-basis:260px;height:260px;flex-shrink:0}.part-preview{min-height:380px}.part-editor{height:96vh}}
 </style>

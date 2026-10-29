@@ -119,7 +119,9 @@ export function decodeMesh(uri: string): Mesh {
       }
     return out;
   }
-  const builder = meshBuilder(),
+  // Imported topology must not depend on world units. The primitive builder's
+  // display-area cutoff used to discard small but valid faces and open seams.
+  const builder = meshBuilder(0),
     active = new Set<number>();
   let faces = 0,
     nodes = 0;

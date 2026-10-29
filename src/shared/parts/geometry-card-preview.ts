@@ -1,5 +1,5 @@
 import { BufferGeometry, DirectionalLight, DoubleSide, HemisphereLight, InterleavedBuffer, InterleavedBufferAttribute, Mesh, MeshStandardMaterial, OrthographicCamera, Scene, Vector3, WebGLRenderer } from 'three'
-import { buildPartGeometry } from '../../modules/scene-lighting/part-geometry'
+import { buildPartGeometry, activeRepair } from '../../modules/scene-lighting/part-geometry'
 import { partPixels } from './images'
 import type { PartAsset, PartGeometry } from './schema'
 
@@ -23,6 +23,7 @@ export function createGeometryCardPreview(part: PartAsset, targets: GeometryPrev
   const models: { canvas: HTMLCanvasElement; mesh: Mesh<BufferGeometry, MeshStandardMaterial>; radius: number }[] = []
   const motion = matchMedia('(prefers-reduced-motion: reduce)')
   let disposed = false, frame = 0, last = 0, angle = .4
+  const geometryController=new AbortController()
 
   function draw(time: number) {
     frame = 0
@@ -65,7 +66,9 @@ export function createGeometryCardPreview(part: PartAsset, targets: GeometryPrev
       try {
         const data = target.geometry.kind === 'silhouette' ? (await pixels!).pixels : { width: 0, height: 0, data: new Uint8ClampedArray() }
         if (disposed) return
-        const decoded = buildPartGeometry({ ...part, geometry: target.geometry }, data)
+        const asset={...part,geometry:target.geometry}
+        const decoded = activeRepair(asset)?await (await import('../../modules/scene-lighting/part-geometry-async')).buildPartGeometryAsync(asset,data,geometryController.signal):buildPartGeometry(asset,data)
+        if(disposed)return
         const geometry = new BufferGeometry(), buffer = new InterleavedBuffer(decoded.vertices.slice(), 9)
         geometry.setAttribute('position', new InterleavedBufferAttribute(buffer, 3, 0))
         geometry.setAttribute('normal', new InterleavedBufferAttribute(buffer, 3, 3))
@@ -81,7 +84,7 @@ export function createGeometryCardPreview(part: PartAsset, targets: GeometryPrev
   motion.addEventListener('change', refresh)
   viewport.addEventListener('scroll', refresh)
   return () => {
-    disposed = true; cancelAnimationFrame(frame)
+    disposed = true; geometryController.abort();cancelAnimationFrame(frame)
     document.removeEventListener('visibilitychange', refresh)
     motion.removeEventListener('change', refresh)
     viewport.removeEventListener('scroll', refresh)

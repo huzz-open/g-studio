@@ -1,4 +1,5 @@
 import { decodeMesh, type MeshGeometry } from './mesh'
+import type { GeometryRepair } from '../../modules/scene-lighting/geometry-repair'
 import { normalSettings, DEFAULT_NORMAL_SETTINGS, type NormalSettings } from '../types/normal-settings'
 
 export const PART_FORMAT = 'g-studio/part' as const
@@ -12,6 +13,13 @@ export interface PartGeometry {
   defaultSize?: Triple
   template?: TemplateId
   mesh?: MeshGeometry
+  repair?: GeometryRepair
+  /** Projection registration; size is the baseline for subsequent manual edits. */
+  imageFit?: {
+    size: Triple; target: [number, number, number, number]; rotation?: Triple
+    mode?: 'similarity'; projection?: Triple
+    orientation?: { rotation: Triple; projection?: Triple; score: number; initialScore: number; meshSha256: string; method?: 'silhouette-similarity-v1' | 'surface-preserving-v2'; alignmentKey?: string; referenceRotation?: Triple; surfaceRetention?: number; reviewRequired?: boolean }
+  }
 }
 export interface PartAsset {
   format: typeof PART_FORMAT
@@ -24,7 +32,7 @@ export interface PartAsset {
   geometry: PartGeometry
   /** Previously selected shapes, including embedded models, for switching back. */
   geometryAlternatives?: PartGeometry[]
-  alignment: { anchor: [number, number]; offset: [number, number]; scale: number }
+  alignment: { anchor: [number, number]; offset: [number, number]; scale: number; height?: number }
   source?: { sheetHash: string; pixelHash: string; fileName: string; rect: [number, number, number, number]; gsPath?: string }
 }
 export function clonePart<T>(value: T): T { return JSON.parse(JSON.stringify(value)) }
@@ -71,6 +79,7 @@ export function validatePart(value: unknown): asserts value is PartAsset {
     }
   }
   if (!object(v.alignment) || !tuple(v.alignment.anchor, 2, 0, 1) || !tuple(v.alignment.offset, 2, -4, 4) || !finite(v.alignment.scale, .25, 3)) fail('alignment')
+  if (v.alignment.height !== undefined && !finite(v.alignment.height, .001, 64)) fail('image height')
   if (v.source !== undefined) {
     const s = v.source
     if (!object(s) || !/^[a-f0-9]{64}$/.test(s.sheetHash) || !/^[a-f0-9]{64}$/.test(s.pixelHash)
@@ -81,6 +90,34 @@ export function validatePart(value: unknown): asserts value is PartAsset {
 function validateGeometry(g: any, version: number, fail: (message: string) => never) {
   if (!object(g) || !['silhouette', 'template', 'mesh'].includes(g.kind) || !tuple(g.size, 3, .02, 8)) fail('geometry')
   if (g.defaultSize !== undefined && !tuple(g.defaultSize, 3, .02, 8)) fail('geometry default size')
+  if(g.repair!==undefined){
+    const r=g.repair
+    if(g.kind!=='mesh'||!object(r)||![1,2].includes(r.version)||typeof r.enabled!=='boolean'||typeof r.key!=='string'||r.key.length>16384
+      ||!Number.isInteger(r.width)||!Number.isInteger(r.height)||!finite(r.width,1,2048)||!finite(r.height,1,2048)||r.width*r.height>1048576
+      ||!tuple(r.bounds,4,-256,256)||r.bounds[2]<=0||r.bounds[3]<=0||!Array.isArray(r.runs)||r.runs.length<1||r.runs.length>524288)fail('geometry repair')
+    if(r.status!==undefined&&!['repaired','unsupported-topology','unsupported-cut'].includes(r.status))fail('repair status')
+    let row=-1,end=0
+    for(const run of r.runs){
+      if(!tuple(run,3,0,2048)||!run.every(Number.isInteger)||run[0]>=r.height||run[1]>=run[2]||run[2]>r.width||run[0]<row||(run[0]===row&&run[1]<end))fail('repair mask')
+      row=run[0];end=run[2]
+    }
+  }
+  if (g.imageFit !== undefined && (!object(g.imageFit) || !tuple(g.imageFit.size, 3, .02, 8)
+    || !tuple(g.imageFit.target, 4, -256, 256) || g.imageFit.target[2] <= 0 || g.imageFit.target[3] <= 0)) fail('image fit')
+  if (g.imageFit?.rotation !== undefined && !tuple(g.imageFit.rotation, 3, -180, 180)) fail('image fit rotation')
+  if (g.imageFit?.mode !== undefined && g.imageFit.mode !== 'similarity') fail('image fit mode')
+  if (g.imageFit?.projection !== undefined && !tuple(g.imageFit.projection, 3, -.5, .5)) fail('image fit projection')
+  if (g.imageFit?.orientation !== undefined) {
+    const o = g.imageFit.orientation
+    if (!object(o) || !tuple(o.rotation, 3, -180, 180) || !finite(o.score, 0, 1) || !finite(o.initialScore, 0, 1)
+      || typeof o.meshSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(o.meshSha256)) fail('image fit orientation')
+    if (o.projection !== undefined && !tuple(o.projection, 3, -.5, .5)) fail('orientation projection')
+    if (o.method !== undefined && !['silhouette-similarity-v1','surface-preserving-v2'].includes(o.method)) fail('orientation method')
+    if(o.referenceRotation!==undefined&&!tuple(o.referenceRotation,3,-180,180))fail('orientation reference')
+    if(o.surfaceRetention!==undefined&&!finite(o.surfaceRetention,0,1.000001))fail('surface retention')
+    if(o.reviewRequired!==undefined&&typeof o.reviewRequired!=='boolean')fail('orientation review')
+    if (o.alignmentKey !== undefined && (typeof o.alignmentKey !== 'string' || o.alignmentKey.length > 512)) fail('orientation alignment')
+  }
   if (g.kind === 'template' && !TEMPLATE_IDS.includes(g.template)) fail('unknown template')
   if (g.kind === 'mesh') {
     if (version !== 2 || !object(g.mesh) || typeof g.mesh.uri !== 'string' || !/^[a-f0-9]{64}$/.test(g.mesh.sha256) || !/^[a-f0-9]{64}$/.test(g.mesh.inputSha256) || typeof g.mesh.providerId !== 'string' || !Array.isArray(g.mesh.warnings) || !g.mesh.warnings.every((s:unknown)=>typeof s==='string')) fail('mesh metadata')

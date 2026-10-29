@@ -2,6 +2,7 @@ import { computeNormals } from '../../modules/sprite-slicer/core/normal/client'
 import type { PartAsset } from './schema'
 import { clonePart } from './schema'
 import { resolvePartModels } from '../generation/models'
+import { repairKey } from '../../modules/scene-lighting/geometry-repair'
 
 export function partImageUrl(part: PartAsset) {
   return part.image.uri.startsWith('builtin:') ? `${import.meta.env.BASE_URL}scene-lighting/${part.image.uri.slice(8)}.png` : part.image.uri
@@ -35,6 +36,12 @@ export function normalImageUrl(part: PartAsset): Promise<string> {
 }
 export async function portablePart(part: PartAsset): Promise<PartAsset> {
   const copy = clonePart(resolvePartModels(part))
-  if (copy.image.uri.startsWith('builtin:')) copy.image.uri = pixelsUrl((await partPixels(copy)).pixels)
+  if (copy.image.uri.startsWith('builtin:')) {
+    const valid=copy.geometry.repair?.key===repairKey(copy)
+    const alternatives=copy.geometryAlternatives?.map(geometry=>geometry.repair?.key===repairKey({...copy,geometry}))
+    copy.image.uri = pixelsUrl((await partPixels(copy)).pixels)
+    if(valid&&copy.geometry.repair)copy.geometry.repair.key=repairKey(copy)
+    copy.geometryAlternatives?.forEach((geometry,i)=>{if(alternatives?.[i]&&geometry.repair)geometry.repair.key=repairKey({...copy,geometry})})
+  }
   return copy
 }

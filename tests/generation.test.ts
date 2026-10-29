@@ -107,6 +107,11 @@ function glb(mutate: (d: any) => void = () => {}) {
   new Uint8Array(result, 28 + json.length).set(new Uint8Array(binary));
   return result;
 }
+test('GLB import retains valid triangles when source units are very small',()=>{
+  const mesh=decodeMesh(meshDataUri(glb(d=>{d.nodes[0].scale=[.00001,.00001,.00001]})))
+  assert.equal(mesh.triangles.length,1)
+  assert.ok(mesh.vertices.every(Number.isFinite))
+})
 test('selected models survive switching, asset serialization and loss of generation history', () => {
   const part = createPart('model', { uri: 'data:image/png;base64,cGl4ZWxz', width: 1, height: 1 });
   const model = { kind: 'mesh' as const, size: [1, 1, .02] as [number, number, number], mesh: {

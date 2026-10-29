@@ -3,7 +3,7 @@ import { add, dot, lookAt, multiply, normalize, perspective, sub, transform, typ
 import { buildRoom, FORWARD, RIGHT, roomBounds, UP, type Mesh, type SceneState, type SpriteBounds } from './model'
 import { sceneCamera } from './scene-camera'
 export { sceneCamera } from './scene-camera'
-import { buildPartGeometry, alignedBounds } from './part-geometry'
+import { buildPartGeometry, alignedBounds, activeRepair } from './part-geometry'
 import { clonePart, partRenderKey, partSurfaceKey, type PartAsset } from '../../shared/parts/schema'
 import { partPixels, normalImageUrl, loadImage } from '../../shared/parts/images'
 import { depthFragment, fieldFragment, fieldVertex, meshVertex, spriteFragment, spriteVertex, surfaceFragment, shadowPointVertex, shadowPointFragment } from './shaders'
@@ -130,8 +130,9 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
     releaseGeometry(asset)
     for (const tex of [asset.color, asset.normal, asset.depth, asset.surface]) { gl!.deleteTexture(tex); textures.splice(textures.indexOf(tex), 1) }
   }
-  let syncEpoch = 0
+  let syncEpoch = 0, geometryController:AbortController|undefined
   async function syncAssets(parts: PartAsset[], isCurrent: () => boolean = () => true): Promise<boolean> {
+    geometryController?.abort();const controller=new AbortController();geometryController=controller
     const epoch = ++syncEpoch, snapshots = parts.map(clonePart), ids = new Set(parts.map(p => p.id))
     const staged = new Map<string, SpriteAsset>()
     const normalUpdates = new Map<string, { normal: WebGLTexture; key: string; directx: boolean }>()
@@ -152,7 +153,9 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
         if (!current()) return false
         const normalImage = await loadImage(await normalImageUrl(part))
         if (!current()) return false
-        const mesh = buildPartGeometry(part, pixels), bounds = alignedBounds(part, mesh), d = part.image
+        const mesh = activeRepair(part)?await (await import('./part-geometry-async')).buildPartGeometryAsync(part,pixels,controller.signal):buildPartGeometry(part,pixels)
+        if(!current())return false
+        const bounds = alignedBounds(part, mesh), d = part.image
         const asset: SpriteAsset = {
           ...meshBuffer(mesh), id: part.id, key, surfaceKey, directx: part.normal.normalFormat === 'directx', bounds,
           color: texture(d.width, d.height, image), normal: texture(d.width, d.height, normalImage),
@@ -181,7 +184,7 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
       for (const [id, asset] of assets) if (!ids.has(id)) { releaseAsset(asset); assets.delete(id); geometryChanged = true }
       if (geometryChanged) shadowKey = ''
       return true
-    } finally {
+    } catch(error){if(controller.signal.aborted)return false;throw error} finally {
       // dispose() already freed all GPU resources if the editor was closed.
       if (!disposed) {
         staged.forEach(releaseAsset)
@@ -344,6 +347,7 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
     render(state); return result
   }
   function dispose() {
+    geometryController?.abort()
     if (disposed) return; disposed = true
     syncEpoch++
     gl!.deleteFramebuffer(shadowFbo); gl!.deleteFramebuffer(fieldFbo); gl!.deleteRenderbuffer(shadowDepth); gl!.deleteRenderbuffer(fieldDepth)

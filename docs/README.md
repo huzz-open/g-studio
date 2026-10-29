@@ -36,6 +36,8 @@
 | 文档 | 状态与范围 | 语言 |
 | --- | --- | --- |
 | [生成服务架构](design/model-generation.md) | 已接入架构的职责与设计决定；部署参数引用当前服务文档 | ZH |
+| [模型与图片轮廓配准](design/silhouette-registration.md) | 无 AI 的通用三维朝向、等比尺寸与位置校准，目标函数、算法来源及验证 | ZH |
+| [原图约束的几何修复](design/image-constrained-geometry-repair.md) | 保留真实透明孔洞，裁剪多余几何并插值小缺口 | ZH |
 | [几何模型与推理服务改造](design/model-generation-upgrade.md) | 已实施的服务机制、固定资源与未关闭的 Mini 正确性/性能问题 | ZH |
 | [Mini 推理异常与性能调查](design/mini-inference-investigation.md) | 优先待修复：平板退化、FP32 规避办法、常驻预算与官方 FlashVDM 对照及验收 | ZH |
 | [引擎桥接](design/engine-bridge/README.md) | 原始设计与实施计划，含未验收接口和伪代码 | ZH |
@@ -46,6 +48,11 @@
 
 | 文档 | 日期与范围 | 语言 |
 | --- | --- | --- |
+| [几何修复审查修正](history/repair-review-fixes-20261029.md) | 2026-10-29，实体判定、细结构、支撑约束、冷重建和导入阈值修正；真实输入不满足封口条件时拒绝修改 | ZH |
+| [原图约束修复验证](history/image-constrained-repair-20261029.md) | 2026-10-29，纠正椅背孔洞诊断；真实网格修复、光照和阴影对比 | ZH |
+| [可见表面保护与光照复验](history/surface-preserving-alignment-20261029.md) | 2026-10-29，修正轮廓匹配选错表面的问题；记录通用先验、旧数据迁移及真实渲染复验 | ZH |
+| [真实模型实际光照验证](history/real-lighting-20261029.md) | 2026-10-29，伞与椅子校准前后真实 WebGL 对比；发现轮廓改善仍可能选错表面朝向 | ZH |
+| [真实模型轮廓验证](history/real-alignment-20261029.md) | 2026-10-29，两份已有生成网格与原图的独立投影验证 | ZH |
 | [Windows CUDA 官方推理对照](history/model-generation-cuda-20261028.md) | 2026-10-28，RTX 3060 三模型官方/项目路径、耗时、内存与几何实验 | ZH |
 | [几何模型与服务改造验证](history/model-generation-upgrade-20261028.md) | 2026-10-28，三模型资源、常驻/队列及真实几何对照 | ZH |
 | [生成服务验证](history/model-generation-validation.md) | 2026-10-26～27，Windows CPU、TLS、资源准备和分发包 | ZH |
