@@ -11,7 +11,7 @@ npm install
 npm run dev:web
 ```
 
-网页默认在 `http://localhost:5173`。修改切图、部件、场景或界面通常只需要网页服务。联调 AI 时使用 `npm run dev` 启动两端；已有网页时，在另一终端运行 `sh start-generation.sh`。环境准备、下载预设和环境变量见[后端部署](./services/generation-python/README.md)。
+网页默认在 `http://localhost:5173`。修改切图、部件、场景或界面通常只需要网页服务。联调 AI 时使用 `npm run dev` 启动两端；已有网页时，在另一终端运行 `npm run dev:gensvc`。通过 `--` 传入后端参数，例如 `npm run dev:gensvc -- --cuda`。环境准备、下载预设和环境变量见[后端部署](./services/generation-python/README.md)。
 
 ```sh
 npm run build

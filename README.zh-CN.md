@@ -47,7 +47,7 @@ npm run dev
 
 ## AI 硬件与启动
 
-几何服务支持 Mini Turbo、标准 Turbo 和完整 2.1 Shape，默认只启用 Mini。使用 `--models all` 启用三者；服务按合计容量在启动时确定常驻／分阶段策略。加载中可提交、查询和取消排队任务，执行失败不会自动切换设备。新验证与质量限制见[2026-10-28 记录](./docs/history/model-generation-upgrade-20261028.md)。
+几何服务支持 Mini Turbo、标准 Turbo 和完整 2.1 Shape，默认只启用 Mini。使用 `--models all` 启用三者；默认常驻运行，仅显式指定 `--strategy staged` 时使用分阶段加载。内存估算仅供诊断，不拦截加载，也不据此切换策略。加载中可提交、查询和取消排队任务；实际 OOM 时报告模型加载或任务失败，不自动更换设备、模型、精度或策略。新验证与质量限制见[2026-10-28 记录](./docs/history/model-generation-upgrade-20261028.md)。
 
 支持 **CPU、兼容的 NVIDIA CUDA 显卡、Apple Silicon Mac（MPS）**。不推荐普通 Windows 笔记本核显作为本项目的 GPU 推理方案：可能比 CPU 慢，或受驱动与算子兼容性限制无法完成任务；台式机 CPU 也可能明显快于核显。
 
@@ -80,6 +80,9 @@ Windows 使用 Git Bash，Mac 使用终端。只启动后端无需 `npm install`
 | --- | --- |
 | `npm run dev` | 启动网页和 AI 后端 |
 | `npm run dev:web` | 仅启动网页 |
+| `npm run dev:gensvc` | 仅启动模型生成后端；加 `-- --cuda` 指定 NVIDIA CUDA |
+| `npm run generation:download` | 准备环境并下载模型资源，不启动服务 |
+| `npm run generation:doctor` | 检查生成环境、计算设备和服务连接 |
 | `npm run build` | 类型检查并构建到 `dist/`，不下载模型 |
 | `npm run preview` | 本地预览构建产物 |
 | `sh start-generation.sh` | 单独启动后端；Windows 使用 Git Bash |

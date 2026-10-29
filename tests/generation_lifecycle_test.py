@@ -9,7 +9,7 @@ import struct
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'services/generation-python'))
@@ -23,33 +23,32 @@ from policy import plan, GIB
 
 
 class PolicyTests(unittest.TestCase):
-    def test_aggregate_budget_keeps_all_staged_when_individual_models_would_fit(self):
+    def test_estimates_do_not_reject_or_change_strategy_on_any_backend(self):
         ids = ['hunyuan-mini', 'hunyuan-turbo', 'hunyuan-2-1']
-        memory = dict(systemAvailable=20*GIB, deviceAvailable=18*GIB)
-        for id in ids:
-            self.assertEqual(plan([id], 'mps', 'fp16', memory)['strategies'][id], 'resident')
-        result = plan(ids, 'mps', 'fp16', memory)
-        self.assertEqual(set(result['strategies'].values()), {'staged'})
-        self.assertLessEqual(result['plannedPeakBytes'], result['budgetBytes'])
-        self.assertEqual(result['workspaceByModel']['hunyuan-mini'], 9*GIB)
-        self.assertEqual(result['workspaceByModel']['hunyuan-turbo'], 5*GIB)
-        self.assertEqual(result['budgetBytes'], 18*GIB)  # Unified memory is not summed.
-        large = plan(ids, 'mps', 'fp16', dict(systemAvailable=64*GIB, deviceAvailable=48*GIB))
-        self.assertEqual(set(large['strategies'].values()), {'resident'})
+        for backend, precision in [('cpu', 'fp32'), ('cuda', 'fp16'), ('mps', 'fp16')]:
+            for mode in ['auto', 'resident', 'staged']:
+                with self.subTest(backend=backend, mode=mode):
+                    result = plan(ids, backend, precision, dict(systemAvailable=0, deviceAvailable=0), mode)
+                    expected = 'staged' if mode == 'staged' else 'resident'
+                    self.assertEqual(result['strategies'], {id: expected for id in ids})
+                    self.assertEqual(result['precision'], precision)
+                    self.assertGreater(result['plannedPeakBytes'], result['budgetBytes'])
+        self.assertEqual(plan(ids, 'cuda', 'fp16', {})['strategies'], {id: 'resident' for id in ids})
 
-    def test_each_resident_retains_its_own_workspace_budget(self):
+    def test_diagnostic_estimates_keep_distinct_cuda_and_shared_mps_budgets(self):
+        cuda = plan(['hunyuan-mini'], 'cuda', 'fp16', dict(systemAvailable=5*GIB, deviceAvailable=10*GIB))
+        self.assertEqual(cuda['budgetBytes'], 10*GIB)
         result = plan(['hunyuan-mini', 'hunyuan-turbo'], 'mps', 'fp16', dict(systemAvailable=20*GIB, deviceAvailable=24*GIB))
-        self.assertEqual(result['strategies'], {'hunyuan-mini':'staged', 'hunyuan-turbo':'staged'})
-        self.assertLessEqual(result['plannedPeakBytes'], result['budgetBytes'])
+        self.assertEqual(result['strategies'], {'hunyuan-mini':'resident', 'hunyuan-turbo':'resident'})
+        self.assertEqual(result['budgetBytes'], 18*GIB)
+        self.assertEqual(result['residentWorkspaceBytes'], 14*GIB)
+        self.assertGreater(result['plannedPeakBytes'], result['budgetBytes'])
 
-    def test_explicit_strategy_and_precision_never_silently_change(self):
+    def test_invalid_configuration_still_fails(self):
         with self.assertRaises(ValueError):
-            plan(list(__import__('model_catalog').MODELS), 'mps', 'fp16', dict(systemAvailable=16*GIB, deviceAvailable=18*GIB), 'resident')
+            plan(['hunyuan-mini'], 'cuda', 'fp16', {}, 'invalid')
         with self.assertRaises(ValueError):
             plan(['hunyuan-mini'], 'cpu', 'fp16', dict(systemAvailable=64*GIB))
-        small = plan(['hunyuan-mini'], 'cpu', 'fp32', dict(systemAvailable=4*GIB))
-        self.assertIn('hunyuan-mini', small['errors'])
-        self.assertFalse(small['strategies'])
 
 
 class FakeResident:
@@ -175,11 +174,57 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_oom_and_invalid_output_fail_without_backend_or_strategy_change(self):
         self.ready();self.fake.error='MPS out of memory'
-        first=await self.submit();self.assertEqual((await self.terminal(first['id']))['status'],'failed')
+        first=await self.submit();failed=await self.terminal(first['id'])
+        self.assertEqual(failed['status'],'failed')
+        self.assertIn('MPS out of memory', failed['error']['message'])
         self.fake.error=None;self.fake.invalid=True
         second=await self.submit();self.assertEqual((await self.terminal(second['id']))['status'],'failed')
         self.assertEqual(self.service.backend,'mps');self.assertEqual(self.state['strategy'],'resident')
         self.assertEqual(len(self.fake.calls),2)  # No automatic retries.
+
+    async def prepare_with_low_memory(self, load_error=None, diagnostics_error=False):
+        self.service.enabled = ['hunyuan-mini']
+        process = Mock()
+        process.wait = AsyncMock(return_value=0)
+        client = Mock()
+        client.start = AsyncMock(side_effect=load_error, return_value={'event': 'ready', 'loadCount': 1})
+        client.close = AsyncMock()
+        diagnostics = RuntimeError('Memory query unavailable') if diagnostics_error else dict(systemAvailable=0, deviceAvailable=0)
+        with patch.dict(os.environ, GEN_PRECISION='fp16', GEN_STRATEGY='auto'), \
+             patch.object(self.service, 'read_json', AsyncMock(side_effect=[dict(deviceType='gpu', backend='cuda', reason='CUDA passed'), diagnostics])), \
+             patch.object(self.service, 'spawn', AsyncMock(return_value=process)), \
+             patch.object(self.service, 'print_table'), \
+             patch.object(self.service, 'staged', AsyncMock()) as staged, \
+             patch.object(server, 'WorkerClient', return_value=client) as factory:
+            await self.service.prepare()
+            client.start.assert_awaited_once()
+            staged.assert_not_awaited()
+            self.assertEqual(factory.call_args.args[2]['GEN_DEVICE'], 'cuda')
+            self.assertEqual(factory.call_args.args[2]['GEN_PRECISION'], 'fp16')
+        self.assertEqual(self.service.backend, 'cuda')
+        self.assertEqual(self.state['strategy'], 'resident')
+        self.assertEqual(self.state['precision'], 'fp16')
+        return client
+
+    async def test_low_memory_estimate_still_attempts_resident_loading(self):
+        await self.prepare_with_low_memory()
+        self.assertEqual(self.state['state'], 'ready')
+        self.assertTrue(self.state['acceptsJobs'])
+
+    async def test_missing_memory_diagnostics_do_not_block_loading(self):
+        await self.prepare_with_low_memory(diagnostics_error=True)
+        self.assertEqual(self.state['state'], 'ready')
+
+    async def test_actual_loading_oom_fails_model_and_queue_without_fallback(self):
+        job = await self.submit()
+        client = await self.prepare_with_low_memory(RuntimeError('CUDA out of memory'))
+        self.assertEqual(self.state['state'], 'failed')
+        self.assertFalse(self.state['acceptsJobs'])
+        self.assertIn('CUDA out of memory', self.state['error'])
+        failed = await self.terminal(job['id'])
+        self.assertEqual(failed['status'], 'failed')
+        self.assertIn('CUDA out of memory', failed['error']['message'])
+        client.close.assert_awaited_once()
 
     async def test_shutdown_and_restart_preserve_interrupted_semantics(self):
         first=await self.submit();await self.service.close()

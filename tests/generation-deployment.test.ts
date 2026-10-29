@@ -26,11 +26,11 @@ test('a private-network client sends its token to the configured direct endpoint
   assert.equal(fetch.mock.callCount(), 1)
 })
 
-test('install commands follow the current site and subpath, with the site written only once', () => {
+test('install commands use literal site URLs on one line and preserve the deployment subpath', () => {
   const command = installCommand('https://custom.example.com/studio/', true)
-  assert.equal(command.match(/https:\/\/custom\.example\.com/g)?.length, 1)
-  assert.match(command, /G_STUDIO_SITE='https:\/\/custom\.example\.com\/studio\/'/)
-  assert.match(command, /--site "\$G_STUDIO_SITE" --host 0\.0\.0\.0$/)
+  assert.equal(command, "curl -fsSL 'https://custom.example.com/studio/install-generation.sh' | bash -s -- --site 'https://custom.example.com/studio/' --host 0.0.0.0")
+  assert.doesNotMatch(command, /\n|G_STUDIO_SITE/)
+  assert.equal(installCommand('http://localhost:5173/studio'), "curl -fsSL 'http://localhost:5173/studio/install-generation.sh' | bash -s -- --site 'http://localhost:5173/studio/'")
   assert.ok(!installCommand('http://localhost:5173/').includes('--host'))
   assert.throws(() => installCommand('https://user:password@example.com/'))
 })

@@ -466,8 +466,8 @@ function resetItem(item: SettingItem) {
   background: #252525;
   border: 1px solid #444;
   border-radius: 12px;
-  width: min(680px, 90vw);
-  height: min(520px, 80vh);
+  width: min(760px, calc(100vw - 32px));
+  height: min(600px, calc(100dvh - 48px));
   display: flex;
   flex-direction: column;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
@@ -515,6 +515,7 @@ function resetItem(item: SettingItem) {
 .sd-body {
   display: flex;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -560,6 +561,7 @@ function resetItem(item: SettingItem) {
 /* Content */
 .sd-content {
   flex: 1;
+  min-width: 0;
   padding: 16px 24px;
   overflow-y: auto;
 }

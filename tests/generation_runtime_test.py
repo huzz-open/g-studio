@@ -97,7 +97,7 @@ class DeviceTests(unittest.TestCase):
         ):
             self.assertEqual(device.probe()["deviceType"], "gpu")
 
-    def test_gpu_init_failure_is_explicit_cpu_fallback(self):
+    def test_auto_selected_gpu_init_failure_does_not_fall_back_to_cpu(self):
         with (
             patch.dict(os.environ, {"GEN_DEVICE": ""}),
             patch(
@@ -108,9 +108,8 @@ class DeviceTests(unittest.TestCase):
             ),
             patch.dict(sys.modules, {"torch": self.fake_torch(error=True)}),
         ):
-            result = device.probe()
-            self.assertEqual(result["deviceType"], "cpu")
-            self.assertIn("initialization failed", result["reason"])
+            with self.assertRaisesRegex(RuntimeError, 'CUDA initialization failed'):
+                device.probe()
 
     def test_explicit_unavailable_or_failed_device_does_not_select_cpu(self):
         for torch in [self.fake_torch(available=False), self.fake_torch(error=True)]:

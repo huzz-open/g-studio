@@ -47,7 +47,7 @@ See [download sources](./services/generation-python/README.md#download-sources) 
 
 ## AI hardware and startup
 
-Geometry supports Mini Turbo, standard Turbo and full 2.1 Shape; only Mini is enabled by default. Use `--models all` to enable all three. Startup chooses resident/staged execution using aggregate capacity. Loading models accept queued tasks and cancellation; execution failures never change devices. See the [2026-10-28 validation and quality limitations](./docs/history/model-generation-upgrade-20261028.md).
+Geometry supports Mini Turbo, standard Turbo and full 2.1 Shape; only Mini is enabled by default. Use `--models all` to enable all three. Models use resident execution by default; use `--strategy staged` to explicitly select staged loading. Memory estimates are diagnostic only and never block loading or change the strategy. Loading models accept queued tasks and cancellation; actual OOM errors fail loading or the task without changing devices, models, precision or strategy. See the [2026-10-28 validation and quality limitations](./docs/history/model-generation-upgrade-20261028.md).
 
 Supported execution paths are **CPU, compatible NVIDIA CUDA GPUs, and Apple Silicon Macs (MPS)**. Ordinary Windows laptop integrated GPUs are not recommended for this model: inference can be slower than CPU or fail on backend/driver compatibility. A desktop CPU can outperform its integrated GPU.
 
@@ -80,6 +80,9 @@ On 2026-10-28, CPU startup from an empty runtime directory through real API gene
 | --- | --- |
 | `npm run dev` | Start the web app and AI backend |
 | `npm run dev:web` | Start only the web app |
+| `npm run dev:gensvc` | Start only the model generation backend; add `-- --cuda` to select NVIDIA CUDA |
+| `npm run generation:download` | Prepare the environment and download model resources without starting the service |
+| `npm run generation:doctor` | Check the generation environment, device and service connectivity |
 | `npm run build` | Type-check and build to `dist/`, without model downloads |
 | `npm run preview` | Preview the production build locally |
 | `sh start-generation.sh` | Start only the backend; use Git Bash on Windows |

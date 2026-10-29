@@ -123,3 +123,182 @@ test('new loading services accept queued requests while old preparing services r
   caps = {...caps,providers:caps.providers.map(p => ({...p,acceptsJobs:false}))};
   assert.equal(await checkGenerationConnection(), false);
 });
+
+test('connected but failed models show the real failure at the generation entry', async t => {
+  const { locale } = await import('../src/shared/i18n/index.ts')
+  locale.value = 'zh-CN'
+  const { generationReadinessMessage, modelPreparationError } = await import('../src/shared/generation/readiness.ts')
+  const { registerToast } = await import('../src/shared/components/toast.ts')
+  const { needsGenerationSetup, settingsDialog } = await import('../src/shared/settings-dialog.ts')
+  settings.providerId = 'hunyuan-mini'
+  const caps = capabilities()
+  caps.providers[1]!.state = 'failed'
+  caps.providers[1]!.acceptsJobs = false
+  caps.providers[1]!.error = 'Insufficient startup capacity even for staged inference; free memory or explicitly configure a smaller enabled set/precision and restart.'
+  t.mock.method(GenerationClient.prototype, 'capabilities', async () => caps)
+  t.mock.method(GenerationClient.prototype, 'info', async () => ({ deviceType: 'gpu', backend: 'cuda' }))
+  assert.equal(await checkGenerationConnection(), false)
+  assert.equal(state.connected, true)
+  assert.match(generationReadinessMessage.value, /服务连接成功.*内存或显存不足/)
+  assert.match(generationReadinessMessage.value, /重启生成服务/)
+  assert.doesNotMatch(generationReadinessMessage.value, /配置并测试连接/)
+  let notice = ''
+  registerToast({ show: message => { notice = message; return 1 }, dismiss: () => {} })
+  assert.equal(needsGenerationSetup('/model-generation'), true)
+  assert.equal(settingsDialog.category, 'generation.connection')
+  assert.equal(notice, generationReadinessMessage.value)
+  assert.equal(modelPreparationError('Missing checkpoint: mini'), 'Missing checkpoint: mini')
+
+  locale.value = 'en-US'
+  assert.match(generationReadinessMessage.value, /Service connected.*Available RAM or GPU memory/)
+  locale.value = 'zh-CN'
+})
+
+test('readiness feedback distinguishes loading, ready, disabled, missing and disconnected models', async () => {
+  const { generationReadinessMessage } = await import('../src/shared/generation/readiness.ts')
+  state.connected = true
+  const caps = capabilities('preparing')
+  state.capabilities = caps
+  assert.match(generationReadinessMessage.value, /服务连接成功.*准备模型中/)
+  state.capabilities!.providers[1]!.acceptsJobs = true
+  assert.equal(canGenerateModels.value, true)
+  assert.match(generationReadinessMessage.value, /可提交任务排队/)
+  state.capabilities!.providers[1]!.state = 'ready'
+  assert.match(generationReadinessMessage.value, /当前模型可生成/)
+  state.capabilities!.providers[1]!.state = 'disabled'
+  state.capabilities!.providers[1]!.acceptsJobs = false
+  assert.match(generationReadinessMessage.value, /未启用/)
+  state.capabilities!.providers = []
+  assert.match(generationReadinessMessage.value, /未启用任何模型/)
+  state.connected = false
+  assert.match(generationReadinessMessage.value, /配置并测试连接/)
+})
+
+test('generation entry, service badge and test agree when API is reachable but model failed', async t => {
+  const { registerToast } = await import('../src/shared/components/toast.ts')
+  const { clearGenerationFeedback, showConnectionTestFeedback } = await import('../src/shared/generation/feedback.ts')
+  const { needsGenerationSetup } = await import('../src/shared/settings-dialog.ts')
+  const { generationServiceStatus } = await import('../src/shared/generation/readiness.ts')
+  clearGenerationFeedback()
+  const active = new Map<number, { message: string; type?: string }>()
+  let next = 0
+  registerToast({
+    show: (message, type) => { const id = ++next; active.set(id, { message, type }); return id },
+    dismiss: id => { active.delete(id) },
+  })
+  const caps = capabilities()
+  Object.assign(caps.providers[1]!, { state: 'failed', acceptsJobs: false, error: 'Model load failed' })
+  t.mock.method(GenerationClient.prototype, 'capabilities', async () => caps)
+  t.mock.method(GenerationClient.prototype, 'info', async () => ({ deviceType: 'gpu' }))
+  await checkGenerationConnection()
+  assert.equal(state.connected, true)
+  assert.equal(canGenerateModels.value, false)
+  assert.equal(needsGenerationSetup('/model-generation'), true)
+  assert.equal([...active.values()][0]!.type, 'error')
+  const entryFeedback = [...active.values()][0]!
+  assert.equal(generationServiceStatus.value.state, 'failed')
+  assert.equal(generationServiceStatus.value.label, '失败')
+  showConnectionTestFeedback()
+  assert.deepEqual([...active.values()], [entryFeedback])
+  assert.equal(entryFeedback.message, generationServiceStatus.value.detail)
+  showConnectionTestFeedback()
+  assert.equal(active.size, 1)
+  assert.equal(state.capabilities!.providers[1]!.state, 'failed')
+  for (const acceptsJobs of [false, true]) {
+    Object.assign(state.capabilities!.providers[1]!, { state: 'loading', error: null, acceptsJobs })
+    showConnectionTestFeedback()
+    assert.equal(generationServiceStatus.value.state, 'preparing')
+    assert.equal([...active.values()][0]!.type, 'info')
+  }
+  Object.assign(state.capabilities!.providers[1]!, { state: 'ready', acceptsJobs: true })
+  showConnectionTestFeedback()
+  assert.equal(generationServiceStatus.value.label, '可生成')
+  assert.equal([...active.values()][0]!.type, 'success')
+  assert.match([...active.values()][0]!.message, /当前模型可生成/)
+  state.connected = false
+  state.error = 'Unauthorized'
+  showConnectionTestFeedback()
+  assert.equal([...active.values()][0]!.type, 'error')
+  assert.match([...active.values()][0]!.message, /访问凭证无效/)
+  clearGenerationFeedback()
+  assert.equal(active.size, 0)
+})
+
+test('offline service shows the same actionable message in entry, hover and connection test', async t => {
+  const { locale, translate } = await import('../src/shared/i18n/index.ts')
+  const { registerToast } = await import('../src/shared/components/toast.ts')
+  const { clearGenerationFeedback, showConnectionTestFeedback } = await import('../src/shared/generation/feedback.ts')
+  const { generationServiceStatus, generationReadinessMessage, connectionFailureMessage } = await import('../src/shared/generation/readiness.ts')
+  const { needsGenerationSetup } = await import('../src/shared/settings-dialog.ts')
+  locale.value = 'zh-CN'
+  let notice = ''
+  registerToast({ show: message => { notice = message; return 1 }, dismiss: () => {} })
+  t.mock.method(GenerationClient.prototype, 'capabilities', async () => { throw new TypeError('Failed to fetch') })
+  assert.equal(await checkGenerationConnection(), false)
+  assert.equal(state.error, 'TypeError: Failed to fetch') // Preserve diagnostics internally.
+  const expected = translate('generation.connectionFailedHint')
+  assert.equal(generationServiceStatus.value.label, '失败')
+  assert.equal(generationServiceStatus.value.detail, expected)
+  assert.equal(generationReadinessMessage.value, expected)
+  assert.equal(needsGenerationSetup('/model-generation'), true)
+  assert.equal(notice, expected)
+  showConnectionTestFeedback()
+  assert.equal(notice, expected)
+  assert.doesNotMatch(notice, /TypeError|Failed to fetch/)
+  for (const error of ['NetworkError', 'TypeError: Load failed', 'TimeoutError', 'AbortError', 'ECONNREFUSED']) {
+    assert.equal(connectionFailureMessage(error), expected)
+  }
+  assert.match(connectionFailureMessage('401 Unauthorized'), /访问凭证无效/)
+  assert.match(connectionFailureMessage('Invalid service URL'), /API 地址格式不正确/)
+  assert.match(connectionFailureMessage('Public services require HTTPS'), /公网 API 需要 HTTPS/)
+  locale.value = 'en-US'
+  assert.match(generationServiceStatus.value.detail, /Cannot reach the generation service/)
+  locale.value = 'zh-CN'
+  clearGenerationFeedback()
+})
+
+test('disabled saved selection switches to an enabled model and never unlocks jobs itself', async t => {
+  const { providerIsEnabled, providerAcceptsJobs } = await import('../src/shared/generation/connection.ts')
+  const caps = capabilities()
+  caps.providers.push({ providerId: 'hunyuan-turbo', name: 'Turbo', state: 'disabled', acceptsJobs: true, parameters: {} })
+  settings.providerId = 'hunyuan-turbo'
+  t.mock.method(GenerationClient.prototype, 'capabilities', async () => caps)
+  t.mock.method(GenerationClient.prototype, 'info', async () => ({ deviceType: 'gpu' }))
+  assert.equal(providerIsEnabled(caps.providers[2]!), false)
+  assert.equal(providerAcceptsJobs(caps.providers[2]!), false)
+  assert.equal(await checkGenerationConnection(), true)
+  assert.equal(settings.providerId, 'hunyuan-mini')
+  assert.equal(state.connected, true)
+})
+
+test('enabled failed selection stays selected instead of silently substituting a working model', async t => {
+  const caps = capabilities()
+  caps.providers.push({ providerId: 'hunyuan-turbo', name: 'Turbo', state: 'failed', acceptsJobs: false, error: 'OOM', parameters: {} })
+  settings.providerId = 'hunyuan-turbo'
+  t.mock.method(GenerationClient.prototype, 'capabilities', async () => caps)
+  t.mock.method(GenerationClient.prototype, 'info', async () => ({ deviceType: 'gpu' }))
+  assert.equal(await checkGenerationConnection(), false)
+  assert.equal(settings.providerId, 'hunyuan-turbo')
+  const { generationServiceStatus } = await import('../src/shared/generation/readiness.ts')
+  assert.equal(generationServiceStatus.value.state, 'failed')
+  settings.providerId = 'hunyuan-mini'
+  assert.equal(state.connected, true, 'choosing a model does not invalidate the API connection')
+  assert.equal(canGenerateModels.value, true)
+})
+
+test('no enabled models clears the selection and reports a neutral disabled state', async t => {
+  const caps = capabilities()
+  caps.providers[1]!.state = 'disabled'
+  t.mock.method(GenerationClient.prototype, 'capabilities', async () => caps)
+  t.mock.method(GenerationClient.prototype, 'info', async () => ({ deviceType: 'gpu' }))
+  assert.equal(await checkGenerationConnection(), false)
+  assert.equal(settings.providerId, '')
+  const { generationServiceStatus } = await import('../src/shared/generation/readiness.ts')
+  assert.equal(generationServiceStatus.value.state, 'disabled')
+  assert.equal(generationServiceStatus.value.type, 'info')
+  assert.match(generationServiceStatus.value.detail, /未启用任何模型/)
+  caps.providers[1]!.state = 'preparing'
+  caps.providers[1]!.acceptsJobs = true
+  assert.equal(await checkGenerationConnection(), true)
+  assert.equal(settings.providerId, 'hunyuan-mini')
+})

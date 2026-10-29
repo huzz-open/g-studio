@@ -18,6 +18,7 @@ from providers import PROVIDERS
 from model_catalog import MODELS, enabled_models, image_encoder_precision
 from policy import plan
 from worker_client import WorkerClient
+from terminal_table import format_table
 from network import allowed_origins, host_allowed, listen_host, service_urls
 
 ROOT = Path(__file__).resolve().parent
@@ -149,8 +150,9 @@ class Service:
                 ('计算后端', self.backend or '未确定', '启动固定；执行失败不切换'),
                 ('采样/解码精度', self.precision or '未确定', '图像编码精度按模型另列'),
                 ('输入预处理', 'CPU FP32', '固定抗锯齿缩放/裁剪/归一化；模型不切换设备'),
-                ('容量预算', memory(self.policy.get('budgetBytes')), '统一内存不重复计入'),
-                ('计划峰值', memory(self.policy.get('plannedPeakBytes')), '参数估计 + 工作区 + 加载余量；不是实测峰值')]
+                ('设备可用内存', memory(self.memory.get('deviceAvailable')), 'CUDA 独立显存 / MPS 建议额度；CPU 不适用'),
+                ('容量参考', memory(self.policy.get('budgetBytes')), 'CUDA 看显存；CPU/MPS 看系统预算；仅供参考，不拦截'),
+                ('估算峰值', memory(self.policy.get('plannedPeakBytes')), '非实测值；不据此降级；实际 OOM 时报告失败')]
         for id in self.enabled:
             state = self.provider_states[id]
             rows += [('模型', PROVIDERS[id].name, state['state']),
@@ -158,7 +160,7 @@ class Service:
                      ('图像编码精度', state.get('imageEncoderPrecision', '未确定'), PROVIDERS[id].name + '；启动固定'),
                      ('FlashVDM 配置', '关闭' if MODELS[id]['series'] == '2.1' else '开启', '完整 VAE 分层解码' if MODELS[id]['series'] == '2.1' else 'Turbo VAE + KV 裁剪')]
         rows += [('服务地址', url, 'HTTP 可用与模型就绪分开') for url in service_urls()]
-        print('\n类别 | 当前值 | 备注\n' + '\n'.join(' | '.join(' '.join(str(value).splitlines()) for value in row) for row in rows), flush=True)
+        print('\n' + format_table(('类别', '当前值', '备注'), rows), flush=True)
         print(f"[generation] Credentials/configuration: {DATA_HOME / 'config.json'}", flush=True)
 
     async def prepare(self):
@@ -178,9 +180,11 @@ class Service:
                     available.append(id)
                 except Exception as error: self.provider_failed(id, str(error))
             if available:
-                self.memory = await self.read_json([sys.executable, str(ROOT / 'policy.py')], self.env(available[0]))
-                self.policy = plan(available, self.backend, self.precision, self.memory, os.environ.get('GEN_STRATEGY', 'auto'))
-                for id, error in self.policy['errors'].items(): self.provider_failed(id, error)
+                try:
+                    self.memory = await self.read_json([sys.executable, str(ROOT / 'policy.py')], self.env(available[0]))
+                except Exception as error:
+                    print(f'[generation] Memory diagnostics unavailable; continuing with configured strategy: {error}', flush=True)
+                self.policy = plan(available, self.backend, self.precision, self.memory, os.environ.get('GEN_STRATEGY', 'resident'))
                 for id, strategy in self.policy['strategies'].items():
                     self.provider_states[id]['strategy'] = strategy
                     self.provider_states[id]['precision'] = self.precision

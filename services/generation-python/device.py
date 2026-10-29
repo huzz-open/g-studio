@@ -25,6 +25,7 @@ def probe():
     if requested == "cpu":
         result["reason"] = os.environ.get("GEN_DEVICE_REASON") or "CPU explicitly configured"
         return result
+    backend = None
     try:
         import torch
         # ROCm intentionally exposes torch.cuda too. Do not advertise it as CUDA.
@@ -56,8 +57,8 @@ def probe():
         elif requested in ("cuda", "mps"):
             result["reason"] = f"Requested {requested.upper()} is unavailable"
     except Exception as error:
-        if requested != "auto":
-            raise RuntimeError(f"Requested {requested.upper()} initialization failed: {error}") from error
+        if requested != "auto" or backend is not None:
+            raise RuntimeError(f"Requested {(backend or requested).upper()} initialization failed: {error}") from error
         result["reason"] = f"GPU initialization failed: {type(error).__name__}: {error}; using CPU"
     if requested in ("cuda", "mps") and result["backend"] != requested:
         raise RuntimeError(f"Requested {requested.upper()} unavailable: {result['reason']}")

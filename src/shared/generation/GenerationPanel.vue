@@ -12,6 +12,7 @@ import { createGenerationJob, regenerateModel, registerExistingModel, modelRepla
 import { latestPartJob } from './job-state'
 import { sha256 } from './client'
 import { canGenerateModels } from './connection'
+import { generationReadinessMessage } from './readiness'
 import { openGenerationSettings } from '../settings-dialog'
 import GenerationActions, { type GenerationAction } from './GenerationActions.vue'
 import InfoHint from '../components/InfoHint.vue'
@@ -38,7 +39,7 @@ async function action(run: () => Promise<unknown>) {
 }
 async function generate(mode: GenerationAction) {
   await action(async () => {
-    if (!canGenerateModels.value) throw Error(t('generation.connectionRequired'))
+    if (!canGenerateModels.value) throw Error(generationReadinessMessage.value)
     const snapshot = clonePart(props.part), connection = snapshotGenerationConnection(parameters.value)
     const target=job.value
     const created=(created: LocalJob)=>{ if(mode!=='overwrite'){selectedId.value=created.localId;emit('jobCreated',created.localId,snapshot.id)} }

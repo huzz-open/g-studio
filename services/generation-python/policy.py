@@ -1,9 +1,8 @@
-"""One startup decision using aggregate resident weights and peak staged weights.
+"""Fixed execution strategy with advisory memory estimates.
 
-Estimates are conservative planning limits, not measured peak-memory promises.
+Estimates are diagnostic references, never admission limits or peak-memory promises.
 MPS shares system memory: its recommended budget is a cap, never extra RAM.
 """
-import itertools
 import json
 import os
 import platform
@@ -32,7 +31,7 @@ def snapshot(backend):
     return data
 
 
-def plan(ids, backend, precision, memory, mode='auto'):
+def plan(ids, backend, precision, memory, mode='resident'):
     if mode not in ('auto', 'resident', 'staged'):
         raise ValueError('GEN_STRATEGY must be auto, resident or staged')
     if precision not in ('fp16', 'fp32') or (backend == 'cpu' and precision != 'fp32'):
@@ -43,36 +42,29 @@ def plan(ids, backend, precision, memory, mode='auto'):
     workspaces = {k: ((9 if image_encoder_precision(k, backend, precision) == 'fp32' else 5) * GIB
                       if backend == 'mps' else 4 * GIB) for k in ids}
     loading = GIB
-    available = max(0, memory['systemAvailable'] - system_reserve)
-    if backend != 'cpu':
-        available = min(available, memory['deviceAvailable'])
+    system_available = memory.get('systemAvailable')
+    system_budget = max(0, system_available - system_reserve) if system_available is not None else None
+    device_budget = memory.get('deviceAvailable')
+    # CUDA has dedicated VRAM. MPS shares system memory; do not add its budgets.
+    available = device_budget if backend == 'cuda' else system_budget
+    if backend == 'mps' and system_budget is not None and device_budget is not None:
+        available = min(system_budget, device_budget)
     weights = {k: [count * (4 if i == 1 and image_encoder_precision(k, backend, precision) == 'fp32' else size)
                    for i, count in enumerate(MODELS[k]['counts'])] for k in ids}
     resident = {k: int(sum(weights[k]) * 1.05) for k in ids}
     staged = {k: int(max(weights[k]) * 1.05) for k in ids}
-    eligible = [k for k in ids if staged[k] + workspaces[k] + loading <= available]
-    errors = {k: 'Insufficient startup capacity even for staged inference; free memory or explicitly configure a smaller enabled set/precision and restart.' for k in ids if k not in eligible}
 
     def cost(group):
-        remaining = [staged[k] + workspaces[k] for k in eligible if k not in group]
+        remaining = [staged[k] + workspaces[k] for k in ids if k not in group]
         # Isolated resident processes may retain graph/host allocator caches.
         # Reserve a workspace for EACH resident, plus one shared staged phase.
         return (sum(resident[k] + workspaces[k] for k in group)
                 + (max(remaining) if remaining else 0) + loading)
 
-    chosen = ()
-    if mode == 'resident':
-        if errors or cost(eligible) > available:
-            raise ValueError('Aggregate resident models exceed startup capacity; no strategy was substituted')
-        chosen = tuple(eligible)
-    elif mode == 'auto':
-        for count in range(len(eligible), -1, -1):
-            chosen = next((group for group in itertools.combinations(eligible, count) if cost(group) <= available), None)
-            if chosen is not None:
-                break
-        chosen = chosen or ()
-    return dict(strategies={k: ('resident' if k in chosen else 'staged') for k in eligible}, errors=errors,
-        precision=precision, budgetBytes=available, plannedPeakBytes=cost(chosen) if eligible else 0,
+    # Legacy "auto" now means the default resident strategy, never a capacity fallback.
+    chosen = () if mode == 'staged' else tuple(ids)
+    return dict(strategies={k: ('resident' if k in chosen else 'staged') for k in ids},
+        precision=precision, budgetBytes=available, plannedPeakBytes=cost(chosen) if ids else 0,
         residentBytes=sum(resident[k] for k in chosen), systemReserveBytes=system_reserve,
         workspaceReserveBytes=max(workspaces.values(), default=0), workspaceByModel=workspaces, residentWorkspaceBytes=sum(workspaces[k] for k in chosen), loadingReserveBytes=loading, mode=mode)
 

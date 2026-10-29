@@ -18,13 +18,18 @@ For the default device policy omit `--cpu`. First launch prepares Python 3.12, d
 | --- | --- |
 | Web app and backend, after `npm install` | `npm run dev` |
 | Web app only | `npm run dev:web` |
-| Backend only | `sh start-generation.sh` |
+| Backend only with Node/npm | `npm run dev:gensvc` |
+| Backend only through the shell launcher | `sh start-generation.sh` |
+| Prepare the environment and download models without serving | `npm run generation:download` |
+| Check environment, device and service connectivity with npm | `npm run generation:doctor` |
 | Prepare and start the real model on CPU in one command | `sh start-generation.sh --cpu` |
 | Prepare CPU resources without serving | `sh start-generation.sh prepare --cpu` |
 | Prepare NVIDIA CUDA resources (also works on a CPU build host) | `sh start-generation.sh prepare --cuda` |
 | Prepare Apple Silicon MPS/CPU resources on a Mac | `sh start-generation.sh prepare --mps` |
 | Check environment and connectivity | `sh start-generation.sh doctor --cpu` |
 | Lightweight algorithm backend, no model | `sh start-generation.sh --base` |
+
+Pass backend options after `--` when using npm, for example `npm run dev:gensvc -- --cuda` or `npm run dev:gensvc -- --cpu`. The backend-only npm command can run directly in PowerShell on Windows; the shell launcher uses Git Bash. `generation:download` and `generation:doctor` remain resource-preparation and diagnostic commands, respectively; neither starts the service.
 
 The backend launcher does not need or install frontend npm dependencies. Wait for the `hunyuan-mini` provider to become `ready`, then upload an image through the web app or authenticated API. `/health` alone does not prove model preparation is finished. Normal model parameters are 5 steps, resolution 256 and 12,000 target faces; a one-step trial is not a quality check. Development Vite supplies the local direct token to the browser; production builds do not embed it. Starting the backend does not upload an image or select AI automatically.
 
@@ -51,8 +56,7 @@ Updating the source can add pinned dependencies even when an earlier version sta
 The connection settings generate a command from the current website's origin and base path. For a site hosted under `/studio/`, the command has this form:
 
 ```sh
-G_STUDIO_SITE='https://your-site.example/studio/'
-curl -fsSL "$G_STUDIO_SITE"install-generation.sh | bash -s -- --site "$G_STUDIO_SITE" --host 0.0.0.0
+curl -fsSL 'https://your-site.example/studio/install-generation.sh' | bash -s -- --site 'https://your-site.example/studio/' --host 0.0.0.0
 ```
 
 Omit `--host 0.0.0.0` for loopback-only access. The installer defaults to `~/.g-studio/backend`; `--dir /absolute/path`, `--port`, repeated `--origin`, `--cpu` / `--cuda` / `--mps`, and `--mirror cn|default` are optional. It downloads a source archive from that same site, verifies SHA256, and calls its `start-generation.sh`. The site origin and localhost:5173 origins are allowed automatically. No Git, npm or preinstalled Python is required. Bash, curl, tar, and sha256sum or shasum are required; Windows uses Git Bash. The default mirror profile is `cn`.
@@ -105,7 +109,7 @@ Force CPU with `--cpu`; use `--cuda` or `--mps` to prepare a specific environmen
 
 | Platform / device | Implemented behavior | Verification boundary |
 | --- | --- | --- |
-| Windows x64 CPU | CPU FP32, startup capacity policy | Historical Mini inference/relocation tested; new multi-model CPU path not re-benchmarked this round |
+| Windows x64 CPU | CPU FP32, diagnostic memory estimates | Historical Mini inference/relocation tested; new multi-model CPU path not re-benchmarked this round |
 | Windows x64 NVIDIA | PyTorch 2.6.0 + CUDA 12.4, FP16; execution errors fail the task | CUDA dependencies can be prepared on CPU; NVIDIA GPU inference needs compatible-device validation. Not every new/old NVIDIA architecture is guaranteed by this pinned build |
 | Apple Silicon, target macOS 14+ | ARM64 PyTorch 2.6.0, MPS preferred, FP16 sampling/decoding (Mini image encoder FP32) and CPU noise generator; execution errors fail the task | Current Apple M5 (24 GB, macOS 26.5.2) real runs and raw/final inspections are recorded separately; semantic/decimation limitations remain, other Macs unvalidated |
 | Windows Intel/AMD GPUs | Production uses CPU | Experimental UHD 630 DirectML required adaptations and took 868 s versus 228 s CPU; Radeon 780M model inference failed. This does not establish that all Intel/AMD hardware is incapable |
@@ -135,7 +139,9 @@ All three weight sets total 16,934,572,304 bytes; this is disk size, not runtime
 
 HTTP is available during preparation, loading and bounded warmup. Enabled loading models accept queued requests; the UI shows two-character positioning tags separately from status. Cancelling queued tasks never interrupts public loading. Resident models are proactively loaded once and reused; staged-ready models have verified resources and load one phase per task. Running resident cancellation is checked between encoder blocks, diffusion steps and decoder chunks, with checks around simplification.
 
-Startup capacity sums every resident model's weights AND workspace reserve, then adds the largest staged phase with its workspace, 5% parameter margin, 2 GiB system reserve and 1 GiB loading reserve. Workspace reserve per resident (and for the one staged process) is MPS 5 GiB FP16 / 9 GiB with an FP32 image encoder, CPU/CUDA 4 GiB. Mini on MPS always keeps its 1022-pixel DINO encoder in FP32; both its FP32 parameter bytes and larger workspace are included. This accounts for separate resident processes retaining graph/host allocator caches even though execution is serialized. MPS uses the smaller of available system memory after reserve and its recommended device budget, never their sum. These are conservative planning estimates, not measured peak guarantees; PyTorch driver caches and different inputs can still exhaust memory. Insufficient capacity reports failure, without substituting a different configuration. Auto strategy is chosen once, never retuned after the first task.
+Memory estimates are diagnostic only: they do not reject startup, loading or jobs, and never change the configured strategy. The default is `resident`; legacy `auto` is accepted as an alias for resident execution. Only an explicit `--strategy staged` selects staged loading. An actual allocation, initialization, warmup or inference error (including OOM) fails the model or task and preserves the error; it does not trigger an automatic retry or a change of device, model, precision or strategy. A selected GPU that fails its initialization probe is reported as failed rather than replaced with CPU. Missing memory diagnostics also do not block loading.
+
+Diagnostic peak estimates include each resident model's weights and workspace, or the largest staged phase, plus a 5% parameter margin and 1 GiB loading reserve. Workspace estimates remain MPS 5 GiB FP16 / 9 GiB with an FP32 image encoder, CPU/CUDA 4 GiB. Mini on MPS keeps its image encoder in FP32. CUDA reports its dedicated free VRAM separately from system RAM; CPU uses available system RAM minus a 2 GiB reserve, while MPS uses the smaller of that system budget and its recommended device budget. None of these figures is an admission threshold or a measured peak guarantee.
 
 Input resizing/cropping/normalization is always CPU FP32; the transformer, diffusion network and VAE stay on the selected inference device. This fixed adapter avoids the pinned MPS antialiased-resize operator gap without error-triggered CPU fallback. The 2.1 full-VAE hierarchical adapter preserves floating coordinate spacing; it does not use Turbo weights or adaptive KV selection. Warmup covers a synthetic image, one sampling step and a resolution-15 volume; full-resolution kernels and different inputs can still have first-use overhead.
 
@@ -161,7 +167,7 @@ All variables are optional for the default local workflow.
 | `GEN_MODEL_SOURCE` | Optional explicit source priority: `modelscope` or `huggingface`; normally set automatically by the project preset |
 | `GEN_MODELS` | Enabled set: `mini` (default), `turbo`, `2.1`, comma-separated combinations or `all`; also `--models` |
 | `GEN_PRECISION` | `fp16` (GPU default) or `fp32` (CPU required); also `--precision`; fixed for sampling/decoding; Mini on MPS always uses an FP32 image encoder, reported separately |
-| `GEN_STRATEGY` | `auto` (default), `resident` or `staged`; also `--strategy`; forced residency must fit aggregate startup capacity |
+| `GEN_STRATEGY` | `resident` (default) or explicit `staged`; also `--strategy`; legacy `auto` aliases resident. Memory estimates never override the choice or reject startup |
 | `GEN_SKIP_MODEL` | `1` prepares only the lightweight algorithm provider; no Hunyuan download |
 | `GEN_RELAY_URL` | Outbound `wss://.../generation/worker` endpoint |
 | `GEN_PAIR` | `1` enables a new five-minute pairing session at this launch |

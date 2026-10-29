@@ -8,12 +8,13 @@ export const generationConnection = reactive({
   capabilities: undefined as Capabilities | undefined,
 })
 export const modelProviders = computed(() => generationConnection.capabilities?.providers.filter(p => p.providerId !== 'silhouette') ?? [])
-export const providerAcceptsJobs = (p: Provider) => p.acceptsJobs ?? p.state === 'ready'
+export const providerIsEnabled = (p: Provider) => p.state !== 'disabled'
+export const providerAcceptsJobs = (p: Provider) => providerIsEnabled(p) && (p.acceptsJobs ?? p.state === 'ready')
 export const canGenerateModels = computed(() => generationConnection.connected && modelProviders.value.some(p => p.providerId === generationSettings.providerId && providerAcceptsJobs(p)))
 let epoch = 0
 let pending: { key: string; controller: AbortController; promise: Promise<boolean> } | undefined
 let developmentLookup: Promise<boolean> | undefined
-const connectionKey = () => JSON.stringify([generationSettings.mode, generationSettings.baseUrl, generationSettings.token, generationSettings.relayUrl, generationSettings.relayToken, generationSettings.deviceId, generationSettings.providerId])
+const connectionKey = () => JSON.stringify([generationSettings.mode, generationSettings.baseUrl, generationSettings.token, generationSettings.relayUrl, generationSettings.relayToken, generationSettings.deviceId])
 watch(connectionKey, () => {
   epoch++
   pending?.controller.abort()
@@ -38,7 +39,7 @@ export async function checkGenerationConnection({ background = false } = {}) {
   const controller = new AbortController()
   const record = { key, controller, promise: Promise.resolve(false) }
   pending = record
-  let request = ++epoch
+  const request = ++epoch
   if (!background) generationConnection.checking = true
   const timer = setTimeout(() => controller.abort(), 5000)
   record.promise = (async () => {
@@ -46,9 +47,9 @@ export async function checkGenerationConnection({ background = false } = {}) {
       const caps = await new GenerationClient(snapshotConnection()).capabilities(controller.signal)
       if (request !== epoch) return false
       const models = caps.providers.filter(p => p.providerId !== 'silhouette')
-      if (!models.some(p => p.providerId === generationSettings.providerId) && models.length) {
-        generationSettings.providerId = (models.find(p => p.state === 'ready') || models[0]!).providerId
-        request = ++epoch
+      if (!models.some(p => p.providerId === generationSettings.providerId && providerIsEnabled(p))) {
+        const enabled = models.filter(providerIsEnabled)
+        generationSettings.providerId = (enabled.find(p => p.state === 'ready') || enabled.find(providerAcceptsJobs) || enabled[0])?.providerId ?? ''
       }
       Object.assign(generationConnection, { capabilities: caps, connected: true, error: '', checking: false })
       // Device diagnostics must not delay the connection result or its feedback.

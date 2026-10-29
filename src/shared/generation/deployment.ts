@@ -9,10 +9,10 @@ export function isLocalServiceHost(hostname: string) {
 
 const shellQuote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`
 
-/** One site value supplies both download locations and the frontend origin. */
+/** Build a single-line command using the current site's deployment path. */
 export function installCommand(siteBase: string, remote = false) {
   const site = new URL(siteBase)
   if (!['http:', 'https:'].includes(site.protocol) || site.username || site.password || site.search || site.hash) throw Error('Invalid installation site')
   const base = site.href.endsWith('/') ? site.href : site.href + '/'
-  return `G_STUDIO_SITE=${shellQuote(base)}\ncurl -fsSL "$G_STUDIO_SITE"install-generation.sh | bash -s -- --site "$G_STUDIO_SITE"${remote ? ' --host 0.0.0.0' : ''}`
+  return `curl -fsSL ${shellQuote(base + 'install-generation.sh')} | bash -s -- --site ${shellQuote(base)}${remote ? ' --host 0.0.0.0' : ''}`
 }
