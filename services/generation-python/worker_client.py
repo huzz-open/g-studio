@@ -2,9 +2,11 @@
 import asyncio
 import json
 import sys
+import time
 from pathlib import Path
 
 PREFIX = '@generation-worker '
+INITIALIZATION_LOG_INTERVAL = 15
 
 
 class WorkerClient:
@@ -17,12 +19,32 @@ class WorkerClient:
         self.job = None
         self.closed = False
         self.pump = None
+        self.initialization_started = None
+        self.phase_started = None
+
+    async def report_initialization(self):
+        while True:
+            await asyncio.sleep(INITIALIZATION_LOG_INTERVAL)
+            if self.ready.done(): return
+            now = time.monotonic()
+            phase = '预热' if self.service.provider_states[self.provider]['state'] == 'warming' else '加载权重与初始化组件'
+            print(f'[模型 {self.provider}] 仍在{phase}，等待完成 | 本阶段 {now-self.phase_started:.0f} 秒 | 初始化累计 {now-self.initialization_started:.0f} 秒', flush=True)
 
     async def start(self):
+        self.initialization_started = self.phase_started = time.monotonic()
+        print(f'[模型 {self.provider}] 开始加载权重与初始化组件；完成后还需预热，当前尚未就绪', flush=True)
         self.process = await self.service.spawn(sys.executable, '-u', str(Path(__file__).with_name('resident.py')),
             env=self.env, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
         self.pump = asyncio.create_task(self.read())
-        data = await asyncio.wait_for(asyncio.shield(self.ready), 900)
+        reporter = asyncio.create_task(self.report_initialization())
+        try:
+            data = await asyncio.wait_for(asyncio.shield(self.ready), 900)
+        except asyncio.TimeoutError:
+            phase = self.service.provider_states[self.provider]['state']
+            raise RuntimeError(f'Model initialization timed out after 900 seconds (phase: {phase})') from None
+        finally:
+            reporter.cancel()
+            await asyncio.gather(reporter, return_exceptions=True)
         if self.process.returncode is not None: raise RuntimeError('Resident worker exited during initialization')
         return data
 
@@ -33,12 +55,15 @@ class WorkerClient:
                 line = raw.decode('utf-8', 'replace').strip()
                 if self.folder:
                     with (self.folder / 'execution.log').open('a') as log: log.write(line + '\n')
-                else:
+                elif not line.startswith(PREFIX):
                     print(f'[{self.provider}] {line}', flush=True)
                 tail = (tail + [line])[-15:]
                 if line.startswith(PREFIX):
                     data = json.loads(line[len(PREFIX):])
-                    if data['event'] == 'warming': self.service.provider_states[self.provider]['state'] = 'warming'
+                    if data['event'] == 'warming':
+                        self.service.provider_states[self.provider]['state'] = 'warming'
+                        self.phase_started = time.monotonic()
+                        print(f'[模型 {self.provider}] 权重与组件初始化完成，开始预热（测试采样与 VAE 解码）；预热完成后才可生成', flush=True)
                     if data['event'] == 'ready' and not self.ready.done(): self.ready.set_result(data)
                     if data['event'] == 'done' and self.pending and not self.pending.done(): self.pending.set_result(data)
                 else:

@@ -167,6 +167,8 @@ test('readiness feedback distinguishes loading, ready, disabled, missing and dis
   state.capabilities!.providers[1]!.acceptsJobs = true
   assert.equal(canGenerateModels.value, true)
   assert.match(generationReadinessMessage.value, /可提交任务排队/)
+  state.capabilities!.providers[1]!.state = 'warming'
+  assert.match(generationReadinessMessage.value, /Hunyuan.*预热中.*可提交任务排队/)
   state.capabilities!.providers[1]!.state = 'ready'
   assert.match(generationReadinessMessage.value, /当前模型可生成/)
   state.capabilities!.providers[1]!.state = 'disabled'

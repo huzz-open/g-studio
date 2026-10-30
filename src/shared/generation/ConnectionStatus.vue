@@ -15,10 +15,10 @@ import { generationServiceStatus as status } from './readiness'
 .idle { visibility:hidden; }
 .connected { background:#38865a; }
 .failed { background:#b44f4f; }
-.preparing { border:2px solid #c49b57; }
+.preparing { border:2px solid #c49b5740; border-top-color:#d6a548; animation:spin .85s linear infinite; }
 .disabled { background:#666; }
 .checking { border:2px solid #52606f; border-top-color:#9ac6ff; animation:spin .7s linear infinite; }
 svg { display:block; width:12px; height:12px; flex:none; fill:none; stroke:white; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
 @keyframes spin { to { transform:rotate(360deg); } }
-@media (prefers-reduced-motion:reduce) { .checking { animation:none; } }
+@media (prefers-reduced-motion:reduce) { .checking, .preparing { animation:none; } }
 </style>

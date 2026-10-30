@@ -40,7 +40,10 @@ export const generationReadinessMessage = computed(() => {
     reason: providerReason(selectedModelProvider.value),
   })
   const provider = selectedModelProvider.value
-  return translate(provider?.state === 'ready' ? 'generation.connectedReady' : 'generation.connectedQueueReady')
+  return translate(provider?.state === 'ready' ? 'generation.connectedReady' : 'generation.connectedQueueReady', {
+    model: provider?.name ?? generationSettings.providerId,
+    phase: providerReason(provider),
+  })
 })
 
 /** One user-facing service result for the badge, generation entry and manual test. */

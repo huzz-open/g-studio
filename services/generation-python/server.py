@@ -147,6 +147,7 @@ class Service:
 
     def provider_failed(self, id, error):
         self.provider_states[id].update(state='failed', error=error, acceptsJobs=False, tags=[MODELS[id]['tag']] if id in MODELS else [])
+        print(f'[模型 {id}] {PROVIDERS[id].name} 准备失败 | {error}', flush=True)
         for job in self.jobs.values():
             if job['providerId'] == id and job['status'] == 'queued':
                 job.update(status='failed', phase='preparation-failed', error={'code': 'PREPARATION_FAILED', 'message': error, 'retryable': True})
@@ -185,13 +186,16 @@ class Service:
             self.device, self.backend, self.device_reason = detection['deviceType'], detection['backend'], detection['reason']
             self.precision = os.environ.get('GEN_PRECISION', 'fp32' if self.backend == 'cpu' else 'fp16')
             available = []
+            print('[模型启动] 各模型依次准备，状态独立；单个模型已就绪不代表全部模型完成', flush=True)
             for id in self.enabled:
                 started = time.monotonic()
                 try:
+                    print(f'[模型 {id}] 检查与准备模型文件 | {PROVIDERS[id].name}', flush=True)
                     process = await self.spawn(*PROVIDERS[id].prepare_command())
                     if await process.wait(): raise RuntimeError('Resource preparation failed; resolve the reported checksum/download error and restart')
                     self.children.discard(process)
                     self.provider_states[id]['preparationSeconds'] = time.monotonic() - started
+                    print(f'[模型 {id}] 模型文件准备完成 | {time.monotonic()-started:.2f} 秒 | 接下来加载与预热', flush=True)
                     available.append(id)
                 except Exception as error: self.provider_failed(id, str(error))
             if available:
@@ -212,17 +216,24 @@ class Service:
                 try:
                     if strategy == 'resident':
                         state['state'] = 'loading'
+                        if self.compute_lock.locked():
+                            print(f'[模型 {id}] 等待计算空位，随后开始加载与预热', flush=True)
                         async with self.compute_lock:
                             client = WorkerClient(self, id, self.env(id))
                             self.residents[id] = client
                             state.update(await client.start())
                             state.pop('event', None)
                     state['state'] = 'ready'
-                    print(f"[模型] {PROVIDERS[id].name} 已就绪 | {strategy}", flush=True)
+                    timing = (f" | 加载 {state['loadSeconds']:.2f} 秒 | 预热 {state['warmupSeconds']:.2f} 秒"
+                              if 'loadSeconds' in state and 'warmupSeconds' in state else '')
+                    print(f"[模型 {id}] {PROVIDERS[id].name} 已就绪 | {strategy}{timing}", flush=True)
                     self.wake.set()
                 except Exception as error:
                     self.provider_failed(id, str(error))
                     if id in self.residents: await self.residents[id].close()
+            ready = [id for id in self.enabled if self.provider_states[id]['state'] == 'ready']
+            failed = [id for id in self.enabled if self.provider_states[id]['state'] == 'failed']
+            print(f"[模型启动] 本轮准备结束 | 已就绪：{', '.join(ready) or '无'} | 失败：{', '.join(failed) or '无'}", flush=True)
         except Exception as error:
             self.device_reason = str(error)
             for id in self.enabled: self.provider_failed(id, str(error))
