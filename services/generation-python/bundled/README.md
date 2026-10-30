@@ -1,14 +1,18 @@
 # Pinned model configuration and notices
 
-Provenance reference. Setup instructions are maintained in [backend deployment](../README.md#download-sources).
+Provenance reference. Setup instructions are maintained in [backend deployment](../deployment.md#download-sources).
 
-## Pinned upstream files
+## Model manifests
 
-These four small files are copied without modification from `tencent/Hunyuan3D-2mini` at Hugging Face revision `f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6`. Their sizes and SHA256 values are recorded in `../model-manifest.json`; the downloader verifies them before copying them to the runtime cache. Upstream LICENSE and NOTICE remain alongside the configurations.
+The downloader selects a manifest for each enabled model. Configurations and upstream notices are bundled; large weights are downloaded separately and verified against the same manifest.
 
-## Standard Turbo preparation (not integrated)
+| Model | Pinned revision | Manifest |
+| --- | --- | --- |
+| Mini Turbo | `f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6` | [model-manifest.json](../model-manifest.json) |
+| Standard Turbo | `9cd649ba6913f7a852e3286bad86bfa9a2d83dcf` | [model-manifest-turbo.json](../model-manifest-turbo.json) |
+| Full 2.1 Shape | `0b94677654c57bb9a6b6845cd7b704ccf551d327` | [model-manifest-2.1.json](../model-manifest-2.1.json) |
 
-`models/hunyuan3d-dit-v2-0-turbo/config.yaml`, `models/hunyuan3d-vae-v2-0-turbo/config.yaml` and the notices in `models/hunyuan3d-2/` were copied from `tencent/Hunyuan3D-2` at revision `9cd649ba6913f7a852e3286bad86bfa9a2d83dcf`. Their sizes and hashes, together with the published weight metadata, are in `../model-manifest-turbo.json`. The current downloader and provider registry do not use this manifest. Full downloads and inference remain unverified; see the [upgrade plan](../../../docs/design/model-generation-upgrade.md).
+Mini is enabled by default; Turbo and 2.1 are integrated and enabled through `--models`. Source code is distributed separately in [2.0 and 2.1 source wheels](wheels/README.md).
 
 ## Compatible Mini mirror weights
 

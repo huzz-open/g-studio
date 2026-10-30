@@ -1,6 +1,8 @@
 # 08 - 分阶段实施计划
 
-> 状态：原始设计方案，含规划接口、伪代码和实施清单；未逐项确认实现完成。当前格式以 `src/shared/gs-format/`、`src/shared/workspace/` 和 `src/shared/godot/` 源码为准。返回[文档索引](../../README.md)。
+状态：原始设计，含伪代码与未验收计划。当前行为见[.gs 参考](../../reference/gs-format.md)与[Godot 集成](../../../integrations/godot/README.md)。
+
+[方案导航](README.md) · [文档索引](../../README.md)
 
 ## 概述
 
@@ -35,7 +37,7 @@ flowchart TD
 **文件**：`src/shared/gs-format/`
 
 | 文件 | 内容 |
-|------|------|
+| --- | --- |
 | `types.ts` | GsFile, GsType, SceneRegionData, SceneRegion, RegionType, RegionGroup 接口和枚举 |
 | `schema.ts` | 校验函数（validateGsFile, validateSceneRegionData）|
 | `reader.ts` | readGsFile(handle) → GsFile，从 FileSystemFileHandle 读取并校验 |
@@ -92,6 +94,7 @@ export interface SceneRegion {
 ```
 
 **验收标准**：
+
 - 能创建符合 schema 的 GsFile 对象
 - 能序列化为 JSON 字符串
 - 能从 JSON 字符串解析并校验
@@ -102,12 +105,14 @@ export interface SceneRegion {
 **改动文件**：`src/shared/workspace/workspace-manager.ts`
 
 改动点：
+
 1. `initWorkspaceStructure()` → 检测 `project.godot` 是否存在
 2. 如果存在：只创建 `.g-studio/` + `.gdignore` + `config.json`
 3. 删除预设目录创建逻辑（`spritesheets/`, `icons/` 等）
 4. config.json 记录 `mode: 'godot-project'`
 
 **验收标准**：
+
 - 选择含 project.godot 的目录 → 只创建 .g-studio/ → 无预设目录
 - 选择普通目录 → 只创建 .g-studio/ → 无预设目录
 - 已有旧工作区（有预设目录）→ 正常打开，不报错
@@ -115,16 +120,19 @@ export interface SceneRegion {
 ### 任务 1.3：资源管理器重构
 
 **新建文件**：
+
 - `src/shared/components/ContextMenu.vue`
 - `src/shared/module-registry/index.ts`
 
 **改动文件**：
+
 - `src/modules/resource-manager/components/FileGrid.vue` — 右键事件 + .gs 卡片渲染
 - `src/modules/resource-manager/components/DirectoryTree.vue` — 文件夹右键
 - `src/modules/resource-manager/components/FilePreview.vue` — .gs 感知预览
 - `src/modules/resource-manager/components/ResourceManagerView.vue` — 菜单处理
 
 **验收标准**：
+
 - 右键文件 → 弹出上下文菜单
 - 右键文件夹 → 弹出文件夹菜单
 - .gs 文件显示特殊图标和摘要
@@ -137,16 +145,19 @@ export interface SceneRegion {
 ### 任务 2.1：编辑器接入工作区
 
 **改动文件**：
+
 - `src/modules/scene-region-editor/store.ts` — 添加 save/load .gs 逻辑
 - `src/modules/scene-region-editor/components/SceneRegionEditorView.vue` — Ctrl+S 绑定 + visibilitychange
 
 功能点：
+
 1. Ctrl+S → 保存为 .gs 文件（绑定模式）
 2. 从 .gs 文件加载恢复编辑状态
 3. visibilitychange → 检测外部修改 → 提示/静默重载
 4. Tab 标题显示文件名 + 未保存标记
 
 **验收标准**：
+
 - 右键图片 → 新建场景区域 → 进入编辑器 → 画区域 → Ctrl+S → .gs 文件正确写入
 - 重新打开 .gs → 恢复所有区域
 - 在外部修改 .gs（如文本编辑器）→ 切回 G-Studio → 检测到变更并重载
@@ -159,12 +170,14 @@ export interface SceneRegion {
 轻量模式导出用的类型安全 .tscn 构建器。不走 Godot 插件，直接在浏览器中生成 .tscn 文本。
 
 功能：
+
 - 管理 ext_resource / sub_resource / node 声明
 - 正确的 ID 分配和引用
 - Godot 4 format=3 格式输出
 - 支持 PackedVector2Array、Vector2 等值类型格式化
 
 **验收标准**：
+
 - 生成的 .tscn 能被 Godot 4.x 正常打开
 - 包含 Sprite2D（背景图）+ Obstacles + StaticBody2D 完整结构
 - 坐标与 .gs 中一致
@@ -172,15 +185,18 @@ export interface SceneRegion {
 ### 任务 2.3：轻量模式导出 UI
 
 **改动文件**：
+
 - `src/modules/scene-region-editor/components/RegionListPanel.vue` — 导出菜单
 
 功能：
+
 - 导出按钮下拉菜单
 - "导出 .gs" → 下载 JSON
 - "导出 .gs + 图片" → 下载 zip
 - "导出 .tscn" → 通过 TscnBuilder 生成并下载
 
 **验收标准**：
+
 - 无工作区时可用
 - 下载的 .gs 文件格式正确
 - 下载的 .tscn 能被 Godot 打开
@@ -192,11 +208,13 @@ export interface SceneRegion {
 **文件**：仓库中的 `integrations/godot/addons/g_studio/`，安装到目标 Godot 项目的 `addons/g_studio/`。当前目录与安装说明见 [Godot 插件](../../../integrations/godot/README.md)；下列任务保留历史规划，文件轮询现已合并到 `gs_scene_manager.gd`。
 
 创建插件基本结构：
+
 - plugin.cfg + plugin.gd
 - gs_file_watcher.gd（mtime 轮询）
 - gs_scene_manager.gd（分发给 handler）
 
 **验收标准**：
+
 - 插件可在 Godot 中正常启用/禁用
 - 能检测到项目中的 .gs 文件
 - 打印日志确认检测到变更
@@ -206,11 +224,13 @@ export interface SceneRegion {
 **文件**：`integrations/godot/addons/g_studio/handlers/scene_region_handler.gd`（安装后为 `res://addons/g_studio/handlers/scene_region_handler.gd`）
 
 功能：
+
 - recognize() — 从场景树提取受管区域
 - createScene() — 从 .gs 创建完整 .tscn
 - 结构规则匹配逻辑
 
 **验收标准**：
+
 - 放入 .gs 文件 → 插件自动生成同名 .tscn
 - .tscn 打开后有 Sprite2D + Obstacles + StaticBody2D
 - 所有区域正确对应
@@ -220,11 +240,13 @@ export interface SceneRegion {
 **文件**：scene_region_handler.gd 的 apply() 方法
 
 功能：
+
 - .gs 变化时更新已打开场景的受管节点
 - 增删改三种操作
 - 非受管节点不受影响
 
 **验收标准**：
+
 - G-Studio 添加区域 → Godot 场景中出现新节点
 - G-Studio 删除区域 → Godot 场景中对应节点消失
 - G-Studio 修改顶点 → Godot 场景中形状更新
@@ -235,12 +257,14 @@ export interface SceneRegion {
 **文件**：gs_scene_manager.gd 的 on_scene_saving()
 
 功能：
+
 - 场景保存时扫描受管节点
 - 提取当前数据
 - 对比 .gs version → 写入或报冲突
 - 防循环标记
 
 **验收标准**：
+
 - Godot 中拖动区域 → 保存 → .gs 文件中坐标更新
 - Godot 中新建规范 Area2D → 保存 → .gs 出现新 region
 - 快速来回编辑 → 无循环 → 数据最终一致
@@ -250,10 +274,12 @@ export interface SceneRegion {
 **文件**：plugin.gd 的 _enable_plugin()
 
 功能：
+
 - 检查 export_presets.cfg 是否已排除 *.gs
 - 未排除时在 Output 面板输出提示
 
 **验收标准**：
+
 - 首次启用插件 → 输出提示信息
 - 已配置排除 → 不输出
 
@@ -272,7 +298,7 @@ export interface SceneRegion {
 ## 里程碑
 
 | 里程碑 | 内容 | 可演示功能 |
-|--------|------|-----------|
+| --- | --- | --- |
 | M1 (P1 完成) | 基础架构就绪 | 资源管理器中右键图片→新建.gs→编辑→保存 |
 | M2 (P2 完成) | 编辑器集成 | 完整的 .gs 编辑/保存/加载/导出 循环 |
 | M3 (P3 完成) | 双向同步 | G-Studio 改→Godot 看到, Godot 改→G-Studio 看到 |
@@ -281,7 +307,7 @@ export interface SceneRegion {
 ## 风险和缓解
 
 | 风险 | 概率 | 影响 | 缓解 |
-|------|------|------|------|
+| --- | --- | --- | --- |
 | Godot EditorFileSystem 信号不可靠 | 中 | 插件检测不到 .gs 变化 | 降级为 mtime 轮询 |
 | visibilitychange 在某些浏览器不触发 | 低 | G-Studio 检测不到外部修改 | 手动刷新按钮作为后备 |
 | .gs 格式需要升级 | 中 | 旧文件不兼容 | gs 字段记录格式版本，迁移时检查 |

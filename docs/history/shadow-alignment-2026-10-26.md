@@ -1,5 +1,7 @@
 # Shadow alignment investigation
 
+[历史索引](README.md) · [当前文档](../README.md)
+
 Date: 2026-10-26. Historical analysis, not a current setup guide. See [current rendering](../reference/lighting.md) and the [documentation index](../README.md).
 
 The built-in chest reproduces an exposed dark strip below the light-facing edge in the single-part preview. Switching between sprite and geometry modes with the same camera and light shows that the geometric front face extends below the corresponding artwork edge. In geometry mode that face hides the ground underneath; in sprite mode transparent image pixels expose the same shadowed ground. Turning a face toward the light does not by itself guarantee that all ground below the depicted edge receives light.

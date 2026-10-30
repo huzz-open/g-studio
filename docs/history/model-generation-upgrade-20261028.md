@@ -1,8 +1,10 @@
 # 几何服务改造验证（2026-10-28）
 
-本轮从干净的 `main` fast-forward 到 `0ce405f`，确认包含该提交。没有发现适用的 AGENTS.md；遵循 CONTRIBUTING.md 和 [改造方案](../design/model-generation-upgrade.md)。以下只记录本轮运行，不继承历史验收结论。本轮结果和范围以本文最后的最终对照及验收边界为准。后续解释更正：Mini 数值问题仅有 FP32 规避办法，根因未解决；容量阈值未完成常驻校准，不能作为硬件不能常驻的证据。下一轮要求见 [Mini 问题单](../design/mini-inference-investigation.md)。
+[历史索引](README.md) · [当前文档](../README.md)
 
-## 第 3 节携带改动复核
+验证基线：`0ce405f`。原始范围见[方案快照](model-generation-plan-20261028.md)。以下只记录本轮运行，不继承历史验收结论。本轮结果和范围以本文最后的最终对照及验收边界为准。后续解释更正：Mini 数值问题仅有 FP32 规避办法，根因未解决；容量阈值未完成常驻校准，不能作为硬件不能常驻的证据。下一轮要求见 [Mini 问题单](../design/mini-inference-investigation.md)。
+
+## 安装与连接改动复核
 
 环境：Apple Silicon Mac，24 GiB 统一内存；项目自带 Python 3.12.12 环境。资源及日志位于被忽略的 `output/generation-upgrade-20261028/` 和 `runtime/generation/`。
 
@@ -58,7 +60,6 @@ Mini 固定 revision 的六个文件已重新做完整 SHA256/大小校验，全
 | 盆景 | 428,966 | 243,278 | 4 / 10 | 12,000 | 0.02143 |
 
 以上表面距离将两网格分别居中、最长边归一化到 2，每个表面固定种子采样 20,000 点；不评价语义正确性，也不保留绝对尺度/位移误差。可复用 `tests/generation_benchmark.py` 保存真实 HTTP 任务，再以 `tests/generation_mesh_report.py <benchmark.json>` 计算统计。该统计不会自动判定质量通过。
-
 
 ## 实施中发现并处理的问题
 

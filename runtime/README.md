@@ -1,26 +1,16 @@
-# Local runtime storage — retain when cleaning the project
+# Local runtime storage
 
-`generation/` contains reusable model weights, upstream source, and platform-specific
-uv, Python and installed packages. The launcher may also cache an official Node
-download when no compatible installed Node is available; installed Node is used
-in place and is never copied here. This directory is deliberately excluded from Git.
-Keep this directory: deleting required files causes the next normal start to
-download them again. `sh start-generation.sh` validates and reuses complete resources.
+Local resources and private service data. These directories are excluded from Git and are independent of frontend dependencies and build output.
 
-`generation-data/` contains this machine's private credentials and temporary jobs.
-Do not share it. Use the current project's `sh start-generation.sh --cpu` with
-the configured mirrors. `archives/` preserves
-retired local experiments; it is not used by the production service.
-`verification/` holds temporary files used for runtime checks; it
-is not needed at runtime and may be removed when those checks are no longer needed.
+| Directory | Contents | Maintenance |
+| --- | --- | --- |
+| `generation/` | Verified weights, inference source, platform runtimes and download caches | Retain; deleting required files triggers preparation again |
+| `generation-data/` | Device credentials and temporary jobs | Private; do not distribute |
+| `archives/` | Retired local experiments | Not a production dependency |
+| `verification/` | Temporary runtime-check files | Remove only when the checks no longer need them |
 
-These folders are independent of build output (`dist/`) and frontend `node_modules/`.
-Profiles currently include Windows CPU, Windows NVIDIA CUDA 12.4, and Apple
-Silicon MPS/CPU. Intel/AMD GPU acceleration is not enabled. Apple M5
-(24 GB, macOS 26.5.2) passed offline startup and API generation in
-84.5 seconds (5 steps, resolution 256), with MPS and a visually checked vase.
-Other Macs remain untested. Apple Silicon uses one environment for MPS and CPU.
-Keep complete resources to use `sh start-generation.sh --offline --cpu`.
-Do not include `runtime/` in routine build-clean commands. See
-[generation deployment](../services/generation-python/README.md) for preparation,
-supported platforms and offline checks.
+The launcher uses a compatible installed Node in place, or caches an official runtime if needed. Python and dependencies are separated by platform and execution profile; models and inference source are shared.
+
+After online preparation, reuse complete resources with `sh start-generation.sh --offline --cpu` from the repository root, selecting the device profile already prepared.
+
+See [backend configuration](../services/generation-python/deployment.md#resources-and-private-data) for custom paths, device profiles and offline operation.

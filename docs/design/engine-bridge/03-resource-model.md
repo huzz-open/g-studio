@@ -1,6 +1,8 @@
 # 03 - 资源模型重新设计
 
-> 状态：原始设计方案，含规划接口、伪代码和实施清单；未逐项确认实现完成。当前格式以 `src/shared/gs-format/`、`src/shared/workspace/` 和 `src/shared/godot/` 源码为准。返回[文档索引](../../README.md)。
+状态：原始设计，含伪代码与未验收计划。当前行为见[.gs 参考](../../reference/gs-format.md)与[Godot 集成](../../../integrations/godot/README.md)。
+
+[方案导航](README.md) · [文档索引](../../README.md)
 
 ## 概述
 
@@ -10,7 +12,7 @@ Engine Bridge 架构下，G-Studio 的资源模型需要从"每个文件是独�
 
 ### 旧模型
 
-```
+```text
 每个文件 + .meta sidecar = 一个独立资源
 ├── qingfengzhen.png + .qingfengzhen.png.meta (uid, contentHash, moduleData)
 ├── terrain.png + .terrain.png.meta
@@ -23,7 +25,7 @@ Engine Bridge 架构下，G-Studio 的资源模型需要从"每个文件是独�
 
 ### 新模型
 
-```
+```text
 .gs 文件 = 一等资源（主体）
 ├── qingfengzhen.gs → 引用 qingfengzhen.png（附属）
 ├── terrain.gs → 引用 terrain.png（附属）
@@ -40,7 +42,7 @@ Engine Bridge 架构下，G-Studio 的资源模型需要从"每个文件是独�
 ### 当前 .meta 提供的能力
 
 | 能力 | 用途 | 新模型下是否仍需 |
-|------|------|-----------------|
+| --- | --- | --- |
 | uid | 唯一标识，跨重命名追踪 | .gs 文件本身即身份，无需额外 uid |
 | contentHash | 检测文件内容变化 | .gs 有 version 字段替代 |
 | boundFileName | 绑定文件名 | 不需要，路径即身份 |
@@ -55,6 +57,7 @@ Engine Bridge 架构下，G-Studio 的资源模型需要从"每个文件是独�
 **在 Engine Bridge 架构下，.meta sidecar 系统可以完全废弃。**
 
 理由：
+
 1. .gs 文件内部已包含了所有需要的元信息（type、version、data）
 2. 文件身份由路径确定，不需要 uid（文件移动 = 引用断裂 → 用户手动修复或通过资源管理器的移动功能自动更新 .gs 中的路径）
 3. 模块状态在 .gs data 中，不需要外挂 moduleData
@@ -98,6 +101,7 @@ type TextureRefIndex = Map<string, string[]>
 ```
 
 构建时机：
+
 - 工作区打开时全量扫描 .gs 文件
 - .gs 文件保存时增量更新
 - 资源管理器刷新时重建
@@ -128,7 +132,7 @@ flowchart TD
 ### 路由规则
 
 | .gs type | 目标模块 | 路由 |
-|----------|---------|------|
+| --- | --- | --- |
 | 1 (SceneRegion) | 场景区域编辑器 | `/scene-region-editor?gs=<path>` |
 | 2 (Tileset) | 瓦片集制作器 | `/tileset-maker?gs=<path>` |
 | 3 (Sprite) | 精灵切分器 | `/sprite-slicer?gs=<path>` |
@@ -144,6 +148,7 @@ flowchart TD
 - 关闭 Tab 时如有未保存修改 → 提示保存
 
 无工作区时：
+
 - Tab 标题 = "未命名" 或用户指定的名称
 - Ctrl+S 不可用（灰色）
 - 只能通过"导出"下载
@@ -165,6 +170,7 @@ interface GsFileEntry {
 ```
 
 扫描策略：
+
 - 首次打开：全量扫描，读取每个 .gs 的头部字段（不需要读完整 data）
 - 保存后：增量更新对应条目
 - 手动刷新：全量重新扫描
@@ -172,6 +178,7 @@ interface GsFileEntry {
 ### 非 .gs 文件的处理
 
 资源管理器仍然显示所有文件（.png、.tscn、.gd 等），但：
+
 - .gs 文件作为"主资源"高亮显示（特殊图标）
 - 图片文件如果被 .gs 引用则显示关联标记
 - .tscn 文件显示为"引擎场景"，不可在 G-Studio 中编辑

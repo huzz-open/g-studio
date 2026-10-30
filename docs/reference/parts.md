@@ -1,6 +1,6 @@
 # 部件格式与资产
 
-当前格式参考，核对基准：2026-10-27 工作区。[操作指南](../guides/parts-and-lighting.md) · [文档索引](../README.md)
+当前部件格式与资产行为。[操作指南](../guides/parts-and-lighting.md) · [文档索引](../README.md)
 
 ## 格式与版本
 
@@ -13,6 +13,7 @@
 | `normal` | 法线生成参数，默认值和归一化见 [normal-settings.ts](../../src/shared/types/normal-settings.ts) |
 | `geometry` | 类型、整体尺寸及类型专属数据 |
 | `geometryAlternatives` | 可选，最多 32 个曾使用的几何，包含可切换回来的嵌入模型 |
+| `modelComparison` | 可选，原始/候选网格、输入指纹与显式选择；见[候选设计](../design/model-comparison.md) |
 | `alignment` | 图像锚点、偏移和投影缩放 |
 | `source` | 可选来源：原图/裁剪图 SHA256、文件名、裁剪矩形及 `.gs` 路径 |
 
@@ -30,9 +31,12 @@
 
 几何可携带 `defaultSize`，记录保留尺寸切换形状时的重置基准，范围同 `size`。旧资产缺少此字段时按原有工厂默认值计算。备用几何使用与当前几何相同的校验规则，包含网格时部件仍为 v2；备用几何不参与当前场景渲染。
 
+网格类型的 `PartGeometry` 可携带 `imageFit`、`repair` 及 `frozen`/`original` 等几何处理状态。当前实际采用的 `geometry/alignment` 与比较候选分开保存；候选更新不自动覆盖采用版本。
+
 网格字段由 [mesh.ts](../../src/shared/parts/mesh.ts) 定义：
 
 ```ts
+// 核心字段节选；完整类型见 mesh.ts。
 interface MeshGeometry {
   uri: string;              // data:model/gltf-binary;base64,...
   sha256: string;
@@ -40,6 +44,8 @@ interface MeshGeometry {
   inputSha256: string;
   warnings: string[];
   providerVersion?: string;
+  modelId?: string;
+  modelRevision?: number;
   generation?: {
     seed?: number;
     targetFaces?: number;

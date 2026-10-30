@@ -1,6 +1,8 @@
 # 01 - .gs 文件格式规范
 
-> 状态：原始设计方案，含规划接口、伪代码和实施清单；未逐项确认实现完成。当前格式以 `src/shared/gs-format/`、`src/shared/workspace/` 和 `src/shared/godot/` 源码为准。返回[文档索引](../../README.md)。
+状态：原始设计，含伪代码与未验收计划。当前行为见[.gs 参考](../../reference/gs-format.md)与[Godot 集成](../../../integrations/godot/README.md)。
+
+[方案导航](README.md) · [文档索引](../../README.md)
 
 ## 概述
 
@@ -158,6 +160,7 @@ interface SpriteData {
 ## 坐标系
 
 所有坐标使用**像素坐标**，原点为背景图的中心点：
+
 - X 轴：向右为正
 - Y 轴：向下为正
 - 这与 Godot 的坐标系一致（Sprite2D position 设为图片中心时，子节点坐标即为相对于图片中心的偏移）
@@ -165,6 +168,7 @@ interface SpriteData {
 ## 路径解析
 
 `data.texture` 使用相对路径，相对于 .gs 文件所在目录：
+
 - `"./qingfengzhen.png"` → 同目录下的 qingfengzhen.png
 - `"../textures/bg.png"` → 上级目录的 textures/bg.png
 

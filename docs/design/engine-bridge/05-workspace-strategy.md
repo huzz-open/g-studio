@@ -1,6 +1,8 @@
 # 05 - 工作区绑定策略
 
-> 状态：原始设计方案，含规划接口、伪代码和实施清单；未逐项确认实现完成。当前格式以 `src/shared/gs-format/`、`src/shared/workspace/` 和 `src/shared/godot/` 源码为准。返回[文档索引](../../README.md)。
+状态：原始设计，含伪代码与未验收计划。当前行为见[.gs 参考](../../reference/gs-format.md)与[Godot 集成](../../../integrations/godot/README.md)。
+
+[方案导航](README.md) · [文档索引](../../README.md)
 
 ## 概述
 
@@ -48,7 +50,7 @@ async function initGodotProjectMode(handle: FileSystemDirectoryHandle): Promise<
 ### 模式区别
 
 | 行为 | Godot 项目模式 | 普通模式 |
-|------|---------------|---------|
+| --- | --- | --- |
 | 系统目录 | `.g-studio/` + `.gdignore` | `.g-studio/` |
 | 预设子目录 | 不创建 | 不创建（废弃旧行为） |
 | 打包排除提示 | 不需要（.gdignore 生效） | 不适用 |
@@ -58,7 +60,7 @@ async function initGodotProjectMode(handle: FileSystemDirectoryHandle): Promise<
 
 G-Studio **不强制**目录结构。以下是推荐结构（符合 Godot 社区惯例）：
 
-```
+```text
 MyGodotProject/
 ├── project.godot
 ├── addons/
@@ -89,7 +91,7 @@ MyGodotProject/
 
 ### 内容
 
-```
+```text
 .g-studio/
 ├── .gdignore          ← 空文件，让 Godot 完全忽略此目录
 └── config.json        ← 工作区配置
@@ -121,6 +123,7 @@ interface WorkspaceConfig {
 .gs 文件分布在项目各处（与 .tscn 并列），需要通过 export filter 排除。
 
 方式：Godot 的 export_presets.cfg 中添加：
+
 ```ini
 exclude_filter="*.gs"
 ```
@@ -145,7 +148,7 @@ func _enable_plugin():
 当用户未绑定任何工作区时：
 
 | 操作 | 行为 |
-|------|------|
+| --- | --- |
 | Ctrl+S | 不可用（按钮灰色，快捷键无响应） |
 | 导出 | 可用（下载 .gs / .tscn / zip） |
 | 打开文件 | 可用（通过拖入或文件选择器，临时加载到内存） |
@@ -173,12 +176,14 @@ function handleSave(): void {
 ## 工作区切换
 
 支持在不同工作区之间切换：
+
 - 切换前：检查所有 Tab 是否有未保存修改 → 提示保存
 - 切换后：重新扫描新工作区的 .gs 文件 → 关闭所有已打开的 Tab
 
 ## 从旧工作区迁移
 
 如果打开的工作区有旧版 G-Studio 的痕迹（存在预设子目录和 .meta 文件）：
+
 - 不自动删除旧文件
 - 正常工作（向后兼容）
 - 当用户将模块适配到 .gs 格式后，旧 .meta 自然废弃

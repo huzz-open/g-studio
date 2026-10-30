@@ -1,6 +1,8 @@
 # 04 - 资源管理器 UI 重构
 
-> 状态：原始设计方案，含规划接口、伪代码和实施清单；未逐项确认实现完成。当前格式以 `src/shared/gs-format/`、`src/shared/workspace/` 和 `src/shared/godot/` 源码为准。返回[文档索引](../../README.md)。
+状态：原始设计，含伪代码与未验收计划。当前行为见[.gs 参考](../../reference/gs-format.md)与[Godot 集成](../../../integrations/godot/README.md)。
+
+[方案导航](README.md) · [文档索引](../../README.md)
 
 ## 概述
 
@@ -16,7 +18,7 @@
 
 ## 目标状态
 
-- 保持三栏布局（已经好用）
+- 保持三栏布局
 - 新增右键菜单系统
 - 以 .gs 为核心资源，智能路由打开逻辑
 - 模块通过注册接口声明自己能处理的文件类型
@@ -242,7 +244,7 @@ async function createSceneRegionFromImage(imageEntry: FsEntry): Promise<void> {
 
 ### FileGrid 中的 .gs 卡片
 
-```
+```text
 ┌─────────────────────────┐
 │  [场景图标]              │
 │  ┌─────────────────┐    │
@@ -286,6 +288,7 @@ interface GsCardData {
    - "删除"
 
 选中图片文件时：
+
 1. **图片预览**
 2. **关联 .gs 列表**（如果有）
 3. **操作按钮**：
@@ -297,7 +300,7 @@ interface GsCardData {
 ## 需要改动的现有文件
 
 | 文件 | 改动 |
-|------|------|
+| --- | --- |
 | `ResourceManagerView.vue` | 添加 contextmenu 事件处理 |
 | `FileGrid.vue` | .gs 卡片特殊渲染 + 右键事件 |
 | `DirectoryTree.vue` | 文件夹右键事件 |

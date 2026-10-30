@@ -1,6 +1,8 @@
 # 07 - Godot 适配器实现
 
-> 状态：原始设计方案，含规划接口、伪代码和实施清单；未逐项确认实现完成。当前格式以 `src/shared/gs-format/`、`src/shared/workspace/` 和 `src/shared/godot/` 源码为准。返回[文档索引](../../README.md)。
+状态：原始设计，含伪代码与未验收计划。当前行为见[.gs 参考](../../reference/gs-format.md)与[Godot 集成](../../../integrations/godot/README.md)。
+
+[方案导航](README.md) · [文档索引](../../README.md)
 
 ## 概述
 
@@ -10,7 +12,7 @@ Godot 适配器是 Engine Adapter 抽象的第一个具体实现。它作为 God
 
 当前源码集中在 [`integrations/godot/`](../../../integrations/godot/README.md)。安装时将其中的 `addons/g_studio/` 复制到目标 Godot 项目同名目录。下面是历史规划结构；当前文件轮询已合并到 `gs_scene_manager.gd`，实际文件列表和运行时遮挡组件见上述目录说明。
 
-```
+```text
 addons/g_studio/
 ├── plugin.cfg                     # 插件描述文件
 ├── plugin.gd                      # EditorPlugin 主入口
@@ -71,7 +73,7 @@ func _enable_plugin():
 
 ### 约定的场景树结构
 
-```
+```text
 Root (Node2D)
 ├── Sprite2D                         ← 背景图（受管）
 ├── Obstacles (Node2D)               ← 遮挡容器（受管）

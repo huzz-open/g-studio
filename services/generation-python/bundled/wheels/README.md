@@ -1,4 +1,4 @@
-# Bundled Hunyuan shape source wheel
+# Bundled Hunyuan shape source
 
 This directory is committed to Git, including the small `.whl` binary. It contains
 the unmodified shape inference Python sources used by G-Studio, from upstream
@@ -12,6 +12,17 @@ Upstream LICENSE and NOTICE are retained inside the wheel's `.dist-info/licenses
 `../../requirements-model.lock`; this source-only wheel intentionally does not
 ask pip to resolve the full upstream dependency set.
 
+## Source series
+
+| Series | Source manifest | Wheel metadata | Runtime destination |
+| --- | --- | --- | --- |
+| 2.0 (Mini and Turbo) | [source-manifest.json](source-manifest.json) | [wheel.json](wheel.json) | `vendor/Hunyuan3D-2/` |
+| 2.1 Shape | [source-manifest.json](../wheels-2.1/source-manifest.json) | [wheel.json](../wheels-2.1/wheel.json) | `vendor/Hunyuan3D-2.1/hy3dshape/` |
+
+The 2.1 wheel uses its own pinned source revision and cannot be replaced by the 2.0 wheel. [Model manifests and notices](../README.md) track model resources separately.
+
+## Rebuild the 2.0 wheel
+
 Rebuild from the project root with Python 3.10+ (standard library only):
 
 ```sh
@@ -22,6 +33,8 @@ The builder reuses matching cached source files, or fetches the pinned URLs duri
 this explicit build step. It verifies every input and writes deterministic ZIP
 members and a wheel RECORD. Review changes to both manifests and commit the new
 wheel together when upgrading. Startup never fetches these source URLs.
+
+## Runtime use
 
 During model preparation, `source_wheel.py` verifies the bundled wheel and
 materializes its pure-Python contents into `GEN_HOME/vendor/Hunyuan3D-2`, repairing
@@ -37,5 +50,5 @@ python -m pip install --no-deps /path/to/g_studio_hunyuan_shape-2.0.2+f8db63096c
 ```
 
 That command installs only sources; G-Studio's locked runtime dependencies and
-model weights are still required. Model preparation now handles six model
-resources (two weight files and four bundled configuration/license files).
+model weights are still required. The six-file Mini resource set is described
+by its model manifest; Turbo and 2.1 have their own manifests.

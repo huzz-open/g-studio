@@ -1,6 +1,8 @@
 # 06 - 双向同步协议
 
-> 状态：原始设计方案，含规划接口、伪代码和实施清单；未逐项确认实现完成。当前格式以 `src/shared/gs-format/`、`src/shared/workspace/` 和 `src/shared/godot/` 源码为准。返回[文档索引](../../README.md)。
+状态：原始设计，含伪代码与未验收计划。当前行为见[.gs 参考](../../reference/gs-format.md)与[Godot 集成](../../../integrations/godot/README.md)。
+
+[方案导航](README.md) · [文档索引](../../README.md)
 
 ## 概述
 
@@ -8,7 +10,7 @@ G-Studio 和引擎编辑器通过 .gs 文件实现双向数据同步。本文档
 
 ## 同步模型
 
-```
+```text
 G-Studio (浏览器)          .gs (磁盘)          引擎插件
        │                      │                    │
        │── 写入 ─────────────►│                    │
@@ -90,7 +92,7 @@ func _write_gs(path: String, data: Dictionary) -> bool:
 
 用户同时在 G-Studio 和 Godot 中编辑同一个 .gs 关联的场景，且两边都做了修改：
 
-```
+```text
 时间线：
 T1: G-Studio 读取 .gs (version=3)
 T2: Godot 保存场景 → 插件写 .gs (version=4)
@@ -102,6 +104,7 @@ T3: G-Studio 用户 Ctrl+S → 检测到 disk version=4 > lastKnown=3 → 冲突
 **v1 不做自动合并，采用"提示 + 用户选择"策略：**
 
 G-Studio 侧：
+
 ```typescript
 if (writeResult.status === 'conflict') {
   const choice = await showConflictDialog({
@@ -122,6 +125,7 @@ if (writeResult.status === 'conflict') {
 ```
 
 引擎插件侧：
+
 ```gdscript
 if not _write_gs(path, data):
     # 冲突 → 放弃回写，保持 .gs 中的版本
@@ -139,6 +143,7 @@ if not _write_gs(path, data):
 ### 问题
 
 引擎插件同时监听 .gs 文件变化和场景保存事件：
+
 1. .gs 变化 → 更新场景树
 2. 场景保存 → 回写 .gs
 3. 回写触发 .gs 变化 → 又要更新场景树 → 无限循环

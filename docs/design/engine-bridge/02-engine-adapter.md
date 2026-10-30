@@ -1,6 +1,8 @@
 # 02 - 引擎适配器抽象层
 
-> 状态：原始设计方案，含规划接口、伪代码和实施清单；未逐项确认实现完成。当前格式以 `src/shared/gs-format/`、`src/shared/workspace/` 和 `src/shared/godot/` 源码为准。返回[文档索引](../../README.md)。
+状态：原始设计，含伪代码与未验收计划。当前行为见[.gs 参考](../../reference/gs-format.md)与[Godot 集成](../../../integrations/godot/README.md)。
+
+[方案导航](README.md) · [文档索引](../../README.md)
 
 ## 概述
 
@@ -10,7 +12,7 @@
 
 ## 适配器职责
 
-```
+```text
 .gs data (引擎无关)
     │
     ▼
@@ -25,7 +27,7 @@ EngineAdapter (抽象接口)
 
 以下用伪代码描述，各引擎用各自语言实现：
 
-```
+```text
 interface SceneRegionAdapter {
     // 从引擎场景树中识别出受管区域
     recognize(sceneRoot: EngineNode) -> RecognitionResult
@@ -93,7 +95,7 @@ interface RecognizedRegion {
 不同的 .gs type 需要不同的适配器处理逻辑：
 
 | .gs type | GodotAdapter | UnityAdapter |
-|----------|-------------|-------------|
+| --- | --- | --- |
 | SceneRegion (1) | scene_region_handler.gd | (未来) |
 | Tileset (2) | tileset_handler.gd | (未来) |
 | Sprite (3) | sprite_handler.gd | (未来) |
@@ -104,7 +106,7 @@ interface RecognizedRegion {
 
 引擎插件启动时注册 handler：
 
-```
+```gdscript
 # Godot 插件伪代码
 func _enter_tree():
     register_handler(GsType.SceneRegion, SceneRegionHandler.new())
@@ -117,6 +119,7 @@ func _enter_tree():
 ## 与 G-Studio 侧的边界
 
 G-Studio 侧（浏览器端）**不需要**知道适配器的存在。它只负责：
+
 - 读写 .gs 文件的 `data` 字段
 - 展示和编辑业务数据（regions、tiles、sprites）
 - 通过 visibilitychange 检测外部修改并刷新
