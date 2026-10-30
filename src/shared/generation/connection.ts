@@ -1,7 +1,7 @@
 import { computed, reactive, watch } from 'vue'
 import type { Capabilities, Provider } from '../../../packages/generation-protocol/types'
 import { GenerationClient } from './client'
-import { generationSettings, snapshotConnection, useDevelopmentConnection } from './settings'
+import { generationSettings, snapshotConnection } from './settings'
 
 export const generationConnection = reactive({
   connected: false, checking: false, error: '', device: '',
@@ -13,9 +13,11 @@ export const providerAcceptsJobs = (p: Provider) => providerIsEnabled(p) && (p.a
 export const canGenerateModels = computed(() => generationConnection.connected && modelProviders.value.some(p => p.providerId === generationSettings.providerId && providerAcceptsJobs(p)))
 let epoch = 0
 let pending: { key: string; controller: AbortController; promise: Promise<boolean> } | undefined
-let developmentLookup: Promise<boolean> | undefined
 const connectionKey = () => JSON.stringify([generationSettings.mode, generationSettings.baseUrl, generationSettings.token, generationSettings.relayUrl, generationSettings.relayToken, generationSettings.deviceId])
+// Restore a saved connection, but never poll credentials while they are edited.
+let pollingKey: string | undefined = generationSettings.baseUrl.trim() && generationSettings.token.trim() ? connectionKey() : undefined
 watch(connectionKey, () => {
+  pollingKey = undefined
   epoch++
   pending?.controller.abort()
   pending = undefined
@@ -24,14 +26,15 @@ watch(connectionKey, () => {
 
 /** Polls preserve the last badge; only a user-triggered test shows a spinner. */
 export async function checkGenerationConnection({ background = false } = {}) {
-  // A fresh browser has no API configured. Polling must not probe localhost or
-  // read development credentials until the user explicitly supplies an address.
+  // An address alone must never trigger credential discovery or API requests.
   if (!generationSettings.baseUrl.trim()) return false
-  if (generationSettings.mode === 'direct' && !generationSettings.token && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(generationSettings.baseUrl)) {
-    developmentLookup ??= useDevelopmentConnection().catch(() => false).finally(() => { developmentLookup = undefined })
-    await developmentLookup
-  }
   const key = connectionKey()
+  if (background && pollingKey !== key) return false
+  if (!generationSettings.token.trim()) {
+    if (!background) generationConnection.error = 'Access token required'
+    return false
+  }
+  if (!background) pollingKey = key
   if (pending?.key === key) {
     if (!background) generationConnection.checking = true
     return pending.promise

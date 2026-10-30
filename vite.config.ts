@@ -38,18 +38,6 @@ function opencvRawServe(): Plugin {
 }
 
 
-function generationDevelopmentConnection(): Plugin {
-  return {name:'generation-development-connection',configureServer(server){
-    server.middlewares.use((req,res,next)=>{
-      if(req.url!=='/__generation/connection')return next()
-      const address=req.socket.remoteAddress,origin=req.headers.origin
-      if(req.method!=='GET'||! /^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(req.headers.host||'')||!['127.0.0.1','::1','::ffff:127.0.0.1'].includes(address||'') || (origin && origin!==`http://${req.headers.host}`) || !['same-origin','none',undefined].includes(req.headers['sec-fetch-site'] as string|undefined)) {res.statusCode=403;res.end();return}
-      try{const home=process.env.GEN_DATA_HOME||process.env.GEN_HOME||resolve(projectRoot,'runtime/generation-data'),config=JSON.parse(readFileSync(resolve(home,'config.json'),'utf8'));res.setHeader('Content-Type','application/json');res.setHeader('Cache-Control','no-store');res.end(JSON.stringify({baseUrl:`http://127.0.0.1:${process.env.GEN_PORT||8765}`,token:config.token}))}
-      catch{res.statusCode=503;res.end('Generation service is preparing')}
-    })
-  }}
-}
-
 function generationInstaller(): Plugin {
   return {
     name: 'generation-installer',
@@ -77,7 +65,7 @@ export default defineConfig({
   optimizeDeps: { entries: ['index.html'] },
   server: { watch: { ignored: ['**/runtime/**', '**/.generation-test/**', '**/.venv/**', '**/venv/**'] } },
   base: process.env.GITHUB_ACTIONS ? '/g-studio/' : '/',
-  plugins: [vue(), opencvRawServe(), generationDevelopmentConnection(), generationInstaller()],
+  plugins: [vue(), opencvRawServe(), generationInstaller()],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },

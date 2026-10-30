@@ -8,12 +8,13 @@ import json
 import os
 from pathlib import Path
 import secrets
+import shlex
 import signal
 import sys
 import time
 import uuid
 from aiohttp import web
-from config import DATA_HOME, config, atomic_json
+from config import CONFIG, DATA_HOME, config, atomic_json
 from providers import PROVIDERS
 from model_catalog import MODELS, enabled_models, image_encoder_precision
 from policy import plan
@@ -26,6 +27,18 @@ JOBS = DATA_HOME / "jobs"
 JOBS.mkdir(exist_ok=True)
 LIMIT = 10 * 1024 * 1024
 TERMINAL = {"succeeded", "failed", "cancelled", "expired"}
+
+
+def credential_file_command():
+    # Forward slashes also make Windows paths readable by Git Bash's cat.
+    return 'cat -- ' + shlex.quote(CONFIG.as_posix())
+
+
+def print_credential_help():
+    print(f"[访问凭证] 打开文件：{CONFIG}", flush=True)
+    print('[访问凭证] 复制 JSON 中 token 字段的值，填入网页的“访问凭证”（不含引号）。', flush=True)
+    print('[访问凭证] 在服务所在电脑的 Shell（Windows 使用 Git Bash）中执行以下命令读取配置文件：', flush=True)
+    print(credential_file_command(), flush=True)
 
 
 class Fault(Exception):
@@ -160,8 +173,10 @@ class Service:
                      ('图像编码精度', state.get('imageEncoderPrecision', '未确定'), PROVIDERS[id].name + '；启动固定'),
                      ('FlashVDM 配置', '关闭' if MODELS[id]['series'] == '2.1' else '开启', '完整 VAE 分层解码' if MODELS[id]['series'] == '2.1' else 'Turbo VAE + KV 裁剪')]
         rows += [('服务地址', url, 'HTTP 可用与模型就绪分开') for url in service_urls()]
+        token = config['token']
+        masked_token = token[:4] + '*' * 8 + token[-4:] if len(token) > 8 else '*' * len(token)
+        rows += [('访问凭证', masked_token, credential_file_command())]
         print('\n' + format_table(('类别', '当前值', '备注'), rows), flush=True)
-        print(f"[generation] Credentials/configuration: {DATA_HOME / 'config.json'}", flush=True)
 
     async def prepare(self):
         detection = None
@@ -647,9 +662,10 @@ if __name__ == "__main__":
     host = listen_host()
     allowed_origins()
     print(
-        f"[generation] Configuration: {DATA_HOME / 'config.json'}; device detection starting",
+        f"[generation] Configuration: {CONFIG}; device detection starting",
         flush=True,
     )
+    print_credential_help()
     web.run_app(
         app,
         host=host,

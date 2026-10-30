@@ -58,6 +58,7 @@ test('an unconfigured API is idle and makes no requests, including background po
 
 test('repeated checks of a configured API share one request', async t => {
   settings.baseUrl = 'http://127.0.0.1:8765'
+  settings.token = 'test-token'
   let finish!: (value: Capabilities) => void
   let calls=0
   t.mock.method(GenerationClient.prototype,'capabilities',function(this: GenerationClient) {
@@ -66,10 +67,9 @@ test('repeated checks of a configured API share one request', async t => {
     return new Promise(resolve=>{finish=resolve})
   })
   t.mock.method(GenerationClient.prototype,'info',async()=>({deviceType:'cpu'}))
-  const background = checkGenerationConnection({background:true})
-  assert.equal(state.checking,false)
   const manual = checkGenerationConnection()
   assert.equal(state.checking,true)
+  const background = checkGenerationConnection({background:true})
   finish(capabilities())
   assert.equal(await background,true)
   assert.equal(await manual,true)
@@ -305,4 +305,51 @@ test('no enabled models clears the selection and reports a neutral disabled stat
   caps.providers[1]!.acceptsJobs = true
   assert.equal(await checkGenerationConnection(), true)
   assert.equal(settings.providerId, 'hunyuan-mini')
+})
+
+test('local addresses never discover credentials or contact an API without a token', async t => {
+  settings.baseUrl = 'http://localhost:8765'
+  settings.token = ''
+  const fetch = t.mock.method(globalThis, 'fetch', async () => { throw Error('Unexpected credential discovery') })
+  const request = t.mock.method(GenerationClient.prototype, 'capabilities', async () => capabilities())
+  assert.equal(await checkGenerationConnection({ background: true }), false)
+  assert.equal(await checkGenerationConnection(), false)
+  assert.equal(settings.token, '')
+  assert.equal(settings.baseUrl, 'http://localhost:8765')
+  assert.equal(fetch.mock.callCount(), 0)
+  assert.equal(request.mock.callCount(), 0)
+})
+
+test('switching APIs clears credentials immediately and polling waits for a manual test', async t => {
+  const requests: { url: string; token: string }[] = []
+  t.mock.method(GenerationClient.prototype, 'capabilities', async function(this: GenerationClient) {
+    requests.push({ url: this.config.baseUrl, token: this.config.token })
+    return capabilities()
+  })
+  t.mock.method(GenerationClient.prototype, 'info', async () => ({ deviceType: 'cpu' }))
+  settings.baseUrl = 'http://127.0.0.1:8765'
+  settings.token = 'local-token'
+  assert.equal(await checkGenerationConnection(), true)
+  const original = (await import('../src/shared/generation/settings.ts')).snapshotConnection()
+  settings.baseUrl = 'https://other.example/api'
+  assert.equal(settings.token, '', 'the old token must be cleared in the same turn')
+  assert.equal(state.connected, false)
+  assert.equal(await checkGenerationConnection({ background: true }), false)
+  settings.token = 'other-token'
+  assert.equal(await checkGenerationConnection({ background: true }), false)
+  assert.equal(requests.length, 1)
+  assert.equal(await checkGenerationConnection(), true)
+  assert.equal(await checkGenerationConnection({ background: true }), true)
+  assert.deepEqual(requests, [
+    { url: 'http://127.0.0.1:8765', token: 'local-token' },
+    { url: 'https://other.example/api', token: 'other-token' },
+    { url: 'https://other.example/api', token: 'other-token' },
+  ])
+  settings.token = 'edited-token'
+  assert.equal(await checkGenerationConnection({ background: true }), false)
+  assert.equal(requests.length, 3)
+  assert.equal(original.baseUrl, 'http://127.0.0.1:8765')
+  assert.equal(original.token, 'local-token', 'existing job snapshots retain their original address/token pair')
+  settings.baseUrl = 'http://127.0.0.1:8765'
+  assert.equal(settings.token, '', 'returning to an earlier address must not restore its old token')
 })

@@ -65,6 +65,7 @@ function feedback(message: string, success = false) {
 async function connect(manual = true) {
   if (manual) clearGenerationFeedback();
   if (!settings.baseUrl.trim()) { if (manual) feedback(t('generation.addressRequired')); return; }
+  if (!settings.token.trim()) { if (manual) feedback(t('generation.tokenRequired')); return; }
   if (manual && feedbackToast !== undefined) { dismissToast(feedbackToast); feedbackToast = undefined; }
   if (manual) busy.value = true;
   try {
@@ -96,7 +97,7 @@ onUnmounted(() => {
 <template>
   <div class="generation-settings">
     <template v-if="props.section === 'connection'">
-      <details class="generation-install" :open="!settings.baseUrl.trim()">
+      <details class="generation-install">
         <summary>{{ t('generation.installBackend') }}</summary>
         <div class="install-scope">
           <label for="generation-allow-remote">{{ t('generation.allowRemote') }}</label>

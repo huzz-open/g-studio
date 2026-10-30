@@ -48,6 +48,11 @@ generationSettings.relayUrl = '';
 generationSettings.relayToken = '';
 generationSettings.deviceId = '';
 if (generationSettings.providerId === 'silhouette') generationSettings.providerId = 'hunyuan-mini';
+// Credentials belong to one exact API base. Clear synchronously, before a
+// request or persistence watcher can observe a new address with an old token.
+watch(() => generationSettings.baseUrl, () => {
+  generationSettings.token = '';
+}, { flush: 'sync' });
 watch(
   generationSettings,
   () =>
@@ -68,23 +73,4 @@ export function resetGenerationPreferences() {
 }
 export function snapshotConnection(): GenerationConnection {
   return JSON.parse(JSON.stringify(generationSettings));
-}
-export async function useDevelopmentConnection() {
-  if (!import.meta.env.DEV) return false;
-  const before = { baseUrl: generationSettings.baseUrl, token: generationSettings.token };
-  const r = await fetch("/__generation/connection", { signal: AbortSignal.timeout(5000) });
-  if (!r.ok) return false;
-  const v = await r.json();
-  if (generationSettings.baseUrl !== before.baseUrl || generationSettings.token !== before.token) return false;
-  if (typeof v.baseUrl !== "string" || typeof v.token !== "string")
-    return false;
-  if (
-    ![v.baseUrl, "http://127.0.0.1:8765", "http://localhost:8765"].includes(
-      generationSettings.baseUrl.replace(/\/+$/, ""),
-    )
-  )
-    return false;
-  generationSettings.baseUrl = v.baseUrl;
-  generationSettings.token = v.token;
-  return true;
 }
