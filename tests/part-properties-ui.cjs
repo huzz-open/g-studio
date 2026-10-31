@@ -1,0 +1,25 @@
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright')
+const assert=require('node:assert/strict'),fs=require('node:fs')
+;(async()=>{
+ const browser=await chromium.launch({channel:'msedge',headless:true})
+ try{
+  const page=await browser.newPage({viewport:{width:1440,height:1050}}),errors=[]
+  page.on('pageerror',e=>errors.push(String(e)))
+  await page.addInitScript(()=>{window.mod=path=>import(performance.getEntriesByType('resource').find(e=>e.name.includes(path))?.name||path)})
+  await page.goto(process.env.G_STUDIO_TEST_URL||'http://127.0.0.1:5173');await page.locator('.module-card').first().waitFor()
+  await page.evaluate(async()=>{const {loadPartLibrary}=await window.mod('/src/shared/parts/library.ts'),{openPartEditor}=await window.mod('/src/shared/parts/editor-session.ts');await loadPartLibrary();openPartEditor({assetId:'example:chair',origin:'scene'})})
+  const editor=page.locator('.part-editor'),sidebar=editor.locator('.part-sidebar'),view=editor.getByRole('group',{name:'查看内容',exact:true})
+  await view.waitFor()
+  assert.deepEqual(await view.getByRole('button').allTextContents(),['效果预览','模型查看'])
+  await editor.locator('.viewport-stage[aria-busy="false"]').first().waitFor()
+  assert.equal(await sidebar.getByRole('slider',{name:'整体强度',exact:true}).count(),0)
+  assert.equal(await editor.locator('.adjustments').count(),0)
+  await view.getByRole('button',{name:'模型查看',exact:true}).click()
+  assert.equal(await view.getByRole('button',{name:'模型查看',exact:true}).getAttribute('aria-pressed'),'true')
+  await view.getByRole('button',{name:'效果预览',exact:true}).click()
+  assert.equal(await sidebar.getByRole('switch',{name:'场景阴影',exact:true}).count(),1)
+  assert.equal(await editor.locator('.viewport-error').count(),0)
+  assert.deepEqual(errors,[])
+  console.log('PASS: simplified part properties, effect/model views and lighting controls')
+ }finally{await browser.close()}
+})().catch(e=>{console.error(e);process.exitCode=1})

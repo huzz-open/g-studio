@@ -1,12 +1,14 @@
 import { effectScope, reactive, watch } from 'vue'
+import { TARGET_FACES_MIN, TARGET_FACES_MAX } from '../../../packages/generation-protocol/limits'
 import { generationSettings, type GenerationConnection } from './settings'
 import type { LocalJob } from './jobs'
+import { readStoredGenerationParameters, writeStoredGenerationParameters } from './defaults-migration'
 
-export type GenerationParameters = Pick<GenerationConnection, 'targetFaces' | 'seed' | 'parametersByProvider'>
+export type GenerationParameters = Pick<GenerationConnection, 'targetFaces' | 'seed' | 'parametersByProvider' | 'optimizeModel'>
 
 /** Copy only generation inputs, never service addresses or credentials. */
 export function copyGenerationParameters(value: GenerationParameters = generationSettings): GenerationParameters {
-  return { targetFaces: value.targetFaces, seed: value.seed, parametersByProvider: JSON.parse(JSON.stringify(value.parametersByProvider)) }
+  return { optimizeModel:value.optimizeModel!==false,targetFaces: value.targetFaces, seed: value.seed, parametersByProvider: JSON.parse(JSON.stringify(value.parametersByProvider)) }
 }
 
 const drafts = new Map<string, GenerationParameters>()
@@ -14,7 +16,7 @@ const storagePrefix = 'g-studio-generation-parameters-v1:'
 
 function valid(value: unknown): value is GenerationParameters {
   const v = value as GenerationParameters | null
-  return !!v && Number.isInteger(v.targetFaces) && v.targetFaces >= 1000 && v.targetFaces <= 40000
+  return !!v && Number.isInteger(v.targetFaces) && v.targetFaces >= TARGET_FACES_MIN && v.targetFaces <= TARGET_FACES_MAX
     && Number.isInteger(v.seed) && v.seed >= 0 && v.seed <= 2147483647
     && !!v.parametersByProvider && typeof v.parametersByProvider === 'object' && !Array.isArray(v.parametersByProvider)
     && Object.values(v.parametersByProvider).every(parameters => parameters && typeof parameters === 'object'
@@ -28,7 +30,7 @@ export function generationParametersFor(sourceId: string, seed?: GenerationParam
   const key = storagePrefix + sourceId
   let initial = copyGenerationParameters(seed)
   try {
-    const saved: unknown = JSON.parse(localStorage.getItem(key) || 'null')
+    const saved: unknown = readStoredGenerationParameters(key, !sourceId.startsWith('model:'))
     if (valid(saved)) {
       // Keep saved inputs, but discard the obsolete per-source reset baseline.
       initial = copyGenerationParameters(saved)
@@ -38,13 +40,14 @@ export function generationParametersFor(sourceId: string, seed?: GenerationParam
   drafts.set(sourceId, draft)
   // Drafts outlive the panel that first opened them, including its effect scope.
   effectScope(true).run(() => watch(draft, () => {
-    try { localStorage.setItem(key, JSON.stringify(draft)) } catch { /* Keep the current session usable if storage is full. */ }
+    try { writeStoredGenerationParameters(key, draft) } catch { /* Keep the current session usable if storage is full. */ }
   }, { deep: true, flush: 'sync', immediate: true }))
   return draft
 }
 
 export function modelParametersFor(job: LocalJob): GenerationParameters {
   return generationParametersFor('model:' + (job.modelId || job.localId), {
+    optimizeModel:job.connection.optimizeModel!==false,
     targetFaces:job.request.targetFaces ?? job.connection.targetFaces, seed:job.request.seed ?? job.connection.seed,
     parametersByProvider:{ [job.request.providerId]:{ ...job.request.parameters } },
   })

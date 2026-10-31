@@ -351,7 +351,14 @@ function resetItem(item: SettingItem) {
             <GenerationSettings v-if="activeCatId.startsWith('generation.')" :key="activeCatId" :section="activeCatId==='generation.defaults'?'defaults':'connection'"/>
             <div v-for="item in activeItems" :key="item.key" class="sd-item">
               <div class="sd-item-head">
-                <label v-if="item.type !== 'segmented'" class="sd-label">{{ t(item.labelKey) }}</label>
+                <label v-if="item.type !== 'segmented' && item.type !== 'boolean' && item.type !== 'inline-switch'" class="sd-label">{{ t(item.labelKey) }}</label>
+                <InlineSwitch
+                  v-if="item.type === 'boolean' || item.type === 'inline-switch'"
+                  :model-value="item.get()"
+                  :label="t(item.labelKey)"
+                  :tooltip="item.descKey ? t(item.descKey) : undefined"
+                  @update:model-value="item.set($event)"
+                />
               <!-- Segmented -->
               <SegmentedControl
                 v-if="item.type === 'segmented' && item.options"
@@ -373,16 +380,6 @@ function resetItem(item: SettingItem) {
               </div>
               <p v-if="item.descKey" class="sd-desc">{{ t(item.descKey) }}</p>
               <p v-if="item.scope !== 'immediate'" class="sd-scope-hint">{{ t('settings.scope.newOnly') }}</p>
-
-              <!-- Boolean -->
-              <label v-if="item.type === 'boolean'" class="sd-toggle">
-                <input
-                  type="checkbox"
-                  :checked="item.get()"
-                  @change="item.set(($event.target as HTMLInputElement).checked)"
-                />
-                <span class="sd-toggle-track"><span class="sd-toggle-thumb" /></span>
-              </label>
 
               <!-- Number -->
               <div v-if="item.type === 'number'" class="sd-number">
@@ -418,15 +415,6 @@ function resetItem(item: SettingItem) {
                   >{{ t(opt.labelKey) }}</option>
                 </select>
               </div>
-
-              <!-- Inline Switch -->
-              <InlineSwitch
-                v-if="item.type === 'inline-switch'"
-                :model-value="item.get()"
-                :label="''"
-                :tooltip="item.descKey ? t(item.descKey) : undefined"
-                @update:model-value="item.set($event)"
-              />
 
               <!-- Grid Size -->
               <GridSizeInput
@@ -570,7 +558,8 @@ function resetItem(item: SettingItem) {
   border-bottom: 1px solid #2f2f2f;
 }
 .sd-item:last-child { border-bottom: none; }
-.sd-item-head > .seg-control { flex: 1; }
+.sd-item-head > .seg-control,
+.sd-item-head > .il-switch-container { flex: 1; min-width: 0; }
 .sd-item-head {
   display: flex;
   align-items: center;
@@ -606,39 +595,6 @@ function resetItem(item: SettingItem) {
   margin: 0 0 6px;
   line-height: 1.3;
   font-style: italic;
-}
-
-/* Toggle */
-.sd-toggle {
-  display: inline-flex;
-  align-items: center;
-  cursor: pointer;
-}
-.sd-toggle input { display: none; }
-.sd-toggle-track {
-  width: 36px;
-  height: 20px;
-  border-radius: 10px;
-  background: #444;
-  position: relative;
-  transition: background 0.2s;
-}
-.sd-toggle input:checked + .sd-toggle-track {
-  background: #3b82f6;
-}
-.sd-toggle-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #ccc;
-  transition: transform 0.2s, background 0.2s;
-}
-.sd-toggle input:checked + .sd-toggle-track .sd-toggle-thumb {
-  transform: translateX(16px);
-  background: #fff;
 }
 
 /* Number */

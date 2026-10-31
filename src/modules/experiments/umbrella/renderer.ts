@@ -1,4 +1,4 @@
-import { buildUmbrella, type ProxyMesh, type UmbrellaShape } from './geometry'
+import { buildUmbrella, type ProxyMesh, type UmbrellaShape } from './model'
 import { add, camera, dot, lookAt, multiply, normalize, perspective, sub, transform, type CameraSettings, type Mat4, type Vec3 } from './math'
 
 export interface DemoFrame { light: Vec3; camera: CameraSettings; wireframe: boolean; shadowsOnly: boolean; filtered: boolean }

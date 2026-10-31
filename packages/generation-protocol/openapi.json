@@ -195,6 +195,40 @@
             }
           }
         ]
+      },
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {}
+          },
+          "default": {
+            "description": "Structured failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Explicitly delete a terminal task and its stored files. Active tasks return 409."
       }
     },
     "/v1/jobs/{id}/cancel": {
@@ -237,41 +271,6 @@
           }
         ],
         "description": "Queued cancellation is immediate. Running resident cancellation is acknowledged at an independent execution boundary; the shared model remains loaded."
-      }
-    },
-    "/v1/jobs/{id}/ack": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {}
-          },
-          "default": {
-            "description": "Structured failure",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
       }
     },
     "/v1/jobs/{id}/outputs/{outputId}": {
@@ -384,8 +383,8 @@
           "targetFaces": {
             "type": "integer",
             "minimum": 1000,
-            "maximum": 40000,
-            "default": 12000
+            "maximum": 1000000,
+            "default": 40000
           },
           "seed": {
             "type": "integer",
@@ -490,7 +489,7 @@
           "triangles": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 40000
+            "maximum": 1000000
           },
           "bounds": {
             "type": "array",
@@ -569,8 +568,7 @@
               "cancel_requested",
               "cancelled",
               "succeeded",
-              "failed",
-              "expired"
+              "failed"
             ]
           },
           "phase": {
@@ -677,10 +675,10 @@
             "uniqueItems": true,
             "items": {
               "enum": [
-                "\u63a8\u8350",
-                "\u5feb\u901f",
-                "\u5747\u8861",
-                "\u7cbe\u7ec6"
+                "推荐",
+                "快速",
+                "均衡",
+                "精细"
               ]
             }
           },

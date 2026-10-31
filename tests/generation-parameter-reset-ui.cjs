@@ -24,13 +24,13 @@ async function main() {
         } }] }
         await loadPartLibrary(); openPartEditor({ assetId: id, origin: 'scene' })
       }, { id, customDefaults })
-      await page.locator('.geometry-trigger').click()
+      await page.locator('.model-trigger').click()
       await page.getByRole('menuitem', { name: '生成模型', exact: true }).click()
     }
     await openPart('example:bonsai', true)
     const overlay = page.locator('.generation-overlay')
     const resets = overlay.locator('.parameter-reset:not(.unchanged)')
-    const fields = [ ['目标三角面数', '24000', '18000', '12000'], ['随机种子', '87844', '42', '12345'], ['采样步数', '10', '7', '5'], ['网格提取分辨率', '256', '128', '256'] ]
+    const fields = [ ['目标三角面数', '24000', '18000', '40000'], ['随机种子', '87844', '42', '12345'], ['采样步数', '10', '7', '5'], ['网格提取分辨率', '256', '128', '256'] ]
     assert.equal(await resets.count(), 3, 'custom initial values differ from original defaults')
     for (const [name, initial, changed] of fields) {
       const input = overlay.getByRole('spinbutton', { name, exact: true })
@@ -59,7 +59,7 @@ async function main() {
     assert.equal(await resets.count(), 2, 'reopening still compares against original defaults')
     await overlay.getByRole('button', { name: '重置目标三角面数', exact: true }).click()
     await overlay.getByRole('button', { name: '重置采样步数', exact: true }).click()
-    assert.equal(await overlay.getByRole('spinbutton', { name: '目标三角面数', exact: true }).inputValue(), '12000')
+    assert.equal(await overlay.getByRole('spinbutton', { name: '目标三角面数', exact: true }).inputValue(), '40000')
     assert.equal(await overlay.getByRole('spinbutton', { name: '采样步数', exact: true }).inputValue(), '5')
     assert.equal(await resets.count(), 0)
     await page.keyboard.press('Escape'); await page.keyboard.press('Escape')
@@ -72,7 +72,7 @@ async function main() {
     await page.keyboard.press('Escape'); await page.keyboard.press('Escape')
     // Regression: default-valued legacy drafts must ignore a different saved baseline.
     await page.evaluate(() => localStorage.setItem('g-studio-generation-parameters-v1:example:vase', JSON.stringify({
-      targetFaces: 12000, seed: 12345, parametersByProvider: { 'hunyuan-mini': { steps: 5, resolution: 256 } },
+      targetFaces: 40000, seed: 12345, parametersByProvider: { 'hunyuan-mini': { steps: 5, resolution: 256 } },
       baseline: { targetFaces: 24000, seed: 87844, parametersByProvider: { 'hunyuan-mini': { steps: 10, resolution: 256 } } },
     })))
     await openPart('example:vase', false)

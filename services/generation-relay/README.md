@@ -18,7 +18,7 @@ The default listener is `127.0.0.1:8787`. Public deployments require HTTPS/WSS, 
 
 - [Configuration and reverse proxy](deployment.md): variables, HTTPS/WSS and worker connections.
 - [Authorization](deployment.md#authorization): pairing, browser grants and revocation.
-- [Temporary data](deployment.md#temporary-data): in-memory payloads, retention and cleanup.
+- [Stored results](deployment.md#stored-results): persistent files and explicit user deletion.
 - [Disconnects and restarts](deployment.md#disconnects-and-restarts): recovery behavior and limits.
 
 [Protocol](../../packages/generation-protocol/README.md) · [Documentation index](../../docs/README.md)

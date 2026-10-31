@@ -1,0 +1,548 @@
+[
+  {
+    "id": "umbrella",
+    "request": {
+      "protocolVersion": 1,
+      "clientRequestId": "c154685c-39b7-44cb-a153-cc315f32431e",
+      "providerId": "hunyuan-mini",
+      "inputSha256": "c79b4d5aaf8fdfcc048e6f17f0bc5d37195b23526a8aad38321ba8c6ab646741",
+      "targetFaces": 40000,
+      "seed": 12345,
+      "parameters": {
+        "steps": 10,
+        "resolution": 256
+      }
+    },
+    "result": {
+      "triangles": 39999,
+      "bounds": [
+        [
+          -0.7764137126595436,
+          0,
+          -0.7824350034776135
+        ],
+        [
+          0.7764137126595436,
+          2.0004450713335036,
+          0.7824350034776135
+        ]
+      ],
+      "coordinateSystem": "right-handed-y-up",
+      "normalization": {
+        "scale": 1.0219973306092605,
+        "sourceMin": [
+          -0.7799330949783325,
+          -0.9980404376983643,
+          -0.7854651212692261
+        ],
+        "sourceMax": [
+          0.7412804961204529,
+          0.9589118361473083,
+          0.7458425164222717
+        ]
+      },
+      "warnings": [
+        "Single-view inferred geometry; inspect openings and alignment before applying."
+      ],
+      "elapsedSeconds": 7.90599999999904,
+      "instanceId": "81e3d9e313a64cefb2f0a859b444fa3c",
+      "memory": {
+        "sampleIntervalSeconds": 0.05,
+        "peakRssBytes": 1218670592,
+        "minSystemAvailableBytes": 3512909824,
+        "peakDeviceAllocatedBytes": 4093564928,
+        "peakDriverAllocatedBytes": 4359979008
+      },
+      "protocolVersion": 1,
+      "jobId": "a73a790c-d416-41a8-a447-282ec53ace2b",
+      "providerId": "hunyuan-mini",
+      "providerVersion": "f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6",
+      "parameters": {
+        "protocolVersion": 1,
+        "clientRequestId": "c154685c-39b7-44cb-a153-cc315f32431e",
+        "providerId": "hunyuan-mini",
+        "inputSha256": "c79b4d5aaf8fdfcc048e6f17f0bc5d37195b23526a8aad38321ba8c6ab646741",
+        "targetFaces": 40000,
+        "seed": 12345,
+        "parameters": {
+          "steps": 10,
+          "resolution": 256
+        }
+      },
+      "deviceType": "gpu",
+      "backend": "cuda",
+      "precision": "fp16",
+      "imageEncoderPrecision": "fp16",
+      "strategy": "resident",
+      "inputSha256": "c79b4d5aaf8fdfcc048e6f17f0bc5d37195b23526a8aad38321ba8c6ab646741",
+      "outputs": [
+        {
+          "id": "shadow",
+          "mime": "model/gltf-binary",
+          "bytes": 960996,
+          "sha256": "54eda15c0709e124cf9f7d5024225fb93868c6d2d772d5b66ac1f0e57bbf472c"
+        }
+      ],
+      "timings": {
+        "totalSeconds": 8.07799999999952,
+        "executionSeconds": 8.046999999998661,
+        "queueSeconds": 0.031000000000858563
+      }
+    }
+  },
+  {
+    "id": "barrel",
+    "request": {
+      "protocolVersion": 1,
+      "clientRequestId": "d70fcafa-80c8-4365-abc6-ec33c3815641",
+      "providerId": "hunyuan-mini",
+      "inputSha256": "0686efb88e5a0abc1d000057677f34dea4a234b36073552fce7c1907a9cfcfab",
+      "targetFaces": 40000,
+      "seed": 12345,
+      "parameters": {
+        "steps": 10,
+        "resolution": 256
+      }
+    },
+    "result": {
+      "triangles": 39999,
+      "bounds": [
+        [
+          -0.9029402085103425,
+          0,
+          -0.9202407811026241
+        ],
+        [
+          0.9029402085103425,
+          1.9999973005323821,
+          0.9202407811026241
+        ]
+      ],
+      "coordinateSystem": "right-handed-y-up",
+      "normalization": {
+        "scale": 1.0224078543703365,
+        "sourceMin": [
+          -0.9021552205085754,
+          -0.9983919858932495,
+          -0.9177747964859009
+        ],
+        "sourceMax": [
+          0.8614212274551392,
+          0.9577745199203491,
+          0.882326066493988
+        ]
+      },
+      "warnings": [
+        "Single-view inferred geometry; inspect openings and alignment before applying."
+      ],
+      "elapsedSeconds": 11.390999999999622,
+      "instanceId": "81e3d9e313a64cefb2f0a859b444fa3c",
+      "memory": {
+        "sampleIntervalSeconds": 0.05,
+        "peakRssBytes": 1442930688,
+        "minSystemAvailableBytes": 3402850304,
+        "peakDeviceAllocatedBytes": 4216995328,
+        "peakDriverAllocatedBytes": 4431282176
+      },
+      "protocolVersion": 1,
+      "jobId": "bd0abd86-a63d-4842-a670-673972c3ccd0",
+      "providerId": "hunyuan-mini",
+      "providerVersion": "f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6",
+      "parameters": {
+        "protocolVersion": 1,
+        "clientRequestId": "d70fcafa-80c8-4365-abc6-ec33c3815641",
+        "providerId": "hunyuan-mini",
+        "inputSha256": "0686efb88e5a0abc1d000057677f34dea4a234b36073552fce7c1907a9cfcfab",
+        "targetFaces": 40000,
+        "seed": 12345,
+        "parameters": {
+          "steps": 10,
+          "resolution": 256
+        }
+      },
+      "deviceType": "gpu",
+      "backend": "cuda",
+      "precision": "fp16",
+      "imageEncoderPrecision": "fp16",
+      "strategy": "resident",
+      "inputSha256": "0686efb88e5a0abc1d000057677f34dea4a234b36073552fce7c1907a9cfcfab",
+      "outputs": [
+        {
+          "id": "shadow",
+          "mime": "model/gltf-binary",
+          "bytes": 959288,
+          "sha256": "a3cdbb96884063a6f11b78943f87d1cdb7153dfe6d99b5498cd094acf10d4b0b"
+        }
+      ],
+      "timings": {
+        "totalSeconds": 11.57799999999952,
+        "executionSeconds": 11.546999999998661,
+        "queueSeconds": 0.031000000000858563
+      }
+    }
+  },
+  {
+    "id": "chair",
+    "request": {
+      "protocolVersion": 1,
+      "clientRequestId": "ff18ba69-1f72-4ba3-bdbf-9c124d63f664",
+      "providerId": "hunyuan-mini",
+      "inputSha256": "43a72eb6971fafd2176b87b9e5cbbd1790bbe8dfa3def3405e228ea8dafd1d68",
+      "targetFaces": 40000,
+      "seed": 12345,
+      "parameters": {
+        "steps": 10,
+        "resolution": 256
+      }
+    },
+    "result": {
+      "triangles": 39999,
+      "bounds": [
+        [
+          -0.6733547099191419,
+          0,
+          -0.5107066649251059
+        ],
+        [
+          0.6733547099191419,
+          1.9999143586457322,
+          0.5107066649251059
+        ]
+      ],
+      "coordinateSystem": "right-handed-y-up",
+      "normalization": {
+        "scale": 1.0213317210091506,
+        "sourceMin": [
+          -0.6790290474891663,
+          -0.9989861249923706,
+          -0.5019369125366211
+        ],
+        "sourceMax": [
+          0.6396708488464355,
+          0.959241509437561,
+          0.4981469213962555
+        ]
+      },
+      "warnings": [
+        "Single-view inferred geometry; inspect openings and alignment before applying."
+      ],
+      "elapsedSeconds": 9,
+      "instanceId": "81e3d9e313a64cefb2f0a859b444fa3c",
+      "memory": {
+        "sampleIntervalSeconds": 0.05,
+        "peakRssBytes": 1385889792,
+        "minSystemAvailableBytes": 3325194240,
+        "peakDeviceAllocatedBytes": 4093564928,
+        "peakDriverAllocatedBytes": 4359979008
+      },
+      "protocolVersion": 1,
+      "jobId": "1adbc231-0a90-4324-9b53-bf72b89207c3",
+      "providerId": "hunyuan-mini",
+      "providerVersion": "f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6",
+      "parameters": {
+        "protocolVersion": 1,
+        "clientRequestId": "ff18ba69-1f72-4ba3-bdbf-9c124d63f664",
+        "providerId": "hunyuan-mini",
+        "inputSha256": "43a72eb6971fafd2176b87b9e5cbbd1790bbe8dfa3def3405e228ea8dafd1d68",
+        "targetFaces": 40000,
+        "seed": 12345,
+        "parameters": {
+          "steps": 10,
+          "resolution": 256
+        }
+      },
+      "deviceType": "gpu",
+      "backend": "cuda",
+      "precision": "fp16",
+      "imageEncoderPrecision": "fp16",
+      "strategy": "resident",
+      "inputSha256": "43a72eb6971fafd2176b87b9e5cbbd1790bbe8dfa3def3405e228ea8dafd1d68",
+      "outputs": [
+        {
+          "id": "shadow",
+          "mime": "model/gltf-binary",
+          "bytes": 960244,
+          "sha256": "aea73b0bce27c98e19c41869b2f56792c50f72c86e0b9d169b4ee7aa7f8168e8"
+        }
+      ],
+      "timings": {
+        "totalSeconds": 9.188000000000102,
+        "executionSeconds": 9.14100000000144,
+        "queueSeconds": 0.046999999998661224
+      }
+    }
+  },
+  {
+    "id": "vase",
+    "request": {
+      "protocolVersion": 1,
+      "clientRequestId": "55e5795c-62b1-4ca2-beb6-e27314426ffe",
+      "providerId": "hunyuan-mini",
+      "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+      "targetFaces": 40000,
+      "seed": 12345,
+      "parameters": {
+        "steps": 10,
+        "resolution": 256
+      }
+    },
+    "result": {
+      "triangles": 40000,
+      "bounds": [
+        [
+          -0.6653668172043832,
+          0,
+          -0.6764052857208149
+        ],
+        [
+          0.6653668172043832,
+          1.9994887146572455,
+          0.6764052857208149
+        ]
+      ],
+      "coordinateSystem": "right-handed-y-up",
+      "normalization": {
+        "scale": 1.021682320142046,
+        "sourceMin": [
+          -0.670527458190918,
+          -0.9982798099517822,
+          -0.6820366978645325
+        ],
+        "sourceMax": [
+          0.6311572790145874,
+          0.9592758417129517,
+          0.641325831413269
+        ]
+      },
+      "warnings": [
+        "Single-view inferred geometry; inspect openings and alignment before applying."
+      ],
+      "elapsedSeconds": 9.28099999999904,
+      "instanceId": "81e3d9e313a64cefb2f0a859b444fa3c",
+      "memory": {
+        "sampleIntervalSeconds": 0.05,
+        "peakRssBytes": 1419558912,
+        "minSystemAvailableBytes": 3341766656,
+        "peakDeviceAllocatedBytes": 4093564928,
+        "peakDriverAllocatedBytes": 4359979008
+      },
+      "protocolVersion": 1,
+      "jobId": "8c8516c8-2c26-4646-8c48-e9971befcff0",
+      "providerId": "hunyuan-mini",
+      "providerVersion": "f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6",
+      "parameters": {
+        "protocolVersion": 1,
+        "clientRequestId": "55e5795c-62b1-4ca2-beb6-e27314426ffe",
+        "providerId": "hunyuan-mini",
+        "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+        "targetFaces": 40000,
+        "seed": 12345,
+        "parameters": {
+          "steps": 10,
+          "resolution": 256
+        }
+      },
+      "deviceType": "gpu",
+      "backend": "cuda",
+      "precision": "fp16",
+      "imageEncoderPrecision": "fp16",
+      "strategy": "resident",
+      "inputSha256": "08661b709509333a1d6a7aba6580a8e8e37267835bd06dd01e332346cb39b826",
+      "outputs": [
+        {
+          "id": "shadow",
+          "mime": "model/gltf-binary",
+          "bytes": 961172,
+          "sha256": "b3ff98cd0f6f6cff5423b357239fa3701a80afe1aeb0aa700b0e74c9e9d75318"
+        }
+      ],
+      "timings": {
+        "totalSeconds": 9.453000000001339,
+        "executionSeconds": 9.42200000000048,
+        "queueSeconds": 0.031000000000858563
+      }
+    }
+  },
+  {
+    "id": "chest",
+    "request": {
+      "protocolVersion": 1,
+      "clientRequestId": "4544097c-67b7-4857-b14c-e9fb933ca714",
+      "providerId": "hunyuan-mini",
+      "inputSha256": "93081c667c1369402e77abdcf0d1d4f5a4e83d6eafbccd475ff7705c18f76369",
+      "targetFaces": 40000,
+      "seed": 12345,
+      "parameters": {
+        "steps": 10,
+        "resolution": 256
+      }
+    },
+    "result": {
+      "triangles": 39999,
+      "bounds": [
+        [
+          -0.9999230538299677,
+          0,
+          -0.641003077273813
+        ],
+        [
+          0.9999230538299677,
+          1.1752343253139454,
+          0.641003077273813
+        ]
+      ],
+      "coordinateSystem": "right-handed-y-up",
+      "normalization": {
+        "scale": 1.0208122669668684,
+        "sourceMin": [
+          -0.9991680979728699,
+          -0.595647931098938,
+          -0.6259890198707581
+        ],
+        "sourceMax": [
+          0.9600560069084167,
+          0.5555009841918945,
+          0.6296380758285522
+        ]
+      },
+      "warnings": [
+        "Single-view inferred geometry; inspect openings and alignment before applying."
+      ],
+      "elapsedSeconds": 9.343999999999141,
+      "instanceId": "81e3d9e313a64cefb2f0a859b444fa3c",
+      "memory": {
+        "sampleIntervalSeconds": 0.05,
+        "peakRssBytes": 1456173056,
+        "minSystemAvailableBytes": 3313782784,
+        "peakDeviceAllocatedBytes": 4093564928,
+        "peakDriverAllocatedBytes": 4359979008
+      },
+      "protocolVersion": 1,
+      "jobId": "74ca67b7-5566-40af-a808-0455148ef4ce",
+      "providerId": "hunyuan-mini",
+      "providerVersion": "f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6",
+      "parameters": {
+        "protocolVersion": 1,
+        "clientRequestId": "4544097c-67b7-4857-b14c-e9fb933ca714",
+        "providerId": "hunyuan-mini",
+        "inputSha256": "93081c667c1369402e77abdcf0d1d4f5a4e83d6eafbccd475ff7705c18f76369",
+        "targetFaces": 40000,
+        "seed": 12345,
+        "parameters": {
+          "steps": 10,
+          "resolution": 256
+        }
+      },
+      "deviceType": "gpu",
+      "backend": "cuda",
+      "precision": "fp16",
+      "imageEncoderPrecision": "fp16",
+      "strategy": "resident",
+      "inputSha256": "93081c667c1369402e77abdcf0d1d4f5a4e83d6eafbccd475ff7705c18f76369",
+      "outputs": [
+        {
+          "id": "shadow",
+          "mime": "model/gltf-binary",
+          "bytes": 960960,
+          "sha256": "837251598c3cc420793b802b26064c6b848417db11cd1054f27de746121b4dba"
+        }
+      ],
+      "timings": {
+        "totalSeconds": 9.531999999999243,
+        "executionSeconds": 9.484999999998763,
+        "queueSeconds": 0.04700000000048021
+      }
+    }
+  },
+  {
+    "id": "bonsai",
+    "request": {
+      "protocolVersion": 1,
+      "clientRequestId": "9e30fdb3-052e-4d98-b3e1-7babafc2a1c3",
+      "providerId": "hunyuan-mini",
+      "inputSha256": "a6fdcfa153818ac203cbf04e3031b166e88fdf0c2c63accfa8b3713c55752c1d",
+      "targetFaces": 12000,
+      "seed": 12345,
+      "parameters": {
+        "steps": 10,
+        "resolution": 256
+      }
+    },
+    "result": {
+      "triangles": 12000,
+      "bounds": [
+        [
+          -1.0035729718868933,
+          0,
+          -0.48534077669273556
+        ],
+        [
+          1.0035729718868933,
+          1.9107955711699391,
+          0.48534077669273556
+        ]
+      ],
+      "coordinateSystem": "right-handed-y-up",
+      "normalization": {
+        "scale": 1.0265720378948708,
+        "sourceMin": [
+          -0.9901170134544373,
+          -0.9506818056106567,
+          -0.4789828956127167
+        ],
+        "sourceMax": [
+          0.958114504814148,
+          0.9082051515579224,
+          0.4666207432746887
+        ]
+      },
+      "warnings": [
+        "Single-view inferred geometry; inspect openings and alignment before applying."
+      ],
+      "elapsedSeconds": 9.82799999999952,
+      "instanceId": "75530a4d42f04006b0238896d93a1374",
+      "memory": {
+        "sampleIntervalSeconds": 0.05,
+        "peakRssBytes": 1733238784,
+        "minSystemAvailableBytes": 2872401920,
+        "peakDeviceAllocatedBytes": 4284023808,
+        "peakDriverAllocatedBytes": 4590665728
+      },
+      "protocolVersion": 1,
+      "jobId": "e7423762-a310-494d-a68d-24638f483be1",
+      "providerId": "hunyuan-mini",
+      "providerVersion": "f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6",
+      "parameters": {
+        "protocolVersion": 1,
+        "clientRequestId": "9e30fdb3-052e-4d98-b3e1-7babafc2a1c3",
+        "providerId": "hunyuan-mini",
+        "inputSha256": "a6fdcfa153818ac203cbf04e3031b166e88fdf0c2c63accfa8b3713c55752c1d",
+        "targetFaces": 12000,
+        "seed": 12345,
+        "parameters": {
+          "steps": 10,
+          "resolution": 256
+        }
+      },
+      "deviceType": "gpu",
+      "backend": "cuda",
+      "precision": "fp16",
+      "imageEncoderPrecision": "fp16",
+      "strategy": "resident",
+      "inputSha256": "a6fdcfa153818ac203cbf04e3031b166e88fdf0c2c63accfa8b3713c55752c1d",
+      "outputs": [
+        {
+          "id": "shadow",
+          "mime": "model/gltf-binary",
+          "bytes": 288236,
+          "sha256": "c9d6ebbfc768f4fae3c730c0ca61e04f906425821177b4ca294c4267d6d8d7e9"
+        }
+      ],
+      "timings": {
+        "totalSeconds": 10.046000000000276,
+        "executionSeconds": 10.014999999999418,
+        "queueSeconds": 0.031000000000858563
+      }
+    }
+  }
+]

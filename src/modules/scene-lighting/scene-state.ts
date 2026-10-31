@@ -6,7 +6,7 @@ export function parseScene(value: any): SceneState {
   const migrated = clonePart(value)
   migrated.items = migrated.items.map((item: any) => ({ ...item, assetId: item.assetId ?? `example:${item.id}`, scale: item.scale ?? 1 }))
   validateInstances(migrated.items)
-  if (!['open', 'corner'].includes(migrated.scene) || !['sprites', 'geometry', 'visibility'].includes(migrated.mode)
+  if (!['open', 'corner'].includes(migrated.scene) || !['sprites', 'model', 'visibility'].includes(migrated.mode)
     || !['objects', 'light'].includes(migrated.tool) || typeof migrated.shadows !== 'boolean' || typeof migrated.filtered !== 'boolean'
     || !Array.isArray(migrated.light) || migrated.light.length !== 3 || !migrated.light.every((v: number) => Number.isFinite(v))
     || Math.abs(migrated.light[0]) > 40 || Math.abs(migrated.light[2]) > 40 || migrated.light[1] < .5 || migrated.light[1] > 12

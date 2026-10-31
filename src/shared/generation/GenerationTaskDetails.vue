@@ -18,25 +18,26 @@ const status = computed(() => props.job ? jobStatus(props.job) : '')
 const running = computed(() => !!props.job && jobRunning(props.job))
 const failure = computed(() => error.value || props.job?.error || props.job?.remote?.error?.message)
 const phase = computed(() => {
+  if(props.job?.optimizing)return t('generation.status.optimizing')
   const value = props.job?.remote?.phase
   if (!value || !running.value) return ''
   const key = 'generation.phase.' + value
   return t(key) === key ? value : t(key)
 })
 const parameters = computed(() => ({
-  ...props.job?.geometry?.mesh?.generation?.parameters,
+  ...props.job?.model?.mesh?.generation?.parameters,
   ...props.job?.request.parameters,
   ...props.job?.remote?.result?.parameters?.parameters,
 }))
 const triangles = computed(() => {
   if (props.job?.remote?.result?.triangles !== undefined) return props.job.remote.result.triangles
-  try { return props.job?.geometry?.mesh ? decodeMesh(props.job.geometry.mesh.uri).triangles.length : undefined } catch { return undefined }
+  try { return props.job?.model?.mesh ? decodeMesh(props.job.model.mesh.uri).triangles.length : undefined } catch { return undefined }
 })
 const created = computed(() => props.job ? new Date(props.job.createdAt).toLocaleString(locale.value) : '')
 const buttons = computed(() => {
   const job = props.job
   if (!job) return []
-  if (job.geometry) return []
+  if (job.model) return []
   if (running.value) return [{ id: 'cancel', label: t('generation.cancel'), disabled: busy.value || job.remote?.status === 'cancel_requested' }]
   if (!job.remote) return [{ id: 'retry', label: t('generation.retrySubmit'), disabled: busy.value }]
   if (job.resultRejected) return [{ id: 'result', label: t('generation.retryResult'), disabled: busy.value }]
@@ -79,7 +80,7 @@ function value(number: number | undefined) { return number === undefined ? '—'
         <TextRow v-for="(number,key) in parameters" :key="key" :label="t('generation.parameter.'+key) === 'generation.parameter.'+key ? key : t('generation.parameter.'+key)" :model-value="value(number)" readonly />
         <TextRow :label="t('generation.provider')" :model-value="job.providerName" :title="job.request.providerId" readonly stacked />
       </SidebarSection>
-      <SidebarSection v-if="job.geometry" :title="t('generation.modelProperties')">
+      <SidebarSection v-if="job.model" :title="t('generation.modelProperties')">
         <TextRow :label="t('generation.actualFaces')" :model-value="value(triangles)" readonly />
         <TextRow :label="t('generation.modelFormat')" model-value="GLB" readonly />
       </SidebarSection>

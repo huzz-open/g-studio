@@ -32,7 +32,7 @@ async function main() {
     await page.route('**/__generation/connection',r=>r.fulfill({json:{baseUrl:'http://127.0.0.1:8765',token:'ui-test'}}))
     await page.route('http://127.0.0.1:8765/**',async r=>{
       const req=r.request(), pathname=new URL(req.url()).pathname
-      const headers={'access-control-allow-origin':'*','access-control-allow-headers':'authorization,content-type','access-control-allow-methods':'GET,POST,OPTIONS'}
+      const headers={'access-control-allow-origin':'*','access-control-allow-headers':'authorization,content-type','access-control-allow-methods':'GET,POST,DELETE,OPTIONS'}
       const reply=json=>r.fulfill({headers,json})
       if(req.method()==='OPTIONS') return r.fulfill({status:204,headers})
       if(offline) return r.fulfill({status:503,headers,json:{error:{code:'OFFLINE',message:'Offline'}}})
@@ -46,12 +46,12 @@ async function main() {
         return reply({id,status:'running',phase:'encode'})
       }
       const id=pathname.split('/')[3], task=remote.get(id)
-      if(pathname.endsWith('/ack')) return reply({ok:true})
+      if(req.method()==='DELETE' && /^\/v1\/jobs\/[^/]+$/.test(pathname)) { remote.delete(id); return reply({ok:true}) }
       if(pathname.includes('/outputs/')) return r.fulfill({headers,contentType:'model/gltf-binary',body:mesh})
       if(pathname.endsWith('/cancel')) { task.status='cancelled'; return reply({id,status:'cancelled',phase:'cancelled'}) }
       if(task) {
         if(!finish||task.status==='cancelled') return reply({id,status:task.status,phase:task.status==='cancelled'?'cancelled':'sample'})
-        return reply({id,status:'succeeded',phase:'complete',result:{protocolVersion:1,jobId:id,providerId:'hunyuan-mini',inputSha256:task.request.inputSha256,triangles:4,bounds:[[-1,0,-1],[1,2,1]],coordinateSystem:'right-handed-y-up',warnings:['Single-view inferred geometry'],outputs:[{id:'shadow',mime:'model/gltf-binary',bytes:mesh.length,sha256:meshHash}]}})
+        return reply({id,status:'succeeded',phase:'complete',result:{protocolVersion:1,jobId:id,providerId:'hunyuan-mini',inputSha256:task.request.inputSha256,triangles:4,bounds:[[-1,0,-1],[1,2,1]],coordinateSystem:'right-handed-y-up',warnings:['Single-view inferred model'],outputs:[{id:'shadow',mime:'model/gltf-binary',bytes:mesh.length,sha256:meshHash}]}})
       }
       throw Error('Unexpected endpoint '+pathname)
     })
@@ -163,11 +163,11 @@ async function main() {
       finish=false
       await page.evaluate(async({origin,data})=>{
         const {createPart}=await import('/src/shared/parts/schema.ts'),{savePart}=await import(performance.getEntriesByType('resource').find(e=>e.name.includes('/src/shared/parts/library.ts'))?.name || '/src/shared/parts/library.ts'),{openPartEditor}=await import(performance.getEntriesByType('resource').find(e=>e.name.includes('/src/shared/parts/editor-session.ts'))?.name || '/src/shared/parts/editor-session.ts')
-        const part=createPart('caller-'+origin,{uri:data,width:160,height:240});part.alignment.offset=[.2,.3];part.normal.normalStrength=1.7
+        const part=createPart('caller-'+origin,{uri:data,width:160,height:240});part.imageFrame.left=.2;part.imageFrame.bottom=.3;part.normal.normalStrength=1.7
         await savePart(part);window.uiPartId=part.id;openPartEditor({assetId:part.id,origin})
       },{origin,data})
       const partEditor=page.locator('.part-editor')
-      await partEditor.locator('.geometry-trigger').click()
+      await partEditor.locator('.model-trigger').click()
       await partEditor.getByRole('menuitem',{name:'生成模型',exact:true}).click()
       const overlay=page.locator('.generation-overlay')
       const partSeed=overlay.getByRole('spinbutton',{name:'随机种子',exact:true})
@@ -184,7 +184,7 @@ async function main() {
       assert.equal(await partDetails.getByRole('textbox',{name:'采样步数',exact:true}).inputValue(),'10')
       assert.equal(await partDetails.getByRole('textbox',{name:'网格提取分辨率',exact:true}).inputValue(),'128')
       await overlay.getByRole('button',{name:'关闭',exact:true}).click()
-      await partEditor.locator('.geometry-trigger').click()
+      await partEditor.locator('.model-trigger').click()
       await partEditor.getByRole('menuitem',{name:'生成模型',exact:true}).click()
       assert.equal(await partSeed.inputValue(),origin==='scene'?'701':'702','reopening restores this part parameters')
       await partSeed.fill('999');await partSeed.blur()
@@ -199,7 +199,7 @@ async function main() {
       await partEditor.locator('.name-field input').fill('renamed-'+origin)
       await partEditor.locator('footer .primary').click();await partEditor.waitFor({state:'detached'})
       const saved=await page.evaluate(async()=>{const {partLibrary}=await import(performance.getEntriesByType('resource').find(e=>e.name.includes('/src/shared/parts/library.ts'))?.name || '/src/shared/parts/library.ts');return partLibrary[window.uiPartId]})
-      assert.equal(saved.name,'renamed-'+origin);assert.equal(saved.geometry.kind,'mesh');assert.deepEqual(saved.alignment.offset,[.2,.3]);assert.equal(saved.normal.normalStrength,1.7)
+      assert.equal(saved.name,'renamed-'+origin);assert.equal(saved.model.kind,'mesh');assert.deepEqual([saved.imageFrame.left,saved.imageFrame.bottom],[.2,.3]);assert.equal(saved.normal.normalStrength,1.7)
     }
     finish=false
     await expandQueue();await page.locator('.queue-select').first().click()

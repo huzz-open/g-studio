@@ -30,7 +30,7 @@ const assert = require('node:assert/strict')
     const low=await page.locator('canvas').screenshot()
     await page.getByRole('slider',{name:'位置 Y（高度）',exact:true}).fill('6')
     const high=await page.locator('canvas').screenshot();assert.ok(!low.equals(high))
-    await page.getByRole('button',{name:'几何',exact:true}).click()
+    await page.getByRole('button',{name:'模型',exact:true}).click()
     if(process.env.SHADOW_SCREENSHOT)await page.screenshot({path:process.env.SHADOW_SCREENSHOT})
     assert.deepEqual(errors,[]);console.log('Ground, wall and cross-object shadows share the scene renderer')
   }finally{await browser.close()}

@@ -1,7 +1,7 @@
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const assert = require('node:assert/strict'), fs = require('node:fs'), ts = require('typescript')
 require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, filename)
-const { buildUmbrella } = require('../src/modules/experiments/umbrella/geometry.ts')
+const { buildUmbrella } = require('../src/modules/experiments/umbrella/model.ts')
 const subtract = (a,b) => a.map((v,i)=>v-b[i]), dot = (a,b) => a.reduce((s,v,i)=>s+v*b[i],0)
 const cross = (a,b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]
 function occluded(light, target, triangles) {

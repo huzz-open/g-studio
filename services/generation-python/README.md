@@ -1,6 +1,6 @@
 # Generation backend
 
-Python service for optional AI geometry generation. It provides an authenticated HTTP API and keeps model resources separate from private credentials and jobs.
+Python service for optional AI model generation. It provides an authenticated HTTP API and keeps model resources separate from private credentials and jobs.
 
 [Browser guide (中文)](../../docs/guides/model-generation.md) · [Configuration](deployment.md) · [API contract](../../packages/generation-protocol/README.md)
 
@@ -35,6 +35,6 @@ Keep [`runtime/generation/`](../../runtime/README.md) to retain downloaded resou
 
 ## Scope
 
-The service generates geometry. Single-image output can contain incorrect or missing structure; inspect results before use. Platform measurements and quality limitations are in the [validation records](../../docs/history/README.md#模型生成).
+The service generates model. Single-image output can contain incorrect or missing structure; inspect results before use. Platform measurements and quality limitations are in the [validation records](../../docs/history/README.md#模型生成).
 
 Upstream code and models retain their own terms. See [licensing and source provenance](deployment.md#license).

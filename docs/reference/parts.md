@@ -4,40 +4,39 @@
 
 ## 格式与版本
 
-校验入口：[schema.ts](../../src/shared/parts/schema.ts)。`format` 为 `g-studio/part`，支持版本 1 和 2；网格几何要求版本 2，旧 v1 部件仍可读取。
+校验入口：[schema.ts](../../src/shared/parts/schema.ts)。`format` 为 `g-studio/part`，支持版本 1 和 2；网格模型要求版本 2。所有部件必须包含 `imageFrame`；旧 `alignment` 数据不再读取或迁移。
 
 | 字段 | 含义 |
 | --- | --- |
 | `id`、`revision` | 稳定资产 ID 和正整数修订号；名字与精灵序号不是身份 |
 | `image` | PNG URI、宽高；内置素材可暂用已知 `builtin:` ID，便携导出嵌入像素 |
 | `normal` | 法线生成参数，默认值和归一化见 [normal-settings.ts](../../src/shared/types/normal-settings.ts) |
-| `geometry` | 类型、整体尺寸及类型专属数据 |
-| `geometryAlternatives` | 可选，最多 32 个曾使用的几何，包含可切换回来的嵌入模型 |
-| `modelComparison` | 可选，原始/候选网格、输入指纹与显式选择；见[候选设计](../design/model-comparison.md) |
-| `alignment` | 图像锚点、偏移和投影缩放 |
+| `model` | 类型、整体尺寸及类型专属数据 |
+| `modelAlternatives` | 可选，最多 32 个曾使用的模型，包含可切换回来的嵌入模型 |
+| `modelComparison` | 可选，原生/优化网格、输入指纹与采用状态；见[候选设计](../design/model-comparison.md) |
+| `imageFrame` | 固定图片参考矩形：相机平面中的 `left`、`bottom`、`height`，宽度由图片宽高比推导 |
 | `source` | 可选来源：原图/裁剪图 SHA256、文件名、裁剪矩形及 `.gs` 路径 |
 
 图像必须是嵌入 PNG 或已知内置素材，不能使用任意远程 URL。宽高各不超过 2048，像素总数不超过 400 万。字段的完整范围以校验器为准。
 
-## 几何类型
+## 模型类型
 
-| `geometry.kind` | 数据与限制 |
+| `model.kind` | 数据与限制 |
 | --- | --- |
-| `silhouette` | 从图像轮廓近似 |
-| `template` | 内置物品自身对应的模板：umbrella、barrel、chair、vase、chest、bonsai |
+| `none` | 尚未生成模型，只显示图片，不合成算法模型 |
 | `mesh` | v2 部件中的嵌入 GLB 及来源元数据 |
 
-几何整体居中、落地，并按资产尺寸调整。图像锚点相对于左上角归一化；偏移采用相机右/上方向，alignment 的缩放只影响图像投影。
+图片参考范围在部件创建时确定，与选择的模型、候选版本、朝向和尺寸无关。导入图片以最长边 2 个场景单位初始化；内置素材使用其制作时的参考矩形。自动对齐将模型匹配到该矩形内的有效像素，透明孔洞参与匹配。模型匹配由优化算法处理，图片保持固定。
 
-几何可携带 `defaultSize`，记录保留尺寸切换形状时的重置基准，范围同 `size`。旧资产缺少此字段时按原有工厂默认值计算。备用几何使用与当前几何相同的校验规则，包含网格时部件仍为 v2；备用几何不参与当前场景渲染。
+备用模型最多保存 32 个，仅当前采用模型参与场景渲染。
 
-网格类型的 `PartGeometry` 可携带 `imageFit`、`repair` 及 `frozen`/`original` 等几何处理状态。当前实际采用的 `geometry/alignment` 与比较候选分开保存；候选更新不自动覆盖采用版本。
+网格类型的 `PartModel` 可携带 `imageFit`、`repair` 及 `frozen`/`original` 等模型处理状态。当前实际采用的 `model` 与比较候选分开保存；开启优化后，计算完成会自动采用；关闭使用原生版本。
 
 网格字段由 [mesh.ts](../../src/shared/parts/mesh.ts) 定义：
 
 ```ts
 // 核心字段节选；完整类型见 mesh.ts。
-interface MeshGeometry {
+interface MeshModel {
   uri: string;              // data:model/gltf-binary;base64,...
   sha256: string;
   providerId: string;

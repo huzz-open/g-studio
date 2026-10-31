@@ -17,7 +17,7 @@ function setup({library={},beforeHydrate=async()=>{}}={}){
 test('automatic and explicit registration of one sprite share a single asset',async()=>{
   const x=setup(),a=x.ensureSpritePart(x.store,x.sprite),b=x.ensureSpritePart(x.store,x.sprite)
   assert.equal(a,b);const part=await a;assert.equal(x.saved.length,1);assert.equal(x.attached.length,1)
-  assert.equal(part.geometry.kind,'silhouette');assert.equal(part.source.fileName,'sheet.png')
+  assert.equal(part.model.kind,'none');assert.equal(part.source.fileName,'sheet.png')
   const again={...x.sprite,partAsset:undefined};x.store.state.sprites=[again]
   assert.equal((await x.ensureSpritePart(x.store,again)).id,part.id);assert.equal(x.saved.length,1)
 })
@@ -36,7 +36,7 @@ test('changing crop pixels creates a new asset and preserves the previous asset'
 
 test('identical crops from different sheets, positions and names reuse edited assets',async()=>{
   const x=setup(),first=await x.ensureSpritePart(x.store,x.sprite)
-  first.name='edited';first.revision=4;first.normal.normalStrength=3;first.alignment.scale=2
+  first.name='edited';first.revision=4;first.normal.normalStrength=3;first.imageFrame.height=4
   const y=setup({library:x.library})
   y.store.state.sourceImage={src:'another sheet'};y.store.state.sourceFileName='renamed.png'
   y.sprite.name='another name';y.sprite.rect.x=20;y.sprite.rect.y=30

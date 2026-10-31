@@ -177,7 +177,7 @@
       "resolution": 256,
       "generation_seconds": 201.9583339691162,
       "backend": "MPS",
-      "visual_quality": "Severely distorted geometry"
+      "visual_quality": "Severely distorted model"
     },
     "previous_minimal_trial": {
       "steps": 1,

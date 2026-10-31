@@ -8,7 +8,7 @@ import sys
 import types
 import time
 from compute import inference_dtype, noise_generator
-from model_catalog import MODELS, image_encoder_precision
+from model_catalog import MODELS, DEFAULT_RESOLUTION, image_encoder_precision
 
 ROOT = Path(os.environ.get('GEN_HOME', Path(__file__).resolve().parents[2] / 'runtime/generation')).resolve()
 PROFILE = MODELS[os.environ.get('GEN_PROVIDER', 'hunyuan-mini')]
@@ -130,6 +130,8 @@ class Engine:
                 p.vae.volume_decoder = FullShapeVolumeDecoder()
             else:
                 p.vae.enable_flashvdm_decoder(enabled=True, adaptive_kv_selection=True, topk_mode='merge', mc_algo='mc')
+                from shape20_decoder import SurfaceSafeFlashVDMVolumeDecoding
+                p.vae.volume_decoder = SurfaceSafeFlashVDMVolumeDecoding(topk_mode='merge')
             p.vae.geo_decoder.register_forward_pre_hook(lambda *_: self.check_cancel())
         else:
             p.vae = types.SimpleNamespace(latent_shape=(self.vae_config['params']['num_latents'], self.vae_config['params']['embed_dim']))
@@ -208,7 +210,7 @@ class Engine:
                 latent = self.sample(cache, request.get('parameters', {}).get('steps', PROFILE['steps']), request.get('seed', 12345))
                 del cache
                 progress('mesh')
-                mesh = self.mesh(latent, request.get('parameters', {}).get('resolution', 256))
+                mesh = self.mesh(latent, request.get('parameters', {}).get('resolution', DEFAULT_RESOLUTION))
                 mesh.export(folder / 'raw.glb')
                 self.synchronize()
         finally:

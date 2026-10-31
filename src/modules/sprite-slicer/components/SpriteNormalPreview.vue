@@ -12,8 +12,8 @@ import { createLighting, previewLight, DEFAULT_PREVIEW_LIGHT } from '../core/nor
 import ParameterReset from '../../../shared/components/ParameterReset.vue'
 import { createLatestTask } from '../../../shared/utils/latest-task'
 import { createGroundShadow, previewShadow, DEFAULT_SHADOW_PREVIEW } from '../core/normal/ground-shadow'
-import { computeShadowGeometry } from '../core/normal/shadow-client'
-import { casterHeight, CASTER_HEIGHT_RATIO } from '../core/normal/shadow-geometry'
+import { computeShadowModel } from '../core/normal/shadow-client'
+import { casterHeight, CASTER_HEIGHT_RATIO } from '../core/normal/shadow-model'
 
 const props = defineProps<{ sprite: DetectedSprite }>()
 const emit = defineEmits<{ close: []; settings: [settings?: NormalSettings] }>()
@@ -76,10 +76,10 @@ async function ensureShadow(force = false) {
   shadowBusy.value = true; shadowError.value = ''
   try {
     const pixels = await spritePixels(props.sprite)
-    const geometry = await computeShadowGeometry(pixels, controller.signal)
+    const model = await computeShadowModel(pixels, controller.signal)
     if (controller.signal.aborted || props.sprite.dataUrl !== source) return
     shadowRenderer?.dispose(false)
-    shadowRenderer = createGroundShadow(shadowCanvas.value!, pixels, geometry)
+    shadowRenderer = createGroundShadow(shadowCanvas.value!, pixels, model)
     surfaceHeight = casterHeight(pixels.width, pixels.height)
     shadowReady.value = true; draw()
   } catch (e) {

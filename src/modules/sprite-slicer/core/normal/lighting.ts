@@ -1,5 +1,5 @@
 import { reactive } from 'vue'
-import { lightElevation } from './shadow-geometry'
+import { lightElevation } from './shadow-model'
 
 export const DEFAULT_PREVIEW_LIGHT = Object.freeze({ brightness: 1, height: 0.6, ambient: 0.35, color: '#ffffff' })
 export const previewLight = reactive({ ...DEFAULT_PREVIEW_LIGHT })

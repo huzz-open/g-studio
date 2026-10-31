@@ -77,12 +77,8 @@ async def run_relay(service):
                                 result = service.get(args["id"])
                             elif method == "cancel":
                                 result = await service.cancel(args["id"])
-                            elif method == "ack":
-                                import time
-
-                                job = service.get(args["id"])
-                                job["expiresAt"] = time.time() + 60
-                                service.save(job)
+                            elif method == "delete":
+                                service.delete(args["id"])
                                 result = {"ok": True}
                             elif method == "upload":
                                 JOBS = DATA_HOME / "jobs"

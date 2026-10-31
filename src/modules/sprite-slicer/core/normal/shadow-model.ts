@@ -1,7 +1,7 @@
 /** Alpha-tested, uniformly extruded silhouette above the receiver plane z = 0. */
 export const SHADOW_ALPHA_CUTOFF = 0.5
 export const CASTER_HEIGHT_RATIO = 0.1
-export interface ShadowGeometry { vertices: Float32Array; edgeCount: number }
+export interface ShadowModel { vertices: Float32Array; edgeCount: number }
 
 export function casterHeight(width: number, height: number) { return Math.max(width, height) * CASTER_HEIGHT_RATIO }
 export function lightElevation(width: number, height: number, relativeHeight: number) {
@@ -21,7 +21,7 @@ export function projectOntoGround(x: number, y: number, z: number, light: { x: n
  * third coordinate selects the bottom (0) or top (1) of the extrusion.
  * Top and bottom caps are drawn separately as alpha-tested textured quads.
  */
-export function buildShadowGeometry(data: Uint8ClampedArray, width: number, height: number): ShadowGeometry {
+export function buildShadowModel(data: Uint8ClampedArray, width: number, height: number): ShadowModel {
   if (width < 1 || height < 1 || data.length !== width * height * 4) throw new Error('Invalid shadow source')
   const mask = new Uint8Array(width * height)
   for (let i = 0; i < mask.length; i++) mask[i] = data[i * 4 + 3] / 255 >= SHADOW_ALPHA_CUTOFF ? 1 : 0

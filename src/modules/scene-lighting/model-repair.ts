@@ -3,14 +3,14 @@ import type { PartAsset } from '../../shared/parts/schema'
 import { dot, cross, sub, normalize, type Vec3 } from '../experiments/umbrella/math'
 import { analyzeSolid, solidIntervals, type Crossing, type SolidTopology } from './solid-topology'
 
-export interface GeometryRepair {
+export interface ModelRepair {
   version: 1 | 2; key: string; width: number; height: number; enabled: boolean
   status?: 'repaired' | 'unsupported-topology' | 'unsupported-cut'
   bounds: [number, number, number, number]
   /** Disjoint foreground runs [row, first column, exclusive last column]. */
   runs: number[][]
 }
-export interface RepairStats { sourceTriangles: number; outputTriangles: number; clippedTriangles: number; filledPixels: number; filledComponents: number; skippedComponents: number; rejected: {size:number;reason:string;frontRange?:number;backRange?:number}[]; status?:GeometryRepair['status']; topology?:Omit<SolidTopology,'faceComponents'>; supportShift?:number }
+export interface RepairStats { sourceTriangles: number; outputTriangles: number; clippedTriangles: number; filledPixels: number; filledComponents: number; skippedComponents: number; rejected: {size:number;reason:string;frontRange?:number;backRange?:number}[]; status?:ModelRepair['status']; topology?:Omit<SolidTopology,'faceComponents'>; supportShift?:number }
 const imageKeys=new Map<string,string>()
 function imageKey(uri:string){
   const old=imageKeys.get(uri);if(old)return old
@@ -19,14 +19,14 @@ function imageKey(uri:string){
   const key=`${uri.length}:${a>>>0}:${b>>>0}`;imageKeys.set(uri,key);while(imageKeys.size>32)imageKeys.delete(imageKeys.keys().next().value!)
   return key
 }
-export function comparisonInputKey(part:Pick<PartAsset,'image'>){return `${part.image.width}:${part.image.height}:${imageKey(part.image.uri)}`}
+export function comparisonInputKey(part:Pick<PartAsset,'image'|'imageFrame'>){return `${part.image.width}:${part.image.height}:${imageKey(part.image.uri)}:${JSON.stringify(part.imageFrame)}`}
 /** Content fingerprint is a cache invalidator, not an integrity/security hash. */
-export function repairKey(part: PartAsset) { return JSON.stringify([part.geometry.mesh?.sha256,part.geometry.size,part.geometry.imageFit,part.alignment,part.image.width,part.image.height,imageKey(part.image.uri)]) }
-export function repairSpec(part: PartAsset, pixels: {width:number;height:number;data:Uint8ClampedArray}, bounds: GeometryRepair['bounds']): GeometryRepair {
+export function repairKey(part: PartAsset) { return JSON.stringify([part.model.mesh?.sha256,part.model.size,part.model.imageFit,part.imageFrame,part.image.width,part.image.height,imageKey(part.image.uri)]) }
+export function repairSpec(part: PartAsset, pixels: {width:number;height:number;data:Uint8ClampedArray}, bounds: ModelRepair['bounds']): ModelRepair {
   const width=pixels.width,height=pixels.height,runs:number[][]=[]
   // Preserve native foreground AND background detail. Exceeding the work budget
   // is an explicit failure, never permission to erode uncertain source pixels.
-  if(width*height>1048576)throw new Error('Native-resolution repair exceeds the pixel budget; original geometry is retained')
+  if(width*height>1048576)throw new Error('Native-resolution repair exceeds the pixel budget; original model is retained')
   for(let y=0;y<height;y++){
     let start=-1
     for(let x=0;x<=width;x++){
@@ -42,10 +42,10 @@ export function repairSpec(part: PartAsset, pixels: {width:number;height:number;
 type Vertex = { p: Vec3; n: Vec3; c: Vec3; x: number; y: number; z: number }
 const cache=new Map<string,{mesh:Mesh;stats:RepairStats}>()
 const boundsCache=new Map<string,{min:Vec3;max:Vec3}>()
-const cacheKey=(spec:GeometryRepair)=>JSON.stringify([spec.version,spec.key,spec.width,spec.height,spec.bounds,spec.runs])
-export function cachedRepair(spec:GeometryRepair){return cache.get(cacheKey(spec))}
-export function cachedRepairBounds(spec:GeometryRepair){return boundsCache.get(cacheKey(spec))}
-export function cacheRepair(spec:GeometryRepair,result:{mesh:Mesh;stats:RepairStats}){
+const cacheKey=(spec:ModelRepair)=>JSON.stringify([spec.version,spec.key,spec.width,spec.height,spec.bounds,spec.runs])
+export function cachedRepair(spec:ModelRepair){return cache.get(cacheKey(spec))}
+export function cachedRepairBounds(spec:ModelRepair){return boundsCache.get(cacheKey(spec))}
+export function cacheRepair(spec:ModelRepair,result:{mesh:Mesh;stats:RepairStats}){
   const key=cacheKey(spec),min:Vec3=[Infinity,Infinity,Infinity],max:Vec3=[-Infinity,-Infinity,-Infinity]
   for(let i=0;i<result.mesh.vertices.length;i+=9)for(let j=0;j<3;j++){min[j]=Math.min(min[j],result.mesh.vertices[i+j]);max[j]=Math.max(max[j],result.mesh.vertices[i+j])}
   cache.set(key,result);boundsCache.set(key,{min,max})
@@ -56,7 +56,7 @@ export function cacheRepair(spec:GeometryRepair,result:{mesh:Mesh;stats:RepairSt
 /** Image-extrusion clipping (Sutherland–Hodgman) plus bounded harmonic depth
  * completion. Original surfaces and layers survive except where alpha excludes
  * them. Only small, nearby, depth-consistent missing components receive caps. */
-export function repairGeometry(source:Mesh,spec:GeometryRepair):{mesh:Mesh;stats:RepairStats}{
+export function repairModel(source:Mesh,spec:ModelRepair):{mesh:Mesh;stats:RepairStats}{
   const previous=cachedRepair(spec)
   if(previous)return previous
   if(spec.version!==2)throw new Error('Legacy repair must be recomputed from the source image')
@@ -67,7 +67,7 @@ export function repairGeometry(source:Mesh,spec:GeometryRepair):{mesh:Mesh;stats
   const vertices:Vertex[]=[],out:number[]=[],triangles:Vec3[][]=[],rowTriangles:number[][]=Array.from({length:h+1},()=>[])
   const stats:RepairStats={sourceTriangles:source.vertices.length/27,outputTriangles:0,clippedTriangles:0,filledPixels:0,filledComponents:0,skippedComponents:0,rejected:[]}
   const {faceComponents,...topology}=analyzeSolid(source);stats.topology=topology
-  const unchanged=(status:GeometryRepair['status'])=>{
+  const unchanged=(status:ModelRepair['status'])=>{
     stats.status=status;stats.outputTriangles=stats.sourceTriangles
     stats.clippedTriangles=0;stats.filledPixels=0;stats.filledComponents=0
     const result={mesh:source,stats};cacheRepair(spec,result);return result
@@ -80,7 +80,7 @@ export function repairGeometry(source:Mesh,spec:GeometryRepair):{mesh:Mesh;stats
   function emit(a:Vertex,d:Vertex,c:Vertex){
     if(Math.hypot(...cross(sub(d.p,a.p),sub(c.p,a.p)))===0)return
     triangles.push([a.p,d.p,c.p]);for(const v of [a,d,c])out.push(...v.p,...v.n,...v.c)
-    if(triangles.length>250000)throw new Error('Repaired geometry exceeds triangle budget')
+    if(triangles.length>250000)throw new Error('Repaired model exceeds triangle budget')
   }
   const mix=(a:Vertex,c:Vertex,t:number):Vertex=>({p:a.p.map((v,i)=>v+(c.p[i]-v)*t) as Vec3,n:normalize(a.n.map((v,i)=>v+(c.n[i]-v)*t) as Vec3),c:a.c.map((v,i)=>v+(c.c[i]-v)*t) as Vec3,x:a.x+(c.x-a.x)*t,y:a.y+(c.y-a.y)*t,z:a.z+(c.z-a.z)*t})
   function clip(poly:Vertex[],axis:'x'|'y',value:number,above:boolean){

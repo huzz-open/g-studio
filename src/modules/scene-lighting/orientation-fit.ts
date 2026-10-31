@@ -21,7 +21,10 @@ export function rotateMesh(mesh: Mesh, rotation: Vec3): Mesh {
   const m = rotationMatrix(rotation)
   const rotate = (p: Vec3): Vec3 => [m[0] * p[0] + m[1] * p[1] + m[2] * p[2], m[3] * p[0] + m[4] * p[1] + m[5] * p[2], m[6] * p[0] + m[7] * p[1] + m[8] * p[2]]
   const vertices = mesh.vertices.slice()
-  for (let i = 0; i < vertices.length; i += 9) for (const offset of [0, 3]) vertices.set(rotate(Array.from(vertices.slice(i + offset, i + offset + 3)) as Vec3), i + offset)
+  for (let i = 0; i < vertices.length; i += 9) for (let offset=0;offset<=3;offset+=3) {
+    const j=i+offset,x=vertices[j],y=vertices[j+1],z=vertices[j+2]
+    vertices[j]=m[0]*x+m[1]*y+m[2]*z;vertices[j+1]=m[3]*x+m[4]*y+m[5]*z;vertices[j+2]=m[6]*x+m[7]*y+m[8]*z
+  }
   return { vertices, triangles: mesh.triangles.map(tri => tri.map(rotate)) }
 }
 
@@ -123,7 +126,7 @@ function globalRotation(i: number): Vec3 {
 /** Orthographic silhouette registration of a 3D similarity transform. Global
  * SO(3) sampling followed by multistart Nelder–Mead on rotation-vector increments,
  * log scale and two image-plane translations. IoU + symmetric Chamfer objective.
- * Source geometry, filenames, provider IDs and object categories play no role. */
+ * Source model, filenames, provider IDs and object categories play no role. */
 export function findOrientation(positions: Float32Array, pixels: Pixels, initial: Vec3 = [0, 0, 0], progress: (percent: number) => void = () => {}, initialProjection: Vec3 = [0, 0, 0]): OrientationResult {
   const visible = visiblePixelBounds(pixels), aspect = visible.width * pixels.width / (visible.height * pixels.height), margin = .125
   const evaluator = (resolution: number) => {

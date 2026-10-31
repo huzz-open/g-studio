@@ -118,13 +118,13 @@
     ],
     "watertight": false
   },
-  "visualCheck": "Four shaded geometry views show a recognizable vase. Mouth is capped. Watertight check is false; no claim of exact reconstruction or closed topology.",
+  "visualCheck": "Four shaded model views show a recognizable vase. Mouth is capped. Watertight check is false; no claim of exact reconstruction or closed topology.",
   "checks": {
     "nodeTests": 18,
     "pythonTests": 22,
     "postFixRelatedNodeTests": 11,
     "glbHeaderAndDigest": "passed",
-    "nonemptyFiniteGeometry": "passed",
+    "nonemptyFiniteModel": "passed",
     "temporaryServiceStopped": true
   },
   "notes": [

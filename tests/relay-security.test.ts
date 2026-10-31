@@ -1,7 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PairFailureGuard, clientAddress } from '../services/generation-relay/pair-security.ts';
-import { EphemeralFiles } from '../services/generation-relay/ephemeral-files.ts';
+import { PersistentFiles } from '../services/generation-relay/persistent-files.ts';
+import { mkdtempSync, rmSync, existsSync, utimesSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 test('five failed pairing attempts ban only that IP for 15 minutes', () => {
   let now = 1000;
@@ -22,22 +25,23 @@ test('forwarded client IPs require trusted proxies and cannot be bypassed with l
   assert.equal(clientAddress('127.0.0.1','garbage',['127.0.0.1']),'127.0.0.1');
 });
 
-test('transfer buffers release on completion and expiry, with live leases counted against quota', () => {
-  let now=0;
-  const files=new EphemeralFiles(100,()=>now);
-  files.set('input',Buffer.alloc(40),1000);
-  const lease=files.acquire('input')!;
-  files.delete('input');
-  assert.equal(files.has('input'),false);
-  assert.equal(files.used,40);
-  assert.throws(()=>files.reserve(61),{code:'STORAGE_FULL'});
-  lease.release();lease.release();
-  assert.equal(files.used,0);
-  const release=files.reserve(80);
-  assert.throws(()=>files.set('output',Buffer.alloc(21)),{code:'STORAGE_FULL'});
-  release();release();
-  files.set('output',Buffer.alloc(60),1000);
-  now=1001; files.sweep();
-  assert.equal(files.used,0);
-  assert.equal(files.acquire('output'),undefined);
+test('persistent results survive time, downloads and reload; only explicit deletion releases them', () => {
+  const root=mkdtempSync(join(tmpdir(),'g-studio-retention-'));
+  try {
+    const files=new PersistentFiles(root,100);
+    files.set('job.input',Buffer.alloc(40));files.set('job.output',Buffer.alloc(60,7));
+    const lease=files.acquire('job.output')!;lease.release();lease.release();
+    assert.equal(files.used,100);assert.ok(files.has('job.output'));
+    utimesSync(join(root,'job.output'),new Date('2000-01-01'),new Date('2000-01-01'));
+    const reloaded=new PersistentFiles(root,100);
+    assert.deepEqual(reloaded.acquire('job.output')!.data,Buffer.alloc(60,7));
+    assert.throws(()=>files.set('other.output',Buffer.alloc(1)),{code:'STORAGE_FULL'});
+    assert.ok(existsSync(join(root,'job.output')),'capacity does not evict an existing result');
+    const active=files.acquire('job.input')!;files.delete('job.input');
+    assert.equal(files.has('job.input'),false);assert.equal(files.used,100);
+    active.release();assert.equal(files.used,60);
+    files.delete('job.output');assert.equal(files.used,0);
+    assert.equal(new PersistentFiles(root,100).acquire('job.output'),undefined);
+    assert.throws(()=>files.set('../escape.output',Buffer.alloc(1)));
+  } finally {rmSync(root,{recursive:true,force:true})}
 });

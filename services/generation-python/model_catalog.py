@@ -1,6 +1,12 @@
 """Pinned shape-only profiles. Parameter counts verified against every tensor."""
 import os
 
+# Product default; ceilings follow the upstream resolution/export UI.
+DEFAULT_RESOLUTION = 128
+MAX_RESOLUTION = 512
+DEFAULT_TARGET_FACES = 40_000
+MAX_TARGET_FACES = 1_000_000
+
 MODELS = {
     'hunyuan-mini': dict(key='mini', name='Hunyuan3D-2mini-Turbo', series='2.0',
         revision='f90a0f7df7d5e6f71109cf333f6a95a0ae3194a6', tag='快速', steps=5, max_steps=10,

@@ -1,53 +1,46 @@
-import { clonePart, type PartAsset, type PartGeometry, type Triple } from './schema'
+import { clonePart, type PartAsset, type PartModel, type Triple } from './schema'
 import { decodeMesh } from './mesh'
-import { alignedBounds, buildPartGeometry, meshExtents } from '../../modules/scene-lighting/part-geometry'
-import { comparisonInputKey } from '../../modules/scene-lighting/geometry-repair'
-import { generatedModels,resolveModelGeometry } from '../generation/models'
+import { imageBounds, buildPartModel, meshExtents } from '../../modules/scene-lighting/part-model'
+import { comparisonInputKey } from '../../modules/scene-lighting/model-repair'
 import { RIGHT,UP,PITCH,YAW,type SceneState } from '../../modules/scene-lighting/model'
 import { dot,type Vec3 } from '../../modules/experiments/umbrella/math'
 
-/** Older explicitly saved geometry keeps its current appearance and selection. */
-export function initializeComparison(part:PartAsset, fresh=false):PartAsset{
-  if(part.geometry.kind!=='mesh'||part.modelComparison)return part
-  const copy=clonePart(part),g=copy.geometry
+/** Initialize independent model versions against one shared image reference. */
+export function initializeComparison(part:PartAsset):PartAsset{
+  if(part.model.kind!=='mesh'||part.modelComparison)return part
+  const copy=clonePart(part),g=copy.model
   const native=meshExtents(decodeMesh(g.mesh!.uri)).size.map(v=>Math.max(.02,Math.min(8,v))) as Triple
-  const height=copy.alignment.height??alignedBounds(copy,buildPartGeometry(copy,{width:0,height:0,data:new Uint8ClampedArray()})).height/copy.alignment.scale
-  const source:PartGeometry={kind:'mesh',mesh:clonePart(g.mesh!),size:native,frozen:true,original:true}
-  const modified=!fresh&&!!(g.imageFit||g.repair||g.size.some((v,i)=>Math.abs(v-native[i])>1e-6))
-  copy.modelComparison={source,sourceAlignment:{...clonePart(copy.alignment),height},inputKey:comparisonInputKey(copy),selected:modified?'optimized':'original'}
-  copy.alignment.height=height
-  if(modified){g.frozen=true;copy.modelComparison.candidate=clonePart(g);copy.modelComparison.candidateAlignment=clonePart(copy.alignment)}
-  else copy.geometry=clonePart(source)
+  const source:PartModel={kind:'mesh',mesh:clonePart(g.mesh!),size:native,frozen:true,original:true}
+  source.id=`model:${g.mesh!.sha256}`
+  copy.modelComparison={source,inputKey:comparisonInputKey(copy),selected:'original',autoOptimize:false}
+  copy.model=clonePart(source)
   return copy
 }
 export function originalVersion(part:PartAsset):PartAsset{
   const c=part.modelComparison
-  return c?{...part,geometry:c.source,alignment:c.sourceAlignment}:part
+  return c?{...part,model:c.source}:part
 }
 export function optimizedVersion(part:PartAsset):PartAsset|undefined{
   const c=part.modelComparison
-  return c?.candidate&&c.candidateAlignment?{...part,geometry:c.candidate,alignment:c.candidateAlignment}:undefined
+  return c?.candidate?{...part,model:c.candidate}:undefined
 }
 export function comparisonCurrent(part:PartAsset){
   const c=part.modelComparison;if(!c||c.inputKey!==comparisonInputKey(part))return false
-  void generatedModels.size // Also invalidate when a legacy source gains an ID.
-  const source=c.source.mesh!,latest=source.modelId?generatedModels.get(source.modelId)?.mesh:resolveModelGeometry({...c.source,frozen:undefined}).mesh
-  return !latest||latest.sha256===source.sha256
+  return true // A pinned source remains valid when its generation task is replaced.
 }
-export function candidateApplied(part:PartAsset){const candidate=optimizedVersion(part);return !!candidate&&part.modelComparison?.selected==='optimized'&&JSON.stringify(candidate.geometry)===JSON.stringify(part.geometry)&&JSON.stringify(candidate.alignment)===JSON.stringify(part.alignment)}
+export function candidateApplied(part:PartAsset){const candidate=optimizedVersion(part);return !!candidate&&part.modelComparison?.selected==='optimized'&&JSON.stringify(candidate.model)===JSON.stringify(part.model)}
 export function storeCandidate(part:PartAsset,processed:PartAsset){
   const c=part.modelComparison
-  if(!c||!comparisonCurrent(part)||processed.geometry.mesh?.sha256!==c.source.mesh?.sha256)throw new Error('Optimization source changed')
-  c.candidate=clonePart({...processed.geometry,frozen:true,original:undefined})
-  c.candidateAlignment=clonePart(processed.alignment)
-  // Deliberately leave active geometry, alignment and selected version alone.
+  if(!c||!comparisonCurrent(part)||processed.model.mesh?.sha256!==c.source.mesh?.sha256||JSON.stringify(processed.imageFrame)!==JSON.stringify(part.imageFrame))throw new Error('Optimization source changed')
+  c.candidate=clonePart({...processed.model,id:crypto.randomUUID(),sourceModelId:c.source.id,frozen:true,original:undefined})
+  // Deliberately leave active model, image frame and selected version alone.
 }
 export function chooseModelVersion(part:PartAsset,version:'original'|'optimized'){
   const c=part.modelComparison;if(!c)return
   if(version==='optimized'&&!comparisonCurrent(part))throw new Error('Optimization source changed')
   const chosen=version==='original'?originalVersion(part):optimizedVersion(part)
   if(!chosen)throw new Error('No optimization candidate')
-  part.geometry=clonePart(chosen.geometry);part.alignment=clonePart(chosen.alignment);c.selected=version
+  part.model=clonePart(chosen.model);c.selected=version
 }
 
 /** One union frame for both versions. Never fit the two canvases independently. */
@@ -57,7 +50,7 @@ export function fitModelComparison(state:SceneState,left:PartAsset,right:PartAss
   const item=state.items[0],offset:Vec3=[item?.x??0,0,item?.z??0],scale=item?.scale??1
   const include=(p:Vec3)=>{const x=dot(p,RIGHT),y=dot(p,UP);minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y)}
   for(const part of [left,right]){
-    const mesh=buildPartGeometry(part,{width:0,height:0,data:new Uint8ClampedArray()}),bounds=alignedBounds(part,mesh)
+    const mesh=buildPartModel(part,{width:0,height:0,data:new Uint8ClampedArray()}),bounds=imageBounds(part)
     for(let i=0;i<mesh.vertices.length;i+=9)include([mesh.vertices[i]*scale+offset[0],mesh.vertices[i+1]*scale,mesh.vertices[i+2]*scale+offset[2]])
     for(const x of [bounds.left,bounds.left+bounds.width])for(const y of [bounds.bottom,bounds.bottom+bounds.height])include(RIGHT.map((v,i)=>offset[i]+scale*(v*x+UP[i]*y)) as Vec3)
   }

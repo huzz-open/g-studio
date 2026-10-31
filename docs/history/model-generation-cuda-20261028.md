@@ -2,13 +2,13 @@
 
 [历史索引](README.md) · [当前文档](../README.md)
 
-状态：本轮 CUDA 几何实验完成，质量问题与服务容量策略问题仍开放。代码基线 `12110cfcb137bcd96884e17ad2fe9bc3e8bd07c4`。共完成 50 次真实生成和 6 次同 latent 解码对照（其中固定上游分层解码两次失败，原样记录）。不将 Mac/MPS 的历史结果作为 CUDA 验收证据。
+状态：本轮 CUDA 模型实验完成，质量问题与服务容量策略问题仍开放。代码基线 `12110cfcb137bcd96884e17ad2fe9bc3e8bd07c4`。共完成 50 次真实生成和 6 次同 latent 解码对照（其中固定上游分层解码两次失败，原样记录）。不将 Mac/MPS 的历史结果作为 CUDA 验收证据。
 
 结论：三个模型均可在 RTX 3060 12 GB 上**单独**常驻，当前项目容量策略却会拒绝它们。两个 Turbo 的项目推理没有表现出明确优势，应优先采用官方 Pipeline/FlashVDM；低内存加载和 2.1 分层坐标修正则有实测收益，适合收敛为有回归证据的最小适配。完整 2.1 的盆景薄片退化在官方 CUDA 路径也复现，仍不能判为质量通过。
 
 [机器数据与完整参数](model-generation-cuda-20261028.json)；本机原始日志、GLB 和 latent 位于 `output/cuda-official-20261028/`。
 
-![官方 CUDA 原始几何对比](assets/model-generation-cuda-20261028/official-comparison.png)
+![官方 CUDA 原始模型对比](assets/model-generation-cuda-20261028/official-comparison.png)
 
 ## 方法
 
@@ -24,7 +24,7 @@
 - 本机有桌面应用及其他开发活动；资源下载与部分加载阶段重叠，加载延迟和系统内存峰值受环境影响。运行中共享 Python 环境依赖曾改变；Mini 第一组完成后将相同版本依赖安装到忽略目录，通过 `PYTHONPATH` 隔离，记录该边界。
 - Mini 第一组未显式设置 CPU 线程数；项目 Engine 固定 4 线程，后续官方扫描、Turbo 和 2.1 显式使用 4 线程。比较以数量级、阶段分解及受控扫描为主，不用小样本的几个百分点差异宣称速度胜负。
 
-实验入口：[generation_cuda_experiment.py](../../tests/generation_cuda_experiment.py)；四视图和官方减面：[generation_cuda_render.py](../../tests/generation_cuda_render.py)；同 latent 几何比较：[generation_cuda_compare.py](../../tests/generation_cuda_compare.py)。完整原始结果保留在本机忽略目录 `output/cuda-official-20261028/`，不提交权重、Python 环境及大网格。
+实验入口：[generation_cuda_experiment.py](../../tests/generation_cuda_experiment.py)；四视图和官方减面：[generation_cuda_render.py](../../tests/generation_cuda_render.py)；同 latent 模型比较：[generation_cuda_compare.py](../../tests/generation_cuda_compare.py)。完整原始结果保留在本机忽略目录 `output/cuda-official-20261028/`，不提交权重、Python 环境及大网格。
 
 ## 官方依据
 
@@ -60,7 +60,7 @@ Mini 官方分辨率 384 的两次花瓶为 7.95 / 8.01 秒，张量峰值 4.50 
 
 原因是当前实现取 `min(systemAvailable - 2 GiB, deviceAvailable)`，将 CPU/GPU 作为同一个容量上限，再叠加固定 4 GiB 工作区及 1 GiB 加载预留。这个拒绝不是 CUDA 不能常驻的实验证据。应分别校准主机加载内存、GPU 权重、GPU 临时工作区与缓存，不能仅压低某个常量来让任务通过。证据：本机 `policy-snapshot.json`。
 
-### 初步几何观察
+### 初步模型观察
 
 - Mini 官方全 FP16 下四类素材都有可识别体积，没有复现 Mac/MPS 的普遍平板/方块退化；但花瓶封口、椅子漂浮碎片与叶团孔洞仍存在。
 - 标准 Turbo 的同一花瓶保留开口；椅子较少漂浮碎片，盆景产生更细的叶片，也出现尖刺和薄层异常。Mini/Turbo 均把椅背雕花错误解释为穿孔。不能由一个花瓶推出所有素材全面优于 Mini。
@@ -98,7 +98,7 @@ Mini 官方分辨率 384 的两次花瓶为 7.95 / 8.01 秒，张量峰值 4.50 
 
 ### 阴影生成用途的阶段决定（用户确认，2026-10-28）
 
-- 当前目标是生成阴影代理几何。完整 2.1 耗时过长，阴影用途也不需要如此多的几何细节，因此目前不纳入该用途的模型候选；保留已有实现和实验记录。
+- 当前目标是生成阴影代理模型。完整 2.1 耗时过长，阴影用途也不需要如此多的模型细节，因此目前不纳入该用途的模型候选；保留已有实现和实验记录。
 - 标准 Turbo 可以作为候选。用户从当前效果判断，其用于阴影的价值与 Mini 差异不大；这是用途选择判断，本轮没有另做投影阴影质量实验。
 - **Mini 与标准 Turbo 的总耗时过于接近，仍是未解释的疑点。** 用户预期 Mini 应体现更明显的速度优势，怀疑配置、执行路径或共同开销仍有问题。现有结果只证明本轮条件下耗时接近，尚未解释原因，不能据此把 Mini 性能问题标记为解决。后续如恢复调查，应对齐官方推荐配置、确认实际模型与参数，并分解共同开销和模型计算耗时。
 - **按用户要求暂停进一步模型实验。** 当前只记录上述判断、疑点和已取得证据；本次记录不触发新增推理或参数扫描。

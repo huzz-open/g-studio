@@ -88,8 +88,7 @@ export interface GenerationJob {
     | "cancel_requested"
     | "cancelled"
     | "succeeded"
-    | "failed"
-    | "expired";
+    | "failed";
   phase: string;
   result?: GenerationResult;
   error?: { code: string; message: string; retryable: boolean };

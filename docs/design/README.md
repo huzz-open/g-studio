@@ -12,7 +12,7 @@
 | [多模型推理服务](model-generation-upgrade.md) | 三模型、常驻、队列和固定执行策略；质量问题仍开放 |
 | [轮廓配准](silhouette-registration.md) | 相似变换、可见表面保护及搜索边界 |
 | [原始模型与优化候选](model-comparison.md) | 同步对比、快照与显式采用 |
-| [原图约束几何修复](image-constrained-geometry-repair.md) | repair v2；实体条件不满足时保留源几何 |
+| [原图约束模型修复](image-constrained-model-repair.md) | repair v2；实体条件不满足时保留源模型 |
 
 ## 待实施与开放问题
 

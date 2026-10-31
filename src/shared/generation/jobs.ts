@@ -1,6 +1,6 @@
 import { reactive } from "vue";
 import { generationDatabase as db } from './storage';
-import { identifyModel, publishModel, modelRecord, loadGeneratedModels, resolveModelGeometry, legacyKeysFor } from './models';
+import { identifyModel, publishModel, modelRecord, loadGeneratedModels, resolveGeneratedModel, legacyKeysFor } from './models';
 import type {
   GenerationJob,
   GenerationRequest,
@@ -9,8 +9,8 @@ import { GenerationClient, sha256 } from "./client";
 import type { GenerationConnection } from "./settings";
 import type { GenerationRequestSnapshot } from './request-snapshot';
 import { decodeMesh, meshDataUri } from "../parts/mesh";
-import type { PartGeometry, Triple } from "../parts/schema";
-import { meshExtents } from "../../modules/scene-lighting/part-geometry";
+import type { PartAsset, PartModel, Triple } from "../parts/schema";
+import { meshExtents } from "../../modules/scene-lighting/part-model";
 
 export interface LocalJob {
   localId: string;
@@ -25,13 +25,16 @@ export interface LocalJob {
   connection: GenerationConnection;
   request: GenerationRequest;
   remote?: GenerationJob;
-  geometry?: PartGeometry;
+  model?: PartModel;
+  comparison?: PartAsset['modelComparison'];
+  optimizing?: boolean;
+  postprocessCancelled?: boolean;
   error?: string;
   deviceType?: string;
   saved?: boolean;
   resultRejected?: boolean;
   createdAt: number;
-  source?: { assetId: string; origin: 'scene' | 'slicer' };
+  source?: { assetId: string; origin: 'scene' | 'slicer'; imageFrame?:PartAsset['imageFrame'] };
 }
 export const generationJobs = reactive<LocalJob[]>([]);
 let loading: Promise<void> | undefined;
@@ -52,11 +55,11 @@ const replacementLocks = reactive(new Set<string>());
 export function modelReplacing(job: LocalJob | undefined) {
   if (!job) return false;
   return replacementLocks.has(job.modelId || job.localId) || generationJobs.some(task => task.replaces?.jobId === job.localId
-    && !task.resultRejected && !task.geometry && (!task.remote ? !task.error : ['queued','running','cancel_requested','succeeded'].includes(task.remote.status)));
+    && !task.resultRejected && !task.model && (!task.remote ? !task.error : ['queued','running','cancel_requested','succeeded'].includes(task.remote.status)));
 }
-async function commitResult(job: LocalJob, geometry: PartGeometry) {
+async function commitResult(job: LocalJob, model: PartModel) {
   if (!job.replaces) {
-    const completed = { ...job, geometry };
+    const completed = { ...job, model };
     identifyModel(completed);
     const database = await db();
     await new Promise<void>((resolve,reject)=>{
@@ -76,7 +79,7 @@ async function commitResult(job: LocalJob, geometry: PartGeometry) {
     let result: LocalJob, failure: Error | undefined;
     read.onsuccess = () => {
       const target = read.result as LocalJob | undefined;
-      if (!target?.geometry || (target.modelId || target.localId) !== expected.modelId || (target.modelRevision || 1) !== expected.revision) {
+      if (!target?.model || (target.modelId || target.localId) !== expected.modelId || (target.modelRevision || 1) !== expected.revision) {
         failure = Error('The original model changed or was removed. Generate a new model instead.'); tx.abort(); return;
       }
       identifyModel(target);
@@ -85,9 +88,9 @@ async function commitResult(job: LocalJob, geometry: PartGeometry) {
       if (currentModel.result && currentModel.result.modelRevision !== expected.revision) {
         failure = Error('The model was replaced in another editor. Reopen it before retrying.'); tx.abort(); return;
       }
-      result = { ...target, geometry, modelRevision:expected.revision + 1, connection:job.connection,
+      result = { ...target, model, modelRevision:expected.revision + 1, connection:job.connection,
         request:job.request, providerName:job.providerName, remote:job.remote, deviceType:job.deviceType, createdAt:job.createdAt,
-        saved:false, error:undefined, resultRejected:false,
+        saved:false, error:undefined, resultRejected:false, comparison:job.comparison, optimizing:false, postprocessCancelled:false,
         supersededTaskIds:[...(target.supersededTaskIds || []),job.localId] };
       identifyModel(result);
       store.put(JSON.parse(JSON.stringify(result)));
@@ -106,17 +109,18 @@ async function commitResult(job: LocalJob, geometry: PartGeometry) {
   if (index >= 0) generationJobs.splice(index, 1);
 }
 const active = new Set<string>();
+const postprocessing = new Map<string,AbortController>();
 async function inspect(job: LocalJob) {
   if (
     active.has(job.localId) ||
     job.saved ||
-    job.geometry ||
+    job.model ||
     job.resultRejected ||
     !job.remote ||
     !(job.connection.mode === "relay"
       ? job.connection.relayToken
       : job.connection.token) ||
-    ["failed", "cancelled", "expired"].includes(job.remote.status)
+    ["failed", "cancelled"].includes(job.remote.status)
   )
     return;
   active.add(job.localId);
@@ -149,7 +153,7 @@ async function inspect(job: LocalJob) {
         size = meshExtents(mesh).size.map((v) =>
           Math.max(0.02, Math.min(8, v)),
         ) as Triple;
-      const geometry: PartGeometry = {
+      const model: PartModel = {
         kind: "mesh",
         size,
         mesh: {
@@ -170,17 +174,24 @@ async function inspect(job: LocalJob) {
         },
       };
       // Publish completion only after the model is durably saved in this browser.
-      if (job.remote && ['cancel_requested','cancelled','failed','expired'].includes(job.remote.status)) return;
-      await commitResult(job, geometry);
-      await client.ack(job.remote.id).catch(() => {});
+      if (job.remote && ['cancel_requested','cancelled','failed'].includes(job.remote.status)) return;
+      const controller=new AbortController();postprocessing.set(job.localId,controller);
+      job.optimizing=job.connection.optimizeModel!==false;await persistJob(job);
+      const {completeGeneratedModel}=await import('./complete-model');
+      job.comparison=await completeGeneratedModel(job.name,job.image,model,job.connection.optimizeModel!==false,controller.signal,job.source?.imageFrame);
+      if(controller.signal.aborted)return;
+      job.optimizing=false;
+      await commitResult(job, model);
       return;
     }
     await persistJob(job);
   } catch (e) {
-    job.error = String(e);
+    if(!postprocessing.get(job.localId)?.signal.aborted)job.error = String(e);
+    job.optimizing=false;
     if (job.remote?.status === "succeeded") job.resultRejected = true;
     await persistJob(job).catch(() => {});
   } finally {
+    job.optimizing=false;postprocessing.delete(job.localId);
     active.delete(job.localId);
   }
 }
@@ -258,7 +269,7 @@ export async function createGenerationJob(
   return reactiveJob;
 }
 export async function regenerateModel(target: LocalJob, mode: 'overwrite' | 'new', connection: GenerationRequestSnapshot, onCreated?: (job: LocalJob) => void, source?: LocalJob['source']) {
-  if (!target.geometry?.mesh || target.replaces) throw Error('Open a completed model before regenerating');
+  if (!target.model?.mesh || target.replaces) throw Error('Open a completed model before regenerating');
   identifyModel(target);
   if (mode === 'new') return createGenerationJob(target.name, target.image, connection, source || target.source, onCreated);
   if (modelReplacing(target)) throw Error('This model already has a replacement in progress');
@@ -271,25 +282,27 @@ export async function regenerateModel(target: LocalJob, mode: 'overwrite' | 'new
   } finally { replacementLocks.delete(target.modelId!); }
 }
 /** Imported/saved models can be regenerated even after their task history was removed. */
-export async function registerExistingModel(name: string, image: string, original: PartGeometry, connection: GenerationConnection, source?: LocalJob['source']) {
+export async function registerExistingModel(name: string, image: string, original: PartModel, connection: GenerationConnection, source?: LocalJob['source']) {
   await loadGenerationJobs();
-  const geometry = JSON.parse(JSON.stringify(resolveModelGeometry(original))) as PartGeometry;
-  if (!geometry.mesh) throw Error('Model geometry is missing');
-  const mesh = geometry.mesh;
-  const existing = generationJobs.find(job => job.geometry?.mesh && (mesh.modelId
-    ? job.modelId === mesh.modelId : job.geometry.mesh.sha256 === mesh.sha256 && job.request.inputSha256 === mesh.inputSha256));
+  const model = JSON.parse(JSON.stringify(resolveGeneratedModel(original))) as PartModel;
+  if (!model.mesh) throw Error('Model model is missing');
+  const mesh = model.mesh;
+  const existing = generationJobs.find(job => job.model?.mesh && (mesh.modelId
+    ? job.modelId === mesh.modelId : job.model.mesh.sha256 === mesh.sha256 && job.request.inputSha256 === mesh.inputSha256));
   if (existing) return existing;
   if (await sha256(await (await fetch(image)).arrayBuffer()) !== mesh.inputSha256) throw Error('The original model image is unavailable');
-  const job: LocalJob = { localId:crypto.randomUUID(), name, providerName:mesh.providerName || mesh.providerId, image, connection, source, geometry,
+  const job: LocalJob = { localId:crypto.randomUUID(), name, providerName:mesh.providerName || mesh.providerId, image, connection, source, model,
     modelId:mesh.modelId, modelRevision:mesh.modelRevision, legacyModelKeys:legacyKeysFor(mesh.modelId), createdAt:Date.now(),
     request:{ protocolVersion:1, clientRequestId:crypto.randomUUID(), providerId:mesh.providerId,
       inputSha256:mesh.inputSha256, targetFaces:mesh.generation?.targetFaces ?? connection.targetFaces,
       seed:mesh.generation?.seed ?? connection.seed, parameters:{...mesh.generation?.parameters} } };
-  await commitResult(job, geometry);
+  await commitResult(job, model);
   generationJobs.unshift(job);
   return generationJobs[0]!;
 }
 export async function cancelJob(job: LocalJob) {
+  const processing=postprocessing.get(job.localId);
+  if(processing){processing.abort();job.optimizing=false;job.postprocessCancelled=true;job.resultRejected=true;await persistJob(job);return;}
   if (job.remote) {
     job.remote = await new GenerationClient(job.connection).cancel(
       job.remote.id,
@@ -298,15 +311,17 @@ export async function cancelJob(job: LocalJob) {
   }
 }
 export async function retryResult(job: LocalJob) {
-  job.resultRejected = false;
+  job.resultRejected = false;job.postprocessCancelled=false;
   await inspect(job);
 }
 export async function removeJob(job: LocalJob) {
+  if(postprocessing.has(job.localId))await cancelJob(job);
   if (
     job.remote &&
-    !["succeeded", "failed", "cancelled", "expired"].includes(job.remote.status)
+    !["succeeded", "failed", "cancelled"].includes(job.remote.status)
   )
     await cancelJob(job);
+  if(job.remote)await new GenerationClient(job.connection).deleteJob(job.remote.id);
   const d = await db();
   await new Promise<void>((resolve, reject) => {
     const tx = d.transaction("jobs", "readwrite");

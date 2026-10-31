@@ -4,6 +4,7 @@ import time
 from PIL import Image
 from runtime import Engine, PROFILE, write_stats
 from memory import MemorySample
+from model_catalog import DEFAULT_RESOLUTION
 
 
 def main():
@@ -12,7 +13,7 @@ def main():
     from pathlib import Path
     parser.add_argument('folder', type=Path)
     parser.add_argument('--steps', type=int, default=PROFILE['steps'])
-    parser.add_argument('--resolution', type=int, default=256)
+    parser.add_argument('--resolution', type=int, default=DEFAULT_RESOLUTION)
     parser.add_argument('--chunks', type=int, default=2048)
     parser.add_argument('--seed', type=int, default=12345)
     args = parser.parse_args()

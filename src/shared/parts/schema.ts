@@ -1,27 +1,27 @@
-import { decodeMesh, type MeshGeometry } from './mesh'
-import type { GeometryRepair } from '../../modules/scene-lighting/geometry-repair'
+import { decodeMesh, type MeshModel } from './mesh'
+import type { ModelRepair } from '../../modules/scene-lighting/model-repair'
 import { normalSettings, DEFAULT_NORMAL_SETTINGS, type NormalSettings } from '../types/normal-settings'
 
 export const PART_FORMAT = 'g-studio/part' as const
-export const TEMPLATE_IDS = ['umbrella', 'barrel', 'chair', 'vase', 'chest', 'bonsai'] as const
-export type TemplateId = typeof TEMPLATE_IDS[number]
+export const BUILTIN_IMAGE_IDS = ['umbrella', 'barrel', 'chair', 'vase', 'chest', 'bonsai'] as const
 export type Triple = [number, number, number]
-export interface PartGeometry {
-  kind: 'silhouette' | 'template' | 'mesh'
+export interface PartModel {
+  id?: string
+  sourceModelId?: string
+  kind: 'none' | 'mesh'
   size: Triple
   /** Reset baseline retained when a shape change preserves the authored size. */
   defaultSize?: Triple
-  template?: TemplateId
-  mesh?: MeshGeometry
+  mesh?: MeshModel
   /** Explicitly adopted model snapshots do not follow background regeneration. */
   frozen?: boolean
   original?: boolean
-  repair?: GeometryRepair
+  repair?: ModelRepair
   /** Projection registration; size is the baseline for subsequent manual edits. */
   imageFit?: {
     size: Triple; target: [number, number, number, number]; rotation?: Triple
-    mode?: 'similarity'; projection?: Triple
-    orientation?: { rotation: Triple; projection?: Triple; score: number; initialScore: number; meshSha256: string; method?: 'silhouette-similarity-v1' | 'surface-preserving-v2'; alignmentKey?: string; referenceRotation?: Triple; surfaceRetention?: number; reviewRequired?: boolean }
+    mode: 'similarity'; projection?: Triple
+    orientation?: { rotation: Triple; projection?: Triple; score: number; initialScore: number; meshSha256: string; method?: 'silhouette-similarity-v1' | 'surface-preserving-v2'; referenceRotation?: Triple; surfaceRetention?: number; reviewRequired?: boolean }
   }
 }
 export interface PartAsset {
@@ -32,25 +32,23 @@ export interface PartAsset {
   name: string
   image: { uri: string; width: number; height: number }
   normal: NormalSettings
-  geometry: PartGeometry
+  model: PartModel
   modelComparison?: {
-    source: PartGeometry; sourceAlignment: PartAsset['alignment']; inputKey: string
-    candidate?: PartGeometry; candidateAlignment?: PartAsset['alignment']
+    source: PartModel; inputKey: string
+    candidate?: PartModel
     selected: 'original' | 'optimized'
+    autoOptimize: boolean
+    optimizationError?: string
   }
   /** Previously selected shapes, including embedded models, for switching back. */
-  geometryAlternatives?: PartGeometry[]
-  alignment: { anchor: [number, number]; offset: [number, number]; scale: number; height?: number }
+  modelAlternatives?: PartModel[]
+  /** Fixed image rectangle in the calibrated camera plane; never derived from the selected model. */
+  imageFrame: { left: number; bottom: number; height: number }
   source?: { sheetHash: string; pixelHash: string; fileName: string; rect: [number, number, number, number]; gsPath?: string }
 }
 export function clonePart<T>(value: T): T { return JSON.parse(JSON.stringify(value)) }
-export function partTemplate(part: Pick<PartAsset, 'id' | 'image'>): TemplateId | undefined {
-  return TEMPLATE_IDS.find(id => part.image.uri === `builtin:${id}`)
-    ?? TEMPLATE_IDS.find(id => part.id === `example:${id}`)
-}
-export function isPartGeometryAllowed(part: Pick<PartAsset, 'id' | 'image'>, geometry: PartGeometry): boolean {
-  return geometry.kind === 'silhouette' || geometry.kind === 'mesh'
-    || (geometry.kind === 'template' && geometry.template !== undefined && geometry.template === partTemplate(part))
+export function isPartModelAllowed(_part: Pick<PartAsset, 'id' | 'image'>, model: PartModel): boolean {
+  return model.kind === 'none' || model.kind === 'mesh'
 }
 export function nextPartRevision(incoming: number, current?: number): number {
   const revision = current === undefined ? incoming : current + 1
@@ -73,31 +71,28 @@ export function validatePart(value: unknown): asserts value is PartAsset {
     || !finite(v.image.width, 1, 2048) || !finite(v.image.height, 1, 2048) || v.image.width * v.image.height > 4000000) fail('image dimensions')
   const uri = v.image.uri
   if (typeof uri !== 'string' || uri.length > 24000000 || !(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(uri)
-    || TEMPLATE_IDS.some(id => uri === `builtin:${id}`))) fail('image must be embedded PNG or a known bundled asset')
+    || BUILTIN_IMAGE_IDS.some(id => uri === `builtin:${id}`))) fail('image must be embedded PNG or a known bundled asset')
   if (!object(v.normal) || !Object.keys(DEFAULT_NORMAL_SETTINGS).every(k => k in v.normal)) fail('normal settings')
   normalSettings(v.normal)
-  const g = v.geometry
-  validateGeometry(g, v.version, fail)
-  if (!isPartGeometryAllowed(v as PartAsset, g)) fail('geometry does not belong to this part')
+  const g = v.model
+  validateModel(g, v.version, fail)
+  if (!isPartModelAllowed(v as PartAsset, g)) fail('model does not belong to this part')
   if(v.modelComparison!==undefined){
     const c=v.modelComparison
-    if(!object(c)||!['original','optimized'].includes(c.selected)||typeof c.inputKey!=='string'||c.inputKey.length>200)fail('model comparison')
-    validateGeometry(c.source,v.version,fail)
-    if(c.source.kind!=='mesh'||!c.source.original||!c.source.frozen)fail('comparison source')
+    if(!object(c)||typeof c.autoOptimize!=='boolean'||!['original','optimized'].includes(c.selected)||typeof c.inputKey!=='string'||c.inputKey.length>200)fail('model comparison')
+    validateModel(c.source,v.version,fail)
+    if(!validId(c.source.id)||c.source.sourceModelId!==undefined||c.source.kind!=='mesh'||!c.source.original||!c.source.frozen)fail('comparison source')
     if(g.kind!=='mesh'||!g.frozen||g.mesh.sha256!==c.source.mesh.sha256||(c.selected==='original'&&!g.original)||(c.selected==='optimized'&&(g.original||!c.candidate)))fail('comparison selection')
-    const alignment=(a:any)=>object(a)&&tuple(a.anchor,2,0,1)&&tuple(a.offset,2,-4,4)&&finite(a.scale,.25,3)&&finite(a.height,.001,64)
-    if(!alignment(c.sourceAlignment))fail('comparison alignment')
-    if(c.candidate!==undefined){validateGeometry(c.candidate,v.version,fail);if(c.candidate.kind!=='mesh'||!c.candidate.frozen||c.candidate.original||c.candidate.mesh.sha256!==c.source.mesh.sha256||!alignment(c.candidateAlignment))fail('comparison candidate')}
+    if(c.candidate!==undefined){validateModel(c.candidate,v.version,fail);if(!validId(c.candidate.id)||c.candidate.id===c.source.id||c.candidate.sourceModelId!==c.source.id||c.candidate.kind!=='mesh'||!c.candidate.frozen||c.candidate.original||c.candidate.mesh.sha256!==c.source.mesh.sha256)fail('comparison candidate')}
   }
-  if (v.geometryAlternatives !== undefined) {
-    if (!Array.isArray(v.geometryAlternatives) || v.geometryAlternatives.length > 32) fail('geometry alternatives')
-    for (const alternative of v.geometryAlternatives) {
-      validateGeometry(alternative, v.version, fail)
-      if (!isPartGeometryAllowed(v as PartAsset, alternative)) fail('geometry does not belong to this part')
+  if (v.modelAlternatives !== undefined) {
+    if (!Array.isArray(v.modelAlternatives) || v.modelAlternatives.length > 32) fail('model alternatives')
+    for (const alternative of v.modelAlternatives) {
+      validateModel(alternative, v.version, fail)
+      if (!isPartModelAllowed(v as PartAsset, alternative)) fail('model does not belong to this part')
     }
   }
-  if (!object(v.alignment) || !tuple(v.alignment.anchor, 2, 0, 1) || !tuple(v.alignment.offset, 2, -4, 4) || !finite(v.alignment.scale, .25, 3)) fail('alignment')
-  if (v.alignment.height !== undefined && !finite(v.alignment.height, .001, 64)) fail('image height')
+  if ('alignment' in v || !object(v.imageFrame) || !finite(v.imageFrame.left,-256,256) || !finite(v.imageFrame.bottom,-256,256) || !finite(v.imageFrame.height,.0001,64)) fail('image frame')
   if (v.source !== undefined) {
     const s = v.source
     if (!object(s) || !/^[a-f0-9]{64}$/.test(s.sheetHash) || !/^[a-f0-9]{64}$/.test(s.pixelHash)
@@ -105,16 +100,18 @@ export function validatePart(value: unknown): asserts value is PartAsset {
       || !s.rect.every(Number.isInteger) || s.rect[2] < 1 || s.rect[3] < 1 || (s.gsPath !== undefined && typeof s.gsPath !== 'string')) fail('source')
   }
 }
-function validateGeometry(g: any, version: number, fail: (message: string) => never) {
-  if (!object(g) || !['silhouette', 'template', 'mesh'].includes(g.kind) || !tuple(g.size, 3, .02, 8)) fail('geometry')
-  if (g.defaultSize !== undefined && !tuple(g.defaultSize, 3, .02, 8)) fail('geometry default size')
-  if(g.frozen!==undefined&&typeof g.frozen!=='boolean')fail('frozen geometry')
-  if(g.original!==undefined&&(typeof g.original!=='boolean'||g.kind!=='mesh'||(g.original&&(g.imageFit||g.repair))))fail('original geometry')
+function validateModel(g: any, version: number, fail: (message: string) => never) {
+  if (!object(g) || !['none','mesh'].includes(g.kind) || !tuple(g.size, 3, .02, 8)) fail('model')
+  if(g.id!==undefined&&!validId(g.id))fail('model id')
+  if(g.sourceModelId!==undefined&&!validId(g.sourceModelId))fail('source model id')
+  if (g.defaultSize !== undefined && !tuple(g.defaultSize, 3, .02, 8)) fail('model default size')
+  if(g.frozen!==undefined&&typeof g.frozen!=='boolean')fail('frozen model')
+  if(g.original!==undefined&&(typeof g.original!=='boolean'||g.kind!=='mesh'||(g.original&&(g.imageFit||g.repair))))fail('original model')
   if(g.repair!==undefined){
     const r=g.repair
     if(g.kind!=='mesh'||!object(r)||![1,2].includes(r.version)||typeof r.enabled!=='boolean'||typeof r.key!=='string'||r.key.length>16384
       ||!Number.isInteger(r.width)||!Number.isInteger(r.height)||!finite(r.width,1,2048)||!finite(r.height,1,2048)||r.width*r.height>1048576
-      ||!tuple(r.bounds,4,-256,256)||r.bounds[2]<=0||r.bounds[3]<=0||!Array.isArray(r.runs)||r.runs.length<1||r.runs.length>524288)fail('geometry repair')
+      ||!tuple(r.bounds,4,-256,256)||r.bounds[2]<=0||r.bounds[3]<=0||!Array.isArray(r.runs)||r.runs.length<1||r.runs.length>524288)fail('model repair')
     if(r.status!==undefined&&!['repaired','unsupported-topology','unsupported-cut'].includes(r.status))fail('repair status')
     let row=-1,end=0
     for(const run of r.runs){
@@ -125,7 +122,7 @@ function validateGeometry(g: any, version: number, fail: (message: string) => ne
   if (g.imageFit !== undefined && (!object(g.imageFit) || !tuple(g.imageFit.size, 3, .02, 8)
     || !tuple(g.imageFit.target, 4, -256, 256) || g.imageFit.target[2] <= 0 || g.imageFit.target[3] <= 0)) fail('image fit')
   if (g.imageFit?.rotation !== undefined && !tuple(g.imageFit.rotation, 3, -180, 180)) fail('image fit rotation')
-  if (g.imageFit?.mode !== undefined && g.imageFit.mode !== 'similarity') fail('image fit mode')
+  if (g.imageFit && g.imageFit.mode !== 'similarity') fail('image fit mode')
   if (g.imageFit?.projection !== undefined && !tuple(g.imageFit.projection, 3, -.5, .5)) fail('image fit projection')
   if (g.imageFit?.orientation !== undefined) {
     const o = g.imageFit.orientation
@@ -136,9 +133,7 @@ function validateGeometry(g: any, version: number, fail: (message: string) => ne
     if(o.referenceRotation!==undefined&&!tuple(o.referenceRotation,3,-180,180))fail('orientation reference')
     if(o.surfaceRetention!==undefined&&!finite(o.surfaceRetention,0,1.000001))fail('surface retention')
     if(o.reviewRequired!==undefined&&typeof o.reviewRequired!=='boolean')fail('orientation review')
-    if (o.alignmentKey !== undefined && (typeof o.alignmentKey !== 'string' || o.alignmentKey.length > 512)) fail('orientation alignment')
   }
-  if (g.kind === 'template' && !TEMPLATE_IDS.includes(g.template)) fail('unknown template')
   if (g.kind === 'mesh') {
     if (version !== 2 || !object(g.mesh) || typeof g.mesh.uri !== 'string' || !/^[a-f0-9]{64}$/.test(g.mesh.sha256) || !/^[a-f0-9]{64}$/.test(g.mesh.inputSha256) || typeof g.mesh.providerId !== 'string' || !Array.isArray(g.mesh.warnings) || !g.mesh.warnings.every((s:unknown)=>typeof s==='string')) fail('mesh metadata')
     decodeMesh(g.mesh.uri)
@@ -148,13 +143,13 @@ function validateGeometry(g: any, version: number, fail: (message: string) => ne
 }
 export function createPart(name: string, image: PartAsset['image'], id: string = crypto.randomUUID()): PartAsset {
   const part: PartAsset = { format: PART_FORMAT, version: 1, id, revision: 1, name,
-    image: { ...image }, normal: normalSettings(), geometry: { kind: 'silhouette', size: [Math.max(.05, Math.min(8, 2 * image.width / image.height)), 2, .08] },
-    alignment: { anchor: [.5, 1], offset: [0, 0], scale: 1 } }
+    image: { ...image }, normal: normalSettings(), model: { kind: 'none', size: [Math.max(.05, Math.min(8, 2 * image.width / image.height)), 2, .08] },
+    imageFrame: { left: -image.width / Math.max(image.width,image.height), bottom: 0, height: 2*image.height/Math.max(image.width,image.height) } }
   validatePart(part); return part
 }
-export function partRenderKey(part: PartAsset) { return JSON.stringify([part.image, part.normal, part.geometry, part.alignment]) }
+export function partRenderKey(part: PartAsset) { return JSON.stringify([part.image, part.normal, part.model, part.imageFrame]) }
 /** Inputs that affect the mesh, color texture and projected surface fields. */
-export function partSurfaceKey(part: PartAsset) { return JSON.stringify([part.image, part.geometry, part.alignment]) }
+export function partSurfaceKey(part: PartAsset) { return JSON.stringify([part.image, part.model, part.imageFrame]) }
 
 export interface PartInstance { id: string; assetId: string; x: number; z: number; scale: number; visible: boolean; casts: boolean; receives: boolean }
 export const MAX_SCENE_ITEMS = 24

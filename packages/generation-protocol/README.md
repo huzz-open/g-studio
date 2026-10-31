@@ -15,7 +15,7 @@ Update types, schemas, OpenAPI, validators and both clients and services togethe
 ## Documentation
 
 - [HTTP endpoints and task lifecycle](protocol.md#http-endpoints).
-- [Geometry result format and import limits](protocol.md#geometry-result).
+- [Model result format and import limits](protocol.md#model-result).
 - [Provider extension](protocol.md#add-a-python-provider).
 - [Loading, residency and timing](protocol.md#loading-residency-and-timing).
 - [Legacy relay transport](protocol.md#relay-transport).

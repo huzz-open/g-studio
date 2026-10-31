@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, useId, watch } from "vue";
+import { TARGET_FACES_MIN, TARGET_FACES_MAX } from '../../../packages/generation-protocol/limits';
 import { useI18n } from "../i18n";
 import { generationConnection, checkGenerationConnection, modelProviders, providerIsEnabled } from "./connection";
 import { clearGenerationFeedback, showConnectionTestFeedback } from './feedback';
 import { generationReadinessMessage, selectedModelProvider as selectedProvider } from './readiness';
 import ConnectionStatus from './ConnectionStatus.vue';
 import ModelProviderSelect from './ModelProviderSelect.vue';
+import InlineSwitch from '../components/InlineSwitch.vue';
 import InfoHint from '../components/InfoHint.vue';
 import NumberRow from '../components/editor-shell/sidebar-atoms/NumberRow.vue';
 import { showToast, dismissToast } from '../components/toast';
@@ -32,6 +34,7 @@ watch(deploymentCommand, resetCopyFeedback);
 let disposed = false;
 let feedbackToast: number | undefined;
 const capabilities = computed(() => generationConnection.capabilities);
+const providerSelectId = useId();
 const parameters = computed(() => props.parameters ?? settings);
 watch(
   () => [
@@ -100,9 +103,7 @@ onUnmounted(() => {
       <details class="generation-install">
         <summary>{{ t('generation.installBackend') }}</summary>
         <div class="install-scope">
-          <label for="generation-allow-remote">{{ t('generation.allowRemote') }}</label>
-          <InfoHint :label="t('generation.allowRemote')" :text="t('generation.listenHint')" />
-          <input id="generation-allow-remote" v-model="allowRemote" class="install-switch" type="checkbox" role="switch" />
+          <InlineSwitch v-model="allowRemote" :label="t('generation.allowRemote')" :info="t('generation.listenHint')" />
         </div>
         <div class="install-command-wrap">
           <pre class="install-command"><code>{{ deploymentCommand }}</code></pre>
@@ -152,7 +153,12 @@ onUnmounted(() => {
         </div>
     </template>
     <div v-else class="generation-parameters" role="group" :aria-label="t(props.parameters ? 'generation.parameters' : 'generation.defaults')">
-      <NumberRow v-model="parameters.targetFaces" :label="t('generation.targetFaces')" :hint="t(props.parameters ? 'generation.inputParametersHint' : 'generation.newTasksOnly')" :default-value="generationDefaults.targetFaces" :min="1000" :max="40000" :step="1000" :disabled="props.disabled" />
+      <div v-if="modelProviders.length" class="gs-row">
+        <div class="gs-label-actions"><label :for="providerSelectId">{{ t('generation.provider') }}</label></div>
+        <ModelProviderSelect :id="providerSelectId" v-model="settings.providerId" :providers="modelProviders" :disabled="props.disabled" />
+      </div>
+      <InlineSwitch :model-value="parameters.optimizeModel!==false" :disabled="props.disabled" :label="t('generation.optimizeAfterGeneration')" @update:model-value="parameters.optimizeModel=$event"/>
+      <NumberRow v-model="parameters.targetFaces" :label="t('generation.targetFaces')" :hint="t(props.parameters ? 'generation.inputParametersHint' : 'generation.newTasksOnly')" :default-value="generationDefaults.targetFaces" :min="TARGET_FACES_MIN" :max="TARGET_FACES_MAX" :step="1000" :disabled="props.disabled" />
       <NumberRow v-model="parameters.seed" :label="t('generation.seed')" :default-value="generationDefaults.seed" :min="0" :max="2147483647" :step="1" :disabled="props.disabled" randomize />
       <NumberRow v-for="(range,key) in providerParameters" :key="key" :label="t('generation.parameter.'+key) === 'generation.parameter.'+key ? key : t('generation.parameter.'+key)" :model-value="parameters.parametersByProvider[settings.providerId]?.[key] ?? range.default" :default-value="range.default" :min="range.min" :max="range.max" :step="range.step ?? (range.integer ? 1 : 0.1)" :disabled="props.disabled" @update:model-value="updateProviderParameter(key, $event)" />
     </div>
@@ -163,18 +169,13 @@ onUnmounted(() => {
 .generation-install { padding:14px 0; border-bottom:1px solid #2f2f2f; }
 .generation-install > summary { cursor:pointer; color:#ddd; font-weight:600; }
 .install-scope { display:flex; align-items:center; gap:6px; margin:12px 0 8px; padding:9px 10px; border:1px solid #383c41; border-radius:8px; background:#27292c; color:#ddd; }
-.install-scope label { cursor:pointer; }
-.install-switch { appearance:none; flex-shrink:0; width:32px; height:19px; margin:0 0 0 auto; padding:2px; border:1px solid #555b63; border-radius:20px; background:#41464d; cursor:pointer; transition:background .15s, border-color .15s; }
-.install-switch::before { content:''; display:block; width:13px; height:13px; border-radius:50%; background:#eceff3; box-shadow:0 1px 3px #0005; transition:transform .15s; }
-.install-switch:checked { background:#426e59; border-color:#5d967a; }
-.install-switch:checked::before { transform:translateX(13px); }
 .install-command-wrap { position:relative; background:#171b21; border:1px solid #3e454e; border-radius:8px; }
 .install-command { box-sizing:border-box; min-height:48px; margin:0; padding:12px 92px 12px 12px; white-space:pre-wrap; overflow-wrap:anywhere; color:#dce4ee; font:11px/1.8 monospace; user-select:text; }
 .install-command code { font:inherit; }
 .copy-install { position:absolute; top:8px; right:8px; display:flex; align-items:center; justify-content:center; gap:5px; min-width:28px; height:28px; padding:0 6px; border:1px solid #4b515a; border-radius:6px; background:#2b3037; color:#bdc7d4; font:inherit; cursor:pointer; transition:background .15s, border-color .15s; }
 .copy-install:hover { background:#363d46; border-color:#697687; color:#eef3fa; }
 .copy-install.copied { background:#20382b; border-color:#355344; color:#9be5b0; }
-.copy-install:focus-visible, .install-switch:focus-visible, .install-requirements summary:focus-visible { outline:2px solid #8ab4f8; outline-offset:3px; }
+.copy-install:focus-visible, .install-requirements summary:focus-visible { outline:2px solid #8ab4f8; outline-offset:3px; }
 .copy-announcement { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 .install-requirements { margin-top:8px; color:#9ba5b3; }
 .install-requirements summary { display:flex; align-items:center; gap:8px; padding:7px 2px; list-style:none; cursor:pointer; }
@@ -183,7 +184,7 @@ onUnmounted(() => {
 .requirements-chevron { margin-left:auto; transition:transform .15s; }
 .install-requirements[open] .requirements-chevron { transform:rotate(90deg); }
 .install-requirements p { margin:4px 0 0; padding:8px 10px; border-radius:6px; background:#27292c; }
-@media (prefers-reduced-motion:reduce) { .install-switch, .install-switch::before, .copy-install, .requirements-chevron { transition:none; } }
+@media (prefers-reduced-motion:reduce) { .copy-install, .requirements-chevron { transition:none; } }
 .generation-parameters { display:flex; flex-direction:column; gap:12px; padding:14px 0; border-bottom:1px solid #2f2f2f; }
 .generation-parameters :deep(.number-row) { margin-bottom:0; }
 .generation-settings :deep(.number-label) { white-space:normal; }

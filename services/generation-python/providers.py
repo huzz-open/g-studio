@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from model_catalog import MODELS
+from model_catalog import MODELS, DEFAULT_RESOLUTION, MAX_RESOLUTION
 import sys
 
 
@@ -51,7 +51,7 @@ class HunyuanProvider(Provider):
 PROVIDERS = {
     key: HunyuanProvider(key, spec['name'], spec['revision'], True, True, {
         'steps': {'min': 1, 'max': spec['max_steps'], 'default': spec['steps'], 'integer': True, 'step': 1},
-        'resolution': {'min': 128, 'max': 380, 'default': 256, 'integer': True, 'step': 1},
+        'resolution': {'min': 128, 'max': MAX_RESOLUTION, 'default': DEFAULT_RESOLUTION, 'integer': True, 'step': 1},
     }) for key, spec in MODELS.items()
 }
 PROVIDERS['silhouette'] = SilhouetteProvider('silhouette', 'Silhouette algorithm', '1')

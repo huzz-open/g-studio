@@ -8,11 +8,10 @@ import {
   writeFileSync,
   existsSync,
   renameSync,
-  unlinkSync,
 } from "node:fs";
 import { resolve, join } from "node:path";
 import { homedir } from "node:os";
-import { EphemeralFiles } from "./ephemeral-files.js";
+import { PersistentFiles } from "./persistent-files.js";
 import { PairFailureGuard, clientAddress } from "./pair-security.js";
 
 const home = resolve(
@@ -48,29 +47,21 @@ const codes = new Map<
 function fail(code: string, message: string, status = 400): never {
   throw Object.assign(Error(message), { code, status });
 }
-const storageLimit = Number(process.env.RELAY_MAX_MEMORY_MB || process.env.RELAY_MAX_STORAGE_MB || 512) * 1024 * 1024;
-const payloads = new EphemeralFiles(storageLimit);
+const storageLimit = Number(process.env.RELAY_MAX_STORAGE_MB || 512) * 1024 * 1024;
+const payloads = new PersistentFiles(join(home,"files"),storageLimit);
 const pairFailures = new PairFailureGuard();
 const trustedProxies = (process.env.RELAY_TRUSTED_PROXIES || '').split(',').filter(Boolean);
 const outputTransfers = new Map<string, Promise<any>>();
 const uploading = new Set<string>();
-// Remove only known legacy relay payloads when upgrading from disk transfers.
-for (const j of Object.values<any>(db.jobs)) {
-  if (!/^[a-f0-9-]{36}$/.test(j.id)) continue;
-  for (const suffix of ['input', 'output', 'output.tmp']) {
-    const file = join(home, j.id + '.' + suffix);
-    if (existsSync(file)) unlinkSync(file);
-  }
-}
+const dispatching = new Set<string>();
 function clearPayloads(id: string) { payloads.delete(id+'.input'); payloads.delete(id+'.output'); }
-function sendPayload(res: http.ServerResponse, key: string, type: string, consume: boolean) {
+function sendPayload(res: http.ServerResponse, key: string, type: string) {
   const lease = payloads.acquire(key);
-  if (!lease) fail('TRANSFER_EXPIRED', 'Transfer buffer expired; retry the upload', 410);
+  if (!lease) fail('TRANSFER_MISSING', 'Transfer file is unavailable; retry the upload', 404);
   let released = false;
   const done = () => {
     if (released) return;
     released = true;
-    if (consume) payloads.delete(key);
     lease.release();
   };
   res.once('close', done);
@@ -155,15 +146,11 @@ function limited(key: string, limit = 20) {
   if (++r.count > limit) fail("RATE_LIMIT", "Too many attempts", 429);
 }
 async function dispatch(j: any) {
-  const response = await rpc(j.device, "submit", {
-    relayJobId: j.id,
-    request: j.request,
-  });
-  payloads.delete(j.id + ".input");
-  j.workerId = response.id;
-  j.snapshot = response;
-  save();
-  return { ...response, id: j.id };
+  dispatching.add(j.id);
+  try {
+    const response = await rpc(j.device, "submit", {relayJobId:j.id,request:j.request});
+    j.workerId=response.id;j.snapshot=response;save();return {...response,id:j.id};
+  } finally { dispatching.delete(j.id); }
 }
 async function handler(req: http.IncomingMessage, res: http.ServerResponse) {
   try {
@@ -249,12 +236,10 @@ async function handler(req: http.IncomingMessage, res: http.ServerResponse) {
               .then((result) => {
                 j.snapshot = result;
                 j.cancelRequested = false;
-                if (j.revoked) delete db.jobs[j.id];
                 save();
               })
               .catch(() => {});
           }
-        for (const j of Object.values<any>(db.jobs)) if (j.session === grant.id) { clearPayloads(j.id); if (!j.cancelRequested) delete db.jobs[j.id]; }
         save();
         json(res, { ok: true });
         return;
@@ -296,10 +281,10 @@ async function handler(req: http.IncomingMessage, res: http.ServerResponse) {
         if (!j) {
           if (
             Object.values<any>(db.jobs).filter(
-              (j) => j.session === s.id && j.expires > Date.now(),
+              (j) => j.session === s.id && !["succeeded","failed","cancelled"].includes(j.snapshot?.status),
             ).length >= 20
           )
-            fail("QUEUE_FULL", "Temporary job quota reached", 429);
+            fail("QUEUE_FULL", "Active job quota reached", 429);
           const id = randomUUID();
           j = {
             id,
@@ -307,7 +292,6 @@ async function handler(req: http.IncomingMessage, res: http.ServerResponse) {
             device: s.device,
             request,
             fingerprint,
-            expires: Date.now() + 3600000,
           };
           db.jobs[id] = j;
           save();
@@ -323,13 +307,17 @@ async function handler(req: http.IncomingMessage, res: http.ServerResponse) {
       } finally { releaseInput(); }
     }
     const jm = p.match(
-      /^\/v1\/jobs\/([a-f0-9-]+)(?:\/(cancel|ack|outputs\/shadow))?$/,
+      /^\/v1\/jobs\/([a-f0-9-]+)(?:\/(cancel|outputs\/shadow))?$/,
     );
     if (jm) {
+      if (!db.jobs[jm[1]!] && !jm[2] && req.method==='DELETE') { session(req);json(res,{ok:true});return; }
       const j = jobFor(req, jm[1]!),
         action = jm[2];
-      if (j.expires < Date.now())
-        fail("EXPIRED", "Temporary result expired", 410);
+      if (!action && req.method === "DELETE") {
+        if (dispatching.has(j.id) || uploading.has(j.id) || outputTransfers.has(j.id)) fail('TRANSFER_BUSY','Wait for the active transfer before deleting',409);
+        if (j.workerId) await rpc(j.device,"delete",{id:j.workerId});
+        clearPayloads(j.id); delete db.jobs[j.id]; save(); json(res,{ok:true}); return;
+      }
       if (action === "outputs/shadow" && req.method === "GET") {
         if (!payloads.has(j.id + ".output")) {
           if (!j.workerId) fail("NOT_READY", "No output", 409);
@@ -343,35 +331,25 @@ async function handler(req: http.IncomingMessage, res: http.ServerResponse) {
           }
           await transfer;
         }
-        if (res.destroyed) { payloads.delete(j.id + '.output'); return; }
-        sendPayload(res, j.id + '.output', 'model/gltf-binary', true);
-        return;
-      }
-      if (action === "ack" && req.method === "POST") {
-        clearPayloads(j.id);
-        if (j.workerId) await rpc(j.device, "ack", { id: j.workerId });
-        j.expires = Date.now();
-        save();
-        json(res, { ok: true });
+        if (res.destroyed) return;
+        sendPayload(res, j.id + '.output', 'model/gltf-binary');
         return;
       }
       if (action === "cancel" && req.method === "POST") {
         if (j.workerId)
           j.snapshot = await rpc(j.device, "cancel", { id: j.workerId });
         else j.snapshot = { status: "cancelled", phase: "cancelled" };
-        clearPayloads(j.id);
         save();
         json(res, { ...j.snapshot, id: j.id });
         return;
       }
       if (!action && req.method === "GET") {
+        if (['succeeded','failed','cancelled'].includes(j.snapshot?.status)) {json(res,{...j.snapshot,id:j.id});return;}
         if (!j.workerId) {
           json(res, await dispatch(j));
           return;
         }
         j.snapshot = await rpc(j.device, "status", { id: j.workerId });
-        if (!["succeeded", "failed", "cancelled", "expired"].includes(j.snapshot.status)) j.expires = Date.now() + 3600000;
-        if (["failed", "cancelled", "expired"].includes(j.snapshot.status)) clearPayloads(j.id);
         save();
         json(res, { ...j.snapshot, id: j.id });
         return;
@@ -380,10 +358,10 @@ async function handler(req: http.IncomingMessage, res: http.ServerResponse) {
     const fm = p.match(/^\/worker\/files\/([a-f0-9-]+)\/(input|output)$/);
     if (fm) {
       const j = db.jobs[fm[1]!];
-      if (!j || j.expires < Date.now()) fail("NOT_FOUND", "Unknown job", 404);
+      if (!j) fail("NOT_FOUND", "Unknown job", 404);
       worker(req, j.device);
       if (fm[2] === "input" && req.method === "GET") {
-        sendPayload(res, j.id + ".input", "application/octet-stream", false);
+        sendPayload(res, j.id + ".input", "application/octet-stream");
         return;
       }
       if (fm[2] === "output" && req.method === "POST") {
@@ -395,7 +373,7 @@ async function handler(req: http.IncomingMessage, res: http.ServerResponse) {
         try {
           const data = await bytes(req, 128 * 1024 * 1024);
           release();
-          payloads.set(j.id + '.output', data, 60000);
+          payloads.set(j.id + '.output', data);
         } finally {
           release();
           uploading.delete(j.id);
@@ -491,7 +469,6 @@ wss.on("connection", (ws, req) => {
               .then((result) => {
                 j.snapshot = result;
                 j.cancelRequested = false;
-                if (j.revoked) delete db.jobs[j.id];
                 save();
               })
               .catch(() => {});
@@ -534,13 +511,6 @@ wss.on("connection", (ws, req) => {
 });
 setInterval(() => {
   let changed = false;
-  for (const j of Object.values<any>(db.jobs))
-    if (j.expires < Date.now()) {
-      clearPayloads(j.id);
-      delete db.jobs[j.id];
-      changed = true;
-    }
-  payloads.sweep();
   pairFailures.sweep();
   for (const [k, expiry] of usedCodes) if (expiry < Date.now()) usedCodes.delete(k);
   for (const [k, s] of Object.entries<any>(db.sessions))

@@ -26,7 +26,7 @@ Except for `/health`, endpoints require `Authorization: Bearer <token>`. The def
 | GET | `/v1/jobs/{id}` | Poll job status and result metadata |
 | POST | `/v1/jobs/{id}/cancel` | Idempotent cancellation |
 | GET | `/v1/jobs/{id}/outputs/shadow` | Download generated GLB |
-| POST | `/v1/jobs/{id}/ack` | Confirm durable local storage and permit cleanup |
+| DELETE | `/v1/jobs/{id}` | Explicitly delete a terminal task and its stored files; active tasks return 409 |
 
 ## Request and lifecycle
 
@@ -38,30 +38,30 @@ Example multipart `request` field (replace the digest with SHA256 of the exact u
   "clientRequestId": "unique-client-request-id",
   "providerId": "hunyuan-mini",
   "inputSha256": "<64-character lowercase SHA256>",
-  "targetFaces": 12000,
+  "targetFaces": 40000,
   "seed": 12345,
-  "parameters": { "steps": 5, "resolution": 256 }
+  "parameters": { "steps": 5, "resolution": 128 }
 }
 ```
 
 Read capabilities before choosing provider parameters; unsupported values are errors. `clientRequestId` is scoped to the caller. Reusing it with different input returns HTTP 409.
 
 1. Submit the request. HTTP 202 means accepted, not completed.
-2. Poll until terminal; the job type includes queued, running, cancel_requested, cancelled, succeeded, failed and expired.
+2. Poll until terminal; the job type includes queued, running, cancel_requested, cancelled, succeeded and failed.
 3. After success, download the output and verify its byte size and SHA256.
 4. Persist the asset locally, then acknowledge it.
 
 Without acknowledgment, terminal task files remain for up to 24 hours. Task storage is temporary and is not an asset database.
 
-## Geometry result
+## Model result
 
 | Property | Contract |
 | --- | --- |
-| Format | Self-contained GLB 2.0 triangle geometry |
+| Format | Self-contained GLB 2.0 triangle model |
 | Coordinates | Right-handed, Y-up, grounded, horizontally centered |
 | Scale | Longest source dimension normalized to 2; no guaranteed real-world units or inferred camera direction |
-| Unsupported by first client | External resources, skins, morph targets and compressed geometry extensions |
-| Frontend import limit | 40,000 triangles and approximately 18MiB binary mesh |
+| Unsupported by first client | External resources, skins, morph targets and compressed model extensions |
+| Frontend import limit | 1,000,000 triangles and 128MiB binary mesh |
 | Service transfer ceiling | 128MiB; this does not override client rendering limits |
 
 The result manifest includes provider/input identity, triangle count, bounds, warnings, output size and digest. See [part v2 storage](../../docs/reference/parts.md) for durable frontend assets.
@@ -90,3 +90,5 @@ Optional `tags` contain up to two distinct server-selected values: `推荐`, `�
 Terminal jobs expose monotonic `timings`: total from submission, execution from dispatch (including staged loading), and their queue/wait difference. Failed/cancelled tasks also have timings; queued cancellation has zero execution. The backend, precision and strategy are fixed at startup. Execution errors do not trigger retries or device/model/strategy substitution. Restarted unfinished tasks report `INTERRUPTED` and require explicit resubmission.
 
 `precision` reports fixed sampling/decoding precision; optional `imageEncoderPrecision` reports the image encoder separately (Mini/MPS uses FP32). Both fields are chosen before loading and never changed after a task failure.
+
+Generated outputs and task records have no expiration. Downloads do not consume results. Only an explicit DELETE removes task files; there is no acknowledgment-triggered cleanup endpoint.

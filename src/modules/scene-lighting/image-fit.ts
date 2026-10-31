@@ -1,39 +1,34 @@
 import { FORWARD, RIGHT, UP, type Mesh } from './model'
-import { dot, normalize, type Vec3 } from '../experiments/umbrella/math'
+import { type Vec3 } from '../experiments/umbrella/math'
 
-/** Similarity registration preserves proportions in all three dimensions.
- * The affine branch only reads older saved fits; source GLB bytes are unchanged. */
-export function fitMeshProjection(mesh: Mesh, target: [number, number, number, number], ratios: Vec3, similarity = false, projection: Vec3 = [0, 0, 0]): Mesh {
-  let left = Infinity, bottom = Infinity, right = -Infinity, top = -Infinity
-  for (let i = 0; i < mesh.vertices.length; i += 9) {
-    const p = Array.from(mesh.vertices.slice(i, i + 3)) as Vec3
-    const x = dot(p, RIGHT), y = dot(p, UP)
-    left = Math.min(left, x); right = Math.max(right, x)
-    bottom = Math.min(bottom, y); top = Math.max(top, y)
+/** Similarity registration preserves proportions in all three dimensions. */
+export function fitMeshProjection(mesh: Mesh, target: [number, number, number, number], ratios: Vec3, projection: Vec3 = [0, 0, 0]): Mesh {
+  let left=Infinity,bottom=Infinity,right=-Infinity,top=-Infinity,minY=Infinity
+  const source=mesh.vertices
+  for(let i=0;i<source.length;i+=9){
+    const px=source[i],py=source[i+1],pz=source[i+2]
+    const x=px*RIGHT[0]+py*RIGHT[1]+pz*RIGHT[2],y=px*UP[0]+py*UP[1]+pz*UP[2]
+    left=Math.min(left,x);right=Math.max(right,x);bottom=Math.min(bottom,y);top=Math.max(top,y);minY=Math.min(minY,py)
   }
-  if (right - left < 1e-8 || top - bottom < 1e-8) throw new Error('Cannot align a degenerate model projection')
-  const uniform = Math.min(target[2] / (right - left), target[3] / (top - bottom)) * Math.exp(projection[0])
-  const sx = similarity ? uniform : target[2] / (right - left), sy = similarity ? uniform : target[3] / (top - bottom), sz = similarity ? uniform : 1
-  const tx = target[0] + target[2] * (.5 + projection[1]) - (left + right) / 2 * sx
-  const ty = target[1] + target[3] * (.5 + projection[2]) - (bottom + top) / 2 * sy
-  const transform = (p: Vec3): Vec3 => {
-    const x = dot(p, RIGHT) * sx + tx, y = dot(p, UP) * sy + ty, z = dot(p, FORWARD) * sz
-    return RIGHT.map((v, j) => v * x + UP[j] * y + FORWARD[j] * z) as Vec3
+  if(right-left<1e-8||top-bottom<1e-8)throw new Error('Cannot align a degenerate model projection')
+  const uniform=Math.min(target[2]/(right-left),target[3]/(top-bottom))*Math.exp(projection[0])
+  const tx=target[0]+target[2]*(.5+projection[1])-(left+right)/2*uniform
+  const ty=target[1]+target[3]*(.5+projection[2])-(bottom+top)/2*uniform
+  // RIGHT/UP/FORWARD form an orthonormal basis. Uniform scaling in that
+  // basis is uniform world scaling; only the translation needs conversion.
+  const shift=RIGHT.map((v,i)=>v*tx+UP[i]*ty) as Vec3
+  const depthShift=-(minY*uniform+shift[1])/FORWARD[1]
+  for(let i=0;i<3;i++)shift[i]+=FORWARD[i]*depthShift
+  const point=(p:Vec3):Vec3=>[(p[0]*uniform+shift[0])*ratios[0],(p[1]*uniform+shift[1])*ratios[1],(p[2]*uniform+shift[2])*ratios[2]]
+  const vertices=source.slice()
+  for(let i=0;i<vertices.length;i+=9){
+    vertices[i]=(source[i]*uniform+shift[0])*ratios[0]
+    vertices[i+1]=(source[i+1]*uniform+shift[1])*ratios[1]
+    vertices[i+2]=(source[i+2]*uniform+shift[2])*ratios[2]
+    const x=source[i+3]/ratios[0],y=source[i+4]/ratios[1],z=source[i+5]/ratios[2],length=Math.hypot(x,y,z)||1
+    vertices[i+3]=x/length;vertices[i+4]=y/length;vertices[i+5]=z/length
   }
-  // Translate along the viewing ray to restore ground contact without changing
-  // the registered projection. The lighting camera has a nonzero pitch.
-  let minY = Infinity
-  for (let i = 0; i < mesh.vertices.length; i += 9) minY = Math.min(minY, transform(Array.from(mesh.vertices.slice(i, i + 3)) as Vec3)[1])
-  const depthShift = -minY / FORWARD[1]
-  const point = (p: Vec3): Vec3 => transform(p).map((v, j) => (v + FORWARD[j] * depthShift) * ratios[j]) as Vec3
-  const vertices = mesh.vertices.slice()
-  for (let i = 0; i < vertices.length; i += 9) {
-    vertices.set(point(Array.from(mesh.vertices.slice(i, i + 3)) as Vec3), i)
-    const n = Array.from(mesh.vertices.slice(i + 3, i + 6)) as Vec3
-    const x = dot(n, RIGHT) / sx, y = dot(n, UP) / sy, z = dot(n, FORWARD) / sz
-    vertices.set(normalize(RIGHT.map((v, j) => (v * x + UP[j] * y + FORWARD[j] * z) / ratios[j]) as Vec3), i + 3)
-  }
-  return { vertices, triangles: mesh.triangles.map(tri => tri.map(point)) }
+  return {vertices,triangles:mesh.triangles.map(tri=>tri.map(point))}
 }
 
 /** Pixel edges, not pixel centers. Match the renderer's alpha discard (0.08). */

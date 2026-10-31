@@ -142,7 +142,7 @@ precision highp float;
 in vec2 uv;out vec4 color;
 uniform sampler2D colorMap;uniform sampler2D normalMap;uniform sampler2D fieldDepth;uniform sampler2D fieldNormal;
 uniform vec3 offset;uniform vec3 right;uniform vec3 up;uniform vec3 forward;uniform vec4 bounds;uniform mat4 matrix;uniform float objectId;
-uniform float objectScale;uniform float directx;uniform float selected;uniform float outlinePixelRatio;
+uniform float sourceOnly;uniform float objectScale;uniform float directx;uniform float selected;uniform float outlinePixelRatio;
 ${lighting}
 float spriteAlpha(vec2 sampleUv){
   if(any(lessThan(sampleUv,vec2(0)))||any(greaterThanEqual(sampleUv,vec2(1))))return 0.0;
@@ -153,6 +153,7 @@ void main(){
   // wide at every zoom and follows the same aligned UVs and depth as the image.
   vec2 outlineStep=fwidth(uv)*outlinePixelRatio;
   vec4 texel=texture(colorMap,uv);if(texel.a<0.08)discard;
+  if(sourceOnly>0.5){color=vec4(texel.rgb,1.0);return;}
   vec4 field=texture(fieldDepth,uv);
   float d=field.a>0.5?dot(field.rgb,vec3(1.0,1.0/255.0,1.0/65025.0))*32.0-16.0:0.0;
   vec2 q=bounds.xy+uv*bounds.zw;

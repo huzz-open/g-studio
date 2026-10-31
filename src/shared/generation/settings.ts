@@ -1,4 +1,6 @@
 import { reactive, watch } from "vue";
+import { TARGET_FACES_DEFAULT } from '../../../packages/generation-protocol/limits';
+import { readStoredGenerationParameters, writeStoredGenerationParameters } from './defaults-migration';
 export interface GenerationConnection {
   mode: "silhouette" | "direct" | "relay";
   baseUrl: string;
@@ -8,6 +10,7 @@ export interface GenerationConnection {
   deviceId: string;
   providerId: string;
   targetFaces: number;
+  optimizeModel?: boolean;
   seed: number;
   parametersByProvider: Record<string, Record<string, number>>;
 }
@@ -19,8 +22,9 @@ const defaults: GenerationConnection = {
   relayToken: "",
   deviceId: "",
   providerId: "hunyuan-mini",
-  targetFaces: 12000,
+  targetFaces: TARGET_FACES_DEFAULT,
   seed: 12345,
+  optimizeModel: true,
   parametersByProvider: {},
 };
 export { defaults as generationDefaults };
@@ -28,9 +32,7 @@ function read() {
   try {
     return {
       ...defaults,
-      ...JSON.parse(
-        localStorage.getItem("g-studio-generation-device-v1") || "{}",
-      ),
+      ...readStoredGenerationParameters("g-studio-generation-device-v1"),
     };
   } catch {
     return { ...defaults };
@@ -56,9 +58,9 @@ watch(() => generationSettings.baseUrl, () => {
 watch(
   generationSettings,
   () =>
-    localStorage.setItem(
+    writeStoredGenerationParameters(
       "g-studio-generation-device-v1",
-      JSON.stringify(generationSettings),
+      generationSettings,
     ),
   { deep: true },
 );
@@ -68,6 +70,7 @@ export function resetGenerationPreferences() {
     providerId: defaults.providerId,
     targetFaces: defaults.targetFaces,
     seed: defaults.seed,
+    optimizeModel: true,
     parametersByProvider: {},
   });
 }

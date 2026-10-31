@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref, useId } from 'vue'
 import { useI18n } from '../../shared/i18n'
 import GenerationTaskDetails from '../../shared/generation/GenerationTaskDetails.vue'
 import GenerationActions, { type GenerationAction } from '../../shared/generation/GenerationActions.vue'
@@ -19,6 +19,7 @@ import { EditorShell, definePanelConfig, type DropModifiers } from '../../shared
 import ScrollArea from '../../shared/components/ScrollArea.vue'
 import { generationTabs, generationInput, generationQueueExpanded } from './store'
 const ModelViewer = defineAsyncComponent(() => import('../../shared/generation/ModelViewer.vue'))
+const reviewControlsId = 'generation-review-' + useId()
 const { t } = useI18n()
 const { instances, activeInstance, activeTabId, pinnedIds, createTab, switchTab, closeTab, setPinned } = generationTabs
 const leftCollapsed = ref(false), rightCollapsed = ref(false), busy = ref(false), error = ref('')
@@ -77,7 +78,7 @@ async function generate(mode: GenerationAction) {
       entry.jobId=job.localId; switchTab(entry.id)
     }
     if (mode === 'initial') await createGenerationJob(source.name, source.image.uri, connection, undefined, created)
-    else if (target?.geometry) await regenerateModel(target, mode, connection, created)
+    else if (target?.model) await regenerateModel(target, mode, connection, created)
   } catch(e) { showToast(String(e),'error') }
   finally { busy.value=false }
 }
@@ -107,12 +108,13 @@ onMounted(()=> { void loadGenerationJobs().catch(e=>showToast(String(e),'error')
         <div id="generation-properties" class="generation-properties" :class="{ 'empty-properties': !activeInstance?.part }">
           <button v-if="!canGenerateModels" class="connection-button" @click="openGenerationSettings">{{ t('generation.connectionSettings') }}</button>
           <GenerationSettings section="defaults" :parameters="parameters" :disabled="busy || !sourcePart" />
-          <div class="empty-actions"><GenerationActions :existing="!!selectedJob?.geometry" :busy="busy" :replacing="modelReplacing(selectedJob)" :disabled="!sourcePart || !canGenerateModels" @generate="generate" /></div>
+          <div class="empty-actions"><GenerationActions :existing="!!selectedJob?.model" :busy="busy" :replacing="modelReplacing(selectedJob)" :disabled="!sourcePart || !canGenerateModels" @generate="generate" /></div>
+          <div :id="reviewControlsId" />
         </div>
       </ScrollArea>
     </template>
     <template #viewport>
-      <ModelViewer v-if="selectedJob?.geometry?.mesh" :uri="selectedJob.geometry.mesh.uri" :image="selectedJob.image" :name="selectedJob.name" />
+      <ModelViewer v-if="selectedJob?.model?.mesh" :controls-target="leftCollapsed ? undefined : '#'+reviewControlsId" :uri="selectedJob.model.mesh.uri" :model="selectedJob.model" :comparison="selectedJob.comparison" :image="selectedJob.image" :name="selectedJob.name" />
       <div v-else-if="activeInstance?.part" class="source-preview"><img :src="selectedJob?.image || activeInstance.part.image.uri" :alt="activeInstance.part.name" /></div>
     </template>
     <template #viewport-overlay><GenerationQueue v-model:expanded="generationQueueExpanded" :jobs="visibleJobs" :selected-id="selectedJob?.localId" @select="select" @remove="discard" /></template>

@@ -8,7 +8,7 @@ test('remote success is not completion until the model is available locally', ()
   const remote = { id: 'r', status: 'succeeded' as const, phase: 'complete' }
   assert.equal(jobStatus(job({ remote })), 'receiving')
   assert.equal(jobStatus(job({ remote, resultRejected: true })), 'failed')
-  assert.equal(jobStatus(job({ remote, geometry: { kind: 'mesh', size: [1, 1, 1] } })), 'succeeded')
+  assert.equal(jobStatus(job({ remote, model: { kind: 'mesh', size: [1, 1, 1] } })), 'succeeded')
   assert.equal(jobStatus(job()), 'undefined')
   assert.equal(jobStatus(job({ error: 'network unavailable' })), 'failed')
 })
@@ -16,7 +16,7 @@ test('only active remote jobs can be cancelled; transient poll errors do not sto
   for (const status of ['queued', 'running', 'cancel_requested'] as const) {
     assert.equal(jobRunning(job({ remote: { id: 'r', status, phase: 'sample' }, error: 'poll failed' })), true)
   }
-  for (const status of ['succeeded', 'failed', 'cancelled', 'expired'] as const) {
+  for (const status of ['succeeded', 'failed', 'cancelled'] as const) {
     assert.equal(jobRunning(job({ remote: { id: 'r', status, phase: status } })), false)
   }
   assert.equal(jobRunning(job()), false)
@@ -29,4 +29,11 @@ test('part editors recover their newest associated job regardless of list order 
   assert.equal(latestPartJob([old, other, latest, standalone], 'part-a'), latest)
   assert.equal(latestPartJob([latest, old, other], 'part-b'), other)
   assert.equal(latestPartJob([old, latest, standalone], 'missing'), undefined)
+})
+
+test('local optimization is an active generation stage, not a completed remote result',()=>{
+ const remote={id:'r',status:'succeeded' as const,phase:'complete'}
+ assert.equal(jobStatus(job({remote,optimizing:true})),'optimizing')
+ assert.equal(jobRunning(job({remote,optimizing:true})),true)
+ assert.equal(jobStatus(job({remote,postprocessCancelled:true,resultRejected:true})),'cancelled')
 })

@@ -1,10 +1,10 @@
-import { buildUmbrella } from '../experiments/umbrella/geometry'
+import { buildUmbrella } from '../experiments/umbrella/model'
 import { add, cross, dot, normalize, scale, sub, type Vec3 } from '../experiments/umbrella/math'
 import type { PartInstance } from '../../shared/parts/schema'
 
 export type ItemId = 'umbrella' | 'barrel' | 'chair' | 'vase' | 'chest' | 'bonsai'
 export type SceneKind = 'open' | 'corner'
-export type DisplayMode = 'sprites' | 'geometry' | 'visibility'
+export type DisplayMode = 'sprites' | 'model' | 'visibility'
 export type Preset = 'spread' | 'wall' | 'mutual'
 export type SceneItem = PartInstance
 export interface RoomSize { width: number; depth: number; height: number }

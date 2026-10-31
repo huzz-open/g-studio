@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+from model_catalog import DEFAULT_RESOLUTION, DEFAULT_TARGET_FACES
 
 
 def progress(phase, **extra):
@@ -52,7 +53,7 @@ def hunyuan(folder, request):
                 "--steps",
                 str(request.get("parameters", {}).get("steps", __import__("model_catalog").MODELS[request.get("providerId", "hunyuan-mini")]["steps"])),
                 "--resolution",
-                str(request.get("parameters", {}).get("resolution", 256)),
+                str(request.get("parameters", {}).get("resolution", DEFAULT_RESOLUTION)),
                 "--seed",
                 str(request.get("seed", 12345)),
             ],
@@ -77,7 +78,7 @@ def finish(folder, request):
     ) * scale
     mesh.update_faces(mesh.area_faces > 1e-12)
     mesh.remove_unreferenced_vertices()
-    target = request.get("targetFaces", 12000)
+    target = request.get("targetFaces", DEFAULT_TARGET_FACES)
     if len(mesh.faces) > target:
         v, f = fast_simplification.simplify(
             np.asarray(mesh.vertices),
@@ -116,7 +117,7 @@ def finish(folder, request):
             "sourceMax": hi.tolist(),
         },
         "warnings": [
-            "Single-view inferred geometry; inspect openings and alignment before applying."
+            "Single-view inferred model; inspect openings and alignment before applying."
         ]
         if request["providerId"] != "silhouette"
         else ["Silhouette approximation, not AI reconstruction."],

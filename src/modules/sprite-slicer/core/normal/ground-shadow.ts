@@ -1,6 +1,6 @@
 import { reactive } from 'vue'
 import { previewLight } from './lighting'
-import { casterHeight, lightElevation, SHADOW_ALPHA_CUTOFF, type ShadowGeometry } from './shadow-geometry'
+import { casterHeight, lightElevation, SHADOW_ALPHA_CUTOFF, type ShadowModel } from './shadow-model'
 
 export const DEFAULT_SHADOW_PREVIEW = Object.freeze({ enabled: false })
 export const previewShadow = reactive({ ...DEFAULT_SHADOW_PREVIEW })
@@ -10,7 +10,7 @@ export interface ShadowView { width: number; height: number; scale: number; panX
  * a binary visibility mask (union, never additive alpha). Shade a separate ground
  * receiver using the SAME point light and elevation as the sprite renderer.
  */
-export function createGroundShadow(canvas: HTMLCanvasElement, image: ImageData, geometry: ShadowGeometry) {
+export function createGroundShadow(canvas: HTMLCanvasElement, image: ImageData, model: ShadowModel) {
   const gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: true, antialias: false })
   if (!gl) throw new Error('WebGL is unavailable')
   const shaders: WebGLShader[] = [], programs: WebGLProgram[] = [], buffers: WebGLBuffer[] = [], textures: WebGLTexture[] = []
@@ -70,7 +70,7 @@ export function createGroundShadow(canvas: HTMLCanvasElement, image: ImageData, 
     gl!.bindBuffer(gl!.ARRAY_BUFFER, b); gl!.bufferData(gl!.ARRAY_BUFFER, data, gl!.STATIC_DRAW)
     return b
   }
-  const walls = buffer(geometry.vertices)
+  const walls = buffer(model.vertices)
   const cap = (z: number) => buffer(new Float32Array([0, 0, z, image.width, 0, z, 0, image.height, z, 0, image.height, z, image.width, 0, z, image.width, image.height, z]))
   const bottom = cap(0), top = cap(1)
   const quad = buffer(new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]))
@@ -117,7 +117,7 @@ export function createGroundShadow(canvas: HTMLCanvasElement, image: ImageData, 
         // shadow length. For Q in the footprint, |Q-L| >= nearest, so a scale
         // greater than radius/nearest covers every receiver sample in this view.
         let nearest = Infinity
-        const v = geometry.vertices
+        const v = model.vertices
         for (let i = 0; i < v.length; i += 18) {
           const dx = Math.max(Math.min(v[i], v[i + 3]) - x, 0, x - Math.max(v[i], v[i + 3]))
           const dy = Math.max(Math.min(v[i + 1], v[i + 4]) - y, 0, y - Math.max(v[i + 1], v[i + 4]))
@@ -167,7 +167,7 @@ export function createGroundShadow(canvas: HTMLCanvasElement, image: ImageData, 
       vertices(maskProgram, bottom, 3); gl.drawArrays(gl.TRIANGLES, 0, 6)
       vertices(maskProgram, top, 3); gl.drawArrays(gl.TRIANGLES, 0, 6)
       gl.uniform1f(gl.getUniformLocation(maskProgram, 'masked'), 0)
-      if (geometry.vertices.length) { vertices(maskProgram, walls, 3); gl.drawArrays(gl.TRIANGLES, 0, geometry.vertices.length / 3) }
+      if (model.vertices.length) { vertices(maskProgram, walls, 3); gl.drawArrays(gl.TRIANGLES, 0, model.vertices.length / 3) }
 
       gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.useProgram(groundProgram); common(groundProgram)
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, mask)

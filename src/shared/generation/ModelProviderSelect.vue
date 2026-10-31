@@ -4,7 +4,7 @@ import type { Provider } from '../../../packages/generation-protocol/types'
 import { useI18n } from '../i18n'
 import { providerIsEnabled } from './connection'
 
-const props = defineProps<{ id: string; modelValue: string; providers: Provider[] }>()
+const props = defineProps<{ id: string; modelValue: string; providers: Provider[]; disabled?: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string]; change: [] }>()
 const { t } = useI18n()
 const listId = useId(), trigger = ref<HTMLButtonElement>(), popup = ref<HTMLElement>()
@@ -16,6 +16,7 @@ function close(focus = false) {
   if (focus) trigger.value?.focus()
 }
 async function show(last = false) {
+  if (props.disabled) return
   const rect = trigger.value!.getBoundingClientRect()
   const height = Math.min(props.providers.length * 44 + 8, 240)
   position.value = { left: `${Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 8))}px`,
@@ -27,6 +28,7 @@ async function show(last = false) {
   popup.value?.focus()
 }
 function choose(index: number) {
+  if (props.disabled) return
   const provider = props.providers[index]
   if (!provider || !providerIsEnabled(provider)) return
   if (provider.providerId !== props.modelValue) {
@@ -54,6 +56,7 @@ function outside(event: Event) {
 }
 function resize() { close() }
 watch(() => props.providers, () => close())
+watch(() => props.disabled, value => { if (value) close() })
 onMounted(() => {
   document.addEventListener('mousedown', outside)
   window.addEventListener('scroll', outside, true)
@@ -68,6 +71,7 @@ onUnmounted(() => {
 
 <template>
   <button :id="id" ref="trigger" class="provider-select" type="button" role="combobox" :aria-label="t('generation.provider')"
+    :disabled="disabled"
     aria-haspopup="listbox" :aria-expanded="open" :aria-controls="open ? listId : undefined"
     @click="open ? close() : show()" @keydown.down.prevent="show()" @keydown.up.prevent="show(true)">
     <span class="model-name">{{ selected?.name || t('generation.selectEnabledModel') }}</span>
@@ -94,6 +98,7 @@ onUnmounted(() => {
 <style scoped>
 .provider-select, .provider-option { display:flex; align-items:center; gap:6px; width:100%; box-sizing:border-box; color:#ddd; font:12px system-ui; text-align:left; cursor:pointer; }
 .provider-select { min-height:30px; padding:6px 8px; background:#1e1e1e; border:1px solid #555; border-radius:5px; }
+.provider-select:disabled { opacity:.45; cursor:default; }
 .model-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .model-tag { flex-shrink:0; padding:2px 5px; border:1px solid #494e56; border-radius:4px; color:#aeb7c4; background:#2b2e33; font-size:10px; white-space:nowrap; }
 .model-tag.enabled { color:#a8c6b3; background:#26372e; border-color:#3a5445; }

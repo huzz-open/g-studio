@@ -5,7 +5,7 @@ import { SliderRow, ActionButtons } from '../../shared/components/editor-shell/s
 import SegmentedControl from '../../shared/components/SegmentedControl.vue'
 import InlineSwitch from '../../shared/components/InlineSwitch.vue'
 import { useI18n } from '../../shared/i18n'
-import { DEFAULT_SHAPE } from './umbrella/geometry'
+import { DEFAULT_SHAPE } from './umbrella/model'
 import { camera, type CameraSettings, type Vec3 } from './umbrella/math'
 import { createUmbrellaRenderer, type DemoFrame } from './umbrella/renderer'
 
@@ -96,7 +96,7 @@ defineExpose({
         <SliderRow v-model="view.yaw" :default-value="cameraDefaults.yaw" :label="t('umbrella.yaw')" :min="-180" :max="180" :step="1" :precision="0" suffix="°" />
         <SliderRow v-model="view.distance" :default-value="cameraDefaults.distance" :label="t('umbrella.cameraDistance')" :min="4" :max="12" :step="0.1" :precision="1" />
       </SidebarSection>
-      <SidebarSection :title="t('umbrella.geometry')">
+      <SidebarSection :title="t('umbrella.model')">
         <SliderRow v-model="shape.rimHeight" :default-value="DEFAULT_SHAPE.rimHeight" :label="t('umbrella.rimHeight')" :min="1" :max="3.2" :step="0.05" :precision="2" />
         <SliderRow v-model="shape.radius" :default-value="DEFAULT_SHAPE.radius" :label="t('umbrella.radius')" :min="0.5" :max="1.8" :step="0.05" :precision="2" />
         <SliderRow v-model="shape.rise" :default-value="DEFAULT_SHAPE.rise" :label="t('umbrella.rise')" :min="0.15" :max="1" :step="0.05" :precision="2" />

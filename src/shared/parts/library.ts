@@ -1,7 +1,7 @@
 import { shallowReactive, ref, watch, type Ref } from 'vue'
 import { generatedModels, loadGeneratedModels, resolvePartModels } from '../generation/models'
 import { clonePart, validatePart, nextPartRevision, type PartAsset } from './schema'
-import { createBuiltinParts } from './builtins'
+import { createBuiltinParts, loadBuiltinModels } from './builtins'
 
 const hotState=import.meta.hot?.data
 export const partLibrary: Record<string, PartAsset> = hotState?.partLibrary ?? shallowReactive<Record<string, PartAsset>>({})
@@ -44,7 +44,7 @@ async function put(parts: PartAsset[]) {
 }
 export function loadPartLibrary() {
   return loading ??= (async () => {
-    await loadGeneratedModels()
+    await Promise.all([loadGeneratedModels(),loadBuiltinModels()])
     for (const part of createBuiltinParts()) partLibrary[part.id] = part
     try {
       for (const part of await readAll()) { try { validatePart(part); partLibrary[part.id] = resolvePartModels(part) } catch { /* Reject only the damaged entry. */ } }

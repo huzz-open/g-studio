@@ -1,7 +1,7 @@
 const { test } = require('node:test'), assert = require('node:assert/strict')
 const fs = require('node:fs'), ts = require('typescript')
 require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, filename)
-const { buildUmbrella, DEFAULT_SHAPE } = require('../src/modules/experiments/umbrella/geometry.ts')
+const { buildUmbrella, DEFAULT_SHAPE } = require('../src/modules/experiments/umbrella/model.ts')
 const { camera, transform } = require('../src/modules/experiments/umbrella/math.ts')
 test('umbrella canopy is elevated, while only its thin pole reaches the ground', () => {
   const mesh = buildUmbrella(DEFAULT_SHAPE)

@@ -23,7 +23,7 @@ Serve `dist/` and proxy the relay API through the same public HTTPS domain when 
 | `RELAY_HOST` | `127.0.0.1`; expose through the reverse proxy |
 | `RELAY_PORT` | `8787` |
 | `RELAY_HOME` | `~/.g-studio/relay`; device hashes, browser grants and task metadata only; images/models are never stored here |
-| `RELAY_MAX_MEMORY_MB` | Payload buffer quota, default 512MiB; output reception reserves 256MiB for a maximum 128MiB file and concatenation. `RELAY_MAX_STORAGE_MB` remains a legacy alias. |
+| `RELAY_MAX_STORAGE_MB` | Persistent transfer-file quota, default 512 MiB. Existing results are never evicted; new transfers fail when capacity is insufficient. |
 | `RELAY_TRUSTED_PROXIES` | Comma-separated exact proxy IPs permitted to supply `X-Forwarded-For`; empty by default. With the nginx example use `127.0.0.1,::1`. |
 | `RELAY_ORIGINS` | Exact comma-separated browser origins; set to the actual public HTTPS site |
 | `RELAY_TLS_CERT` / `RELAY_TLS_KEY` | Optional certificate chain and private key paths for native HTTPS/WSS instead of reverse-proxy TLS termination |
@@ -71,14 +71,14 @@ Five invalid pairing attempts within ten minutes block the client IP for fifteen
 
 To revoke browser access, use **Unpair device** in a compatible legacy client. This revokes only the current browser grant and its unfinished tasks, leaving other approved browsers unaffected. To retire a worker identity, stop it and remove its private credentials before creating a new identity; old grants remain tied to the old identity.
 
-## Temporary data
+## Stored results
 
-The relay buffers input images and generated GLBs in bounded memory. Inputs are released as soon as the worker accepts the job; outputs are released after HTTP delivery (or client disconnection). Abandoned input buffers expire after two minutes, output buffers after one minute; a ten-second sweeper releases unused expired buffers. Active HTTP deliveries remain accounted for until their stream ends. Cancellation, revocation and acknowledgment also release buffers. A browser may have at most 20 task records; metadata expires after one hour (active task polling renews this deadline). Authorization and task metadata still persist in `state.json` for reconnects, but contain no image/model bytes. Known legacy `.input`/`.output` files are removed during upgrade startup.
+The relay stores input images and generated GLBs persistently under `files/`. Files are retained after downloads, disconnections, acknowledgment-free completion and service restarts. Task records have no expiry. Only an explicit authorized `DELETE /v1/jobs/{id}` deletes the worker task files, relay files and relay record; active transfers/tasks must finish or be cancelled first. The browser's task-history removal invokes this endpoint without deleting locally referenced model assets. Capacity limits reject new transfers rather than evict existing results. `RELAY_MAX_STORAGE_MB` sets the persistent-file quota (default 512 MiB); at most 20 nonterminal tasks per browser may be active. Credential and pairing lifetimes remain independent of stored model data.
 
 The local worker still stores its task data separately; these relay changes do not make local inference file-free. To ensure no public transfer files are written, use the nginx buffering settings above and check any CDN/load-balancer in front of it. The Node process still has normal runtime/OS memory overhead beyond the payload quota.
 
 ## Disconnects and restarts
 
-The relay authenticates workers over WSS, correlates RPC replies to the originating device and uses durable idempotency keys. Temporary disconnects do not reassign a running task to another device. On restart, workers reconnect and accepted task queries resume. In-memory transfer buffers are lost: an unfinished input upload must be resubmitted, while a generated output can be fetched again from the local worker until it has been acknowledged/expired. If the worker process itself restarts, incomplete local jobs are explicitly marked interrupted rather than silently recomputed.
+The relay authenticates workers over WSS, correlates RPC replies to the originating device and uses durable idempotency keys. Temporary disconnects do not reassign a running task to another device. On restart, workers reconnect and accepted task queries resume. Completed relay transfers remain on disk, and generated worker outputs remain available until the user explicitly deletes their task. Incomplete uploads may be retried. If the worker process itself restarts, incomplete local jobs are explicitly marked interrupted rather than silently recomputed.
 
 Local TLS integration tests are recorded in the dated [validation report](../../docs/history/model-generation-validation.md). They do not establish production reverse-proxy or public-network compatibility.

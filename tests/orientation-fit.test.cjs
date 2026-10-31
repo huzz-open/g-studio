@@ -4,7 +4,7 @@ const {buildItem,meshBuilder,RIGHT,UP}=require('../src/modules/scene-lighting/mo
 const {findOrientation,rasterizeProjection,imageSilhouette,silhouetteIoU,rotateMesh}=require('../src/modules/scene-lighting/orientation-fit.ts')
 const {dot,cross,sub,normalize}=require('../src/modules/experiments/umbrella/math.ts')
 const {createBuiltinParts}=require('../src/shared/parts/builtins.ts')
-const {alignPartGeometry,buildPartGeometry,meshExtents}=require('../src/modules/scene-lighting/part-geometry.ts')
+const {alignPartModel,buildPartModel,meshExtents}=require('../src/modules/scene-lighting/part-model.ts')
 const {visiblePixelBounds,fitMeshProjection}=require('../src/modules/scene-lighting/image-fit.ts')
 const {nelderMead}=require('../src/shared/utils/nelder-mead.ts')
 const {contourField,symmetricChamfer}=require('../src/modules/scene-lighting/contour-distance.ts')
@@ -42,12 +42,12 @@ test('already matching pose is retained and empty images fail',()=>{
  assert.throws(()=>findOrientation(positions(mesh),{width:1,height:1,data:new Uint8ClampedArray(4)}))
 })
 test('rotation and registration transform shaded vertices, shadow triangles and normals together',()=>{
- const part=createBuiltinParts().find(p=>p.id==='example:chair'),image=referenceImage(buildItem('chair'),[10,60,5]);alignPartGeometry(part,image)
- part.geometry.imageFit.rotation=[10,60,5];const mesh=buildPartGeometry(part,image)
+ const part=createBuiltinParts().find(p=>p.id==='example:chair'),image=referenceImage(buildItem('chair'),[10,60,5]);part.model=require('./fixtures/builtin-models.cjs').model();delete part.modelComparison;part.version=2;alignPartModel(part,image)
+ part.model.imageFit.rotation=[10,60,5];const mesh=buildPartModel(part,image)
  assert.ok(Math.abs(meshExtents(mesh).min[1])<1e-5)
  mesh.triangles.forEach((tri,t)=>{tri.forEach((p,i)=>p.forEach((v,j)=>assert.ok(Math.abs(v-mesh.vertices[t*27+i*9+j])<1e-5)));const n=normalize(cross(sub(tri[1],tri[0]),sub(tri[2],tri[0])));for(let j=0;j<3;j++)assert.ok(Math.abs(n[j]-mesh.vertices[t*27+3+j])<1e-4)})
- const saved=clonePart(part);validatePart(saved);assert.deepEqual(saved.geometry.imageFit.rotation,[10,60,5]);assert.deepEqual(buildPartGeometry(saved,image).vertices,mesh.vertices)
- for(const mutation of [p=>p.geometry.imageFit.rotation=[0,NaN,0],p=>p.geometry.imageFit.rotation=[0,181,0],p=>p.geometry.imageFit.orientation={rotation:[0,0,0],score:2,initialScore:0,meshSha256:'a'.repeat(64)}]){const bad=clonePart(part);mutation(bad);assert.throws(()=>validatePart(bad))}
+ const saved=clonePart(part);validatePart(saved);assert.deepEqual(saved.model.imageFit.rotation,[10,60,5]);assert.deepEqual(buildPartModel(saved,image).vertices,mesh.vertices)
+ for(const mutation of [p=>p.model.imageFit.rotation=[0,NaN,0],p=>p.model.imageFit.rotation=[0,181,0],p=>p.model.imageFit.orientation={rotation:[0,0,0],score:2,initialScore:0,meshSha256:'a'.repeat(64)}]){const bad=clonePart(part);mutation(bad);assert.throws(()=>validatePart(bad))}
 })
 test('triangle rasterization preserves an actual opening instead of filling the bounding box',()=>{
  const b=meshBuilder();b.box(-1,0,0,.2,2,.1,[1,1,1]);b.box(1,0,0,.2,2,.1,[1,1,1]);b.box(0,1.8,0,2,.2,.1,[1,1,1])
@@ -68,7 +68,7 @@ test('Chamfer distance is symmetric and includes hole edges',()=>{
  assert.equal(symmetricChamfer(A,A),0);assert.ok(symmetricChamfer(A,B)>0);assert.equal(symmetricChamfer(A,B),symmetricChamfer(B,A))
 })
 test('similarity size fit preserves pairwise distances in all three axes',()=>{
- const b=meshBuilder();b.box(0,0,0,1,2,3,[1,1,1]);const mesh=b.build(),fit=fitMeshProjection(mesh,[.4,.3,4,1],[1,1,1],true,[.1,.05,-.02])
+ const b=meshBuilder();b.box(0,0,0,1,2,3,[1,1,1]);const mesh=b.build(),fit=fitMeshProjection(mesh,[.4,.3,4,1],[1,1,1],[.1,.05,-.02])
  let ratio
  for(let i=9;i<mesh.vertices.length;i+=9){const distance=(m)=>Math.hypot(...[0,1,2].map(j=>m.vertices[i+j]-m.vertices[j]));const a=distance(mesh),c=distance(fit);if(a<1e-8)continue;if(ratio===undefined)ratio=c/a;assert.ok(Math.abs(c/a-ratio)<1e-5)}
 })
@@ -80,7 +80,7 @@ test('one algorithm handles sideways, upside-down, branched and rotationally sym
  }
 })
 
-test('unlabelled composite geometry uses the same fit and is invariant to source units and translation',()=>{
+test('unlabelled composite model uses the same fit and is invariant to source units and translation',()=>{
  const b=meshBuilder();b.box(-.8,.1,.2,.3,2.4,.35,[1,1,1]);b.box(.4,.3,-.5,.4,1.3,.6,[1,1,1]);b.box(0,1.7,.3,2,.25,.8,[1,1,1]);b.box(.7,.1,.5,.25,.6,.2,[1,1,1])
  const mesh=b.build(),source=positions(mesh),input=referenceImage(mesh,[-55,125,110],256)
  const result=findOrientation(source,input);assert.ok(result.silhouetteCandidate.score>.85);assert.ok(result.surfaceRetention>=.65);assert.ok(result.score>=result.initialScore);if(result.score<.85)assert.equal(result.reviewRequired,true)
@@ -106,3 +106,5 @@ test('migration removes obsolete automatic rotation but preserves manual edits a
  g.imageFit.orientation={...g.imageFit.orientation,method:ORIENTATION_METHOD,rotation:[5,2,1],referenceRotation:[0,0,0]}
  assert.deepEqual(orientationReference(g),[0,0,0]);g.mesh.sha256='new';assert.deepEqual(orientationReference(g),[0,0,0])
 })
+
+require('node:test').before(()=>require('./fixtures/builtin-models.cjs').install())

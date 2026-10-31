@@ -15,7 +15,7 @@ function fixture() {
   const file = require.resolve('../src/shared/parts/ModelComparisonViewport.vue')
   const localRequire = require('node:module').createRequire(file), mod = { exports: {} }
   new Function('require', 'module', 'exports', code)(name => {
-    if (name.endsWith('LightingViewport.vue')) return { __esModule: true, default: viewport }
+    if ((name.endsWith('LightingViewport.vue')||name.endsWith('ModelImageViewport.vue'))) return { __esModule: true, default: viewport }
     if (name === '../i18n') return { useI18n: () => ({ t: key => key }) }
     return localRequire(name)
   }, mod, mod.exports)
@@ -28,7 +28,7 @@ function fixture() {
     remove(n) { n.parent.children.splice(n.parent.children.indexOf(n), 1) },
   })
   global.ResizeObserver = class { observe() {} disconnect() {} }
-  const part = { id: 'model', image: {}, normal: {}, geometry: {}, alignment: {} }
+  const part = { id: 'model', image: {}, normal: {}, model: {}, imageFrame: {left:0,bottom:0,height:2} }
   let fits = 0, ready = 0
   const app = renderer.createApp(mod.exports.default, { original: part, candidate: part, state: { mode: 'sprites' }, autoFit: true, fitView: () => fits++, onReady: () => ready++ })
   const root = node('root'); app.mount(root)

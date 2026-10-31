@@ -1,9 +1,10 @@
 import { Matrix3, Matrix4, Quaternion, Vector3 } from "three";
+import { TARGET_FACES_MAX, MAX_MESH_URI_LENGTH } from '../../../packages/generation-protocol/limits';
 import type { Mesh } from "../../modules/scene-lighting/model";
 import { meshBuilder } from "../../modules/scene-lighting/model";
 import type { Vec3 } from "../../modules/experiments/umbrella/math";
 
-export interface MeshGeometry {
+export interface MeshModel {
   modelId?: string;
   modelRevision?: number;
   providerVersion?: string;
@@ -21,13 +22,13 @@ export interface MeshGeometry {
   warnings: string[];
 }
 const cache = new Map<string, Mesh>();
-const MAX_FACES = 40000;
+const MAX_FACES = TARGET_FACES_MAX;
 /** Bounded, self-contained GLB importer. No network, extensions, skins or animation. */
 export function decodeMesh(uri: string): Mesh {
   const cached = cache.get(uri);
   if (cached) return cached;
   const prefix = "data:model/gltf-binary;base64,";
-  if (!uri.startsWith(prefix) || uri.length > 24 * 1024 * 1024)
+  if (!uri.startsWith(prefix) || uri.length > MAX_MESH_URI_LENGTH)
     throw Error("Invalid/oversized embedded GLB");
   const raw = atob(uri.slice(prefix.length)),
     buffer = new ArrayBuffer(raw.length),
@@ -116,7 +117,7 @@ export function decodeMesh(uri: string): Mesh {
                 : bytesPer === 2
                   ? view.getUint16(p, true)
                   : view.getUint32(p, true);
-        if (!Number.isFinite(n)) throw Error("Non-finite geometry");
+        if (!Number.isFinite(n)) throw Error("Non-finite model");
         out.push(n);
       }
     return out;

@@ -27,15 +27,15 @@ const runs = report.runs.map(r=>{
         const {createSceneRenderer}=await import('/src/modules/scene-lighting/renderer.ts')
         const {createBuiltinParts}=await import('/src/shared/parts/builtins.ts')
         const {decodeMesh}=await import('/src/shared/parts/mesh.ts')
-        const {meshExtents,alignedBounds,buildPartGeometry}=await import('/src/modules/scene-lighting/part-geometry.ts')
+        const {meshExtents,imageBounds,buildPartModel}=await import('/src/modules/scene-lighting/part-model.ts')
         const {createScene,RIGHT,UP}=await import('/src/modules/scene-lighting/model.ts')
         const canvas=document.querySelector('canvas'),renderer=createSceneRenderer(canvas,{selectionOutline:false})
         const part=createBuiltinParts().find(p=>p.id===`example:${input.id}`)
         part.version=2;part.image={uri:input.imageUri,width:input.width,height:input.height}
-        part.geometry={kind:'mesh',size:meshExtents(decodeMesh(input.meshUri)).size,mesh:{uri:input.meshUri,sha256:input.meshSha256,inputSha256:input.inputSha256,providerId:input.provider,warnings:[]}}
+        part.model={kind:'mesh',size:meshExtents(decodeMesh(input.meshUri)).size,mesh:{uri:input.meshUri,sha256:input.meshSha256,inputSha256:input.inputSha256,providerId:input.provider,warnings:[]}}
         const before=JSON.parse(JSON.stringify(part)),after=JSON.parse(JSON.stringify(part))
-        after.geometry.imageFit=input.fit;after.alignment.height=input.bounds.height/after.alignment.scale
-        if(input.repair){before.geometry.imageFit=input.fit;before.alignment.height=after.alignment.height;after.geometry.repair=input.repair}
+        after.model.imageFit=input.fit;after.imageFrame={left:input.bounds.left,bottom:input.bounds.bottom,height:input.bounds.height}
+        if(input.repair){before.model.imageFit=input.fit;before.imageFrame={...after.imageFrame};after.model.repair=input.repair}
         const state={...createScene(),scene:'open',selected:'',showNames:false,zoom:6.8,target:[0,.85,0],ambient:.22,power:24,filtered:true,shadows:true,
           items:[{id:'subject',assetId:part.id,scale:1,x:0,z:0,visible:true,casts:true,receives:true}]}
         const lights=[{id:'point',label:'左前上方点光源',lightKind:'point',light:[-3,4,4],power:24},
@@ -65,11 +65,11 @@ const runs = report.runs.map(r=>{
             Object.assign(state,light);state.mode='sprites';state.shadows=true
             renderer.render(state);images[stage+'-'+light.id+'-lit']=canvas.toDataURL()
             state.shadows=false;renderer.render(state);images[stage+'-'+light.id+'-no-shadow']=canvas.toDataURL()
-            state.shadows=true;state.mode='geometry';renderer.render(state);images[stage+'-'+light.id+'-geometry']=canvas.toDataURL()
+            state.shadows=true;state.mode='model';renderer.render(state);images[stage+'-'+light.id+'-model']=canvas.toDataURL()
             state.mode='visibility';renderer.render(state);images[stage+'-'+light.id+'-visibility']=canvas.toDataURL()
             captures.push({stage,light:JSON.parse(JSON.stringify(light)),state:JSON.parse(JSON.stringify({...state,mode:'sprites'}))})
           }
-          const bounds=alignedBounds(asset,buildPartGeometry(asset,{width:0,height:0,data:new Uint8ClampedArray()}))
+          const bounds=imageBounds(asset)
           const location=(x,y)=>renderer.project(RIGHT.map((v,j)=>v*x+UP[j]*y),state)
           const tl=location(bounds.left,bounds.bottom+bounds.height),br=location(bounds.left+bounds.width,bounds.bottom)
           if(stage==='before'){

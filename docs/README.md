@@ -25,9 +25,9 @@
 
 | 文档 | 内容 |
 | --- | --- |
-| [部件格式与资产](reference/parts.md) | 格式、几何、实例和可移植导出 |
+| [部件格式与资产](reference/parts.md) | 格式、模型、实例和可移植导出 |
 | [.gs 工程格式](reference/gs-format.md) | 当前类型、版本与读写入口 |
-| [光照渲染](reference/lighting.md) | 灯光、代理几何、表面缓存和阴影 |
+| [光照渲染](reference/lighting.md) | 灯光、代理模型、表面缓存和阴影 |
 | [共享编辑器](reference/editor.md) | 标签页、历史、控件和后台计算 |
 | [模型生成与采用规则](reference/generation-workflow.md) | 参数、记录、模型快照和候选失效 |
 | [生成协议](../packages/generation-protocol/README.md) | HTTP、任务生命周期与 Provider 扩展（EN） |

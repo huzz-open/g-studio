@@ -16,7 +16,7 @@ import {
   snapToBoundary as _snapToBoundary,
   clampToRect as _clampToRect,
   findClosestHit as _findClosestHit,
-} from '../core/split/geometry'
+} from '../core/split/model'
 
 const { t } = useI18n()
 const { settings } = useSettings()

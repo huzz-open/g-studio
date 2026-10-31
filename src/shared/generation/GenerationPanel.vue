@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref, useId, watch } from 'vue'
 import { useI18n } from '../i18n'
 import type { PartAsset } from '../parts/schema'
+import { comparisonInputKey, repairKey } from '../../modules/scene-lighting/model-repair'
+import { selectPartModel } from '../parts/model-options'
 import { clonePart } from '../parts/schema'
 import { portablePart, partImageUrl } from '../parts/images'
 import GenerationQueue from './GenerationQueue.vue'
@@ -18,12 +20,14 @@ import GenerationActions, { type GenerationAction } from './GenerationActions.vu
 import InfoHint from '../components/InfoHint.vue'
 import GenerationSettings from './GenerationSettings.vue'
 const ModelViewer = defineAsyncComponent(() => import('./ModelViewer.vue'))
+const reviewControlsId = 'generation-review-' + useId()
 const props = withDefaults(defineProps<{
   part: PartAsset; jobId?: string; sidebarTarget?: string; embedded?: boolean; origin?: 'scene' | 'slicer'
 }>(), { embedded: false })
 const emit = defineEmits<{ apply: [part: PartAsset]; close: []; jobCreated: [id: string, sourceId: string] }>()
 const { t } = useI18n()
 const mounted = ref(false), busy = ref(false), error = ref(''), selectedId = ref(props.jobId || '')
+const reviewedPart=ref<PartAsset>(),reviewBusy=ref(false)
 const partJobs = computed(() => generationJobs.filter(j => j.source?.assetId === props.part.id))
 const job = computed(() => findGenerationJob(selectedId.value)
   ?? (props.origin ? latestPartJob(partJobs.value, props.part.id) : undefined))
@@ -43,25 +47,35 @@ async function generate(mode: GenerationAction) {
     const snapshot = clonePart(props.part), connection = snapshotGenerationConnection(parameters.value)
     const target=job.value
     const created=(created: LocalJob)=>{ if(mode!=='overwrite'){selectedId.value=created.localId;emit('jobCreated',created.localId,snapshot.id)} }
-    if(mode!=='initial' && target?.geometry) {
+    if(mode!=='initial' && target?.model) {
       if(mode==='overwrite') selectedId.value=target.localId
-      await regenerateModel(target, mode, connection, created, props.origin ? {assetId:snapshot.id,origin:props.origin} : undefined)
+      await regenerateModel(target, mode, connection, created, props.origin ? {assetId:snapshot.id,origin:props.origin,imageFrame:snapshot.imageFrame} : undefined)
     }
     else {
       const input = await portablePart(snapshot)
-      await createGenerationJob(snapshot.name,input.image.uri,connection,props.origin ? {assetId:snapshot.id,origin:props.origin}:undefined,created)
+      await createGenerationJob(snapshot.name,input.image.uri,connection,props.origin ? {assetId:snapshot.id,origin:props.origin,imageFrame:snapshot.imageFrame}:undefined,created)
     }
   })
 }
 async function apply() {
   await action(async () => {
     const result = job.value
-    if (!props.origin || !result?.geometry) return
+    if (!props.origin || !result?.model) return
     const snapshot = clonePart(props.part), input = await portablePart(snapshot)
     const hash = await sha256(await (await fetch(input.image.uri)).arrayBuffer())
     if (hash !== result.request.inputSha256 || JSON.stringify(snapshot) !== JSON.stringify(props.part)) throw Error(t('generation.stale'))
-    // Only replace geometry; keep the caller's current name, alignment and normal settings.
-    emit('apply', { ...snapshot, version: 2, geometry: clonePart(result.geometry) })
+    // Only replace model; keep the caller's current name, image frame and normal settings.
+    selectPartModel(snapshot,result.model)
+    const reviewed=reviewedPart.value
+    const applied:PartAsset={...snapshot,version:2,model:clonePart(reviewed?.model??result.model),modelComparison:reviewed?.modelComparison?clonePart(reviewed.modelComparison):undefined}
+    // The verified pixels are identical, but bundled and embedded image URIs differ.
+    if(applied.modelComparison){
+      applied.modelComparison.inputKey=comparisonInputKey(applied)
+      const c=applied.modelComparison
+      if(reviewed&&c.candidate?.repair&&c.candidate.repair.key===repairKey({...reviewed,model:c.candidate}))c.candidate.repair.key=repairKey({...applied,model:c.candidate})
+    }
+    if(reviewed&&applied.model.repair&&applied.model.repair.key===repairKey(reviewed))applied.model.repair.key=repairKey(applied)
+    emit('apply',applied)
   })
 }
 async function discard(value: LocalJob) {
@@ -71,11 +85,11 @@ onMounted(async () => {
   mounted.value = true
   try {
     await loadGenerationJobs()
-    const unfinished = partJobs.value.find(task=>!task.geometry && (!task.remote || ['queued','running','cancel_requested'].includes(task.remote.status)))
+    const unfinished = partJobs.value.find(task=>!task.model && (!task.remote || ['queued','running','cancel_requested'].includes(task.remote.status)))
     if (!props.jobId && unfinished) { selectedId.value=unfinished.localId; return }
-    if (!props.jobId && props.part.geometry.mesh) {
+    if (!props.jobId && props.part.model.mesh) {
       const input = await portablePart(props.part)
-      const existing = await registerExistingModel(props.part.name, input.image.uri, props.part.geometry, snapshotGenerationConnection(),
+      const existing = await registerExistingModel(props.part.name, input.image.uri, props.part.model, snapshotGenerationConnection(),
         props.origin ? { assetId:props.part.id, origin:props.origin } : undefined)
       selectedId.value=existing.localId
     }
@@ -90,18 +104,19 @@ onMounted(async () => {
         <aside class="generation-properties" :class="{ embedded }">
           <button v-if="!canGenerateModels" class="connect-action" @click="openGenerationSettings">{{ t('generation.connectionSettings') }}</button>
           <GenerationSettings section="defaults" :parameters="parameters" :disabled="busy" />
-          <div class="gen-section"><GenerationActions :existing="!!job?.geometry" :busy="busy" :replacing="modelReplacing(job)" :disabled="!canGenerateModels" @generate="generate" /></div>
+          <div class="gen-section"><GenerationActions :existing="!!job?.model" :busy="busy" :replacing="modelReplacing(job)" :disabled="!canGenerateModels" @generate="generate" /></div>
           <div v-if="failure" class="gen-error" role="alert"><span>{{ t('generation.actionFailed') }}</span><InfoHint :label="t('generation.details')" :text="failure" /></div>
+          <div :id="reviewControlsId" />
         </aside>
       </Teleport>
       <main>
-        <ModelViewer v-if="job?.geometry?.mesh" :uri="job.geometry.mesh.uri" :image="sourceImage" :name="part.name" />
+        <ModelViewer v-if="job?.model?.mesh" :controls-target="'#'+reviewControlsId" :uri="job.model.mesh.uri" :model="job.model" :comparison="job.comparison" :source-part="part" @change="reviewedPart=$event" @busy="reviewBusy=$event" :image="sourceImage" :name="part.name" />
         <div v-else class="source-preview"><img :src="sourceImage" :alt="part.name" /></div>
         <GenerationQueue v-if="origin" :jobs="partJobs" :selected-id="job?.localId" @select="selectedId = $event.localId" @remove="discard" />
       </main>
       <aside class="task-properties"><GenerationTaskDetails :job="job" /></aside>
     </div>
-    <footer v-if="origin"><span>{{ part.name }}</span><button class="apply-model" :disabled="busy || !job?.geometry" @click="apply">{{ t('generation.useForPart') }}</button></footer>
+    <footer v-if="origin"><span>{{ part.name }}</span><button class="apply-model" :disabled="busy || reviewBusy || !job?.model || !reviewedPart" @click="apply">{{ t('generation.useForPart') }}</button></footer>
   </section>
 </template>
 <style scoped>

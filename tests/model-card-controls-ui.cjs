@@ -1,0 +1,24 @@
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright'),assert=require('node:assert/strict'),fs=require('node:fs');
+(async()=>{const browser=await chromium.launch({channel:'msedge',headless:true});try{
+ const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(String(e)));
+ await page.addInitScript(()=>{window.mod=p=>import(performance.getEntriesByType('resource').find(e=>e.name.includes(p))?.name||p)});
+ await page.goto(process.env.G_STUDIO_TEST_URL||'http://127.0.0.1:5186');await page.locator('.module-card').first().waitFor();
+ await page.evaluate(async()=>{const {loadPartLibrary}=await window.mod('/src/shared/parts/library.ts');await loadPartLibrary();const {openPartEditor}=await window.mod('/src/shared/parts/editor-session.ts');openPartEditor({assetId:'example:chair',origin:'scene'})});
+ const editor=page.locator('.part-editor');await editor.locator('.model-comparison:not(.hidden-view)').waitFor();
+ await page.evaluate(()=>window.helpNode=document.querySelector('.review-help'));
+ const initial=await editor.locator('.review-help').boundingBox();await editor.getByRole('button',{name:'差异图',exact:true}).click();await editor.locator('.reference-overlay').first().waitFor();
+ assert.ok((await editor.locator('.review-help').innerText()).includes('绿色'));assert.equal(await page.evaluate(()=>window.helpNode===document.querySelector('.review-help')),true);
+ assert.equal(await editor.locator('.reference-overlay .legend,.comparison-help').count(),0);assert.equal((await editor.locator('.review-help').boundingBox()).y,initial.y);
+ fs.mkdirSync('.generation-test/model-card-controls',{recursive:true});await page.screenshot({path:'.generation-test/model-card-controls/difference.png'});
+ await editor.locator('.model-trigger').click();const menu=page.locator('.model-menu'),card=menu.locator('.model-card-entry'),add=menu.locator('.model-create'),check=card.getByRole('checkbox',{name:'使用优化结果',exact:true});
+ await check.waitFor();assert.equal(await check.isChecked(),true);
+ const box=await card.boundingBox(),checkbox=await check.boundingBox(),plus=await add.boundingBox();assert.ok(checkbox.x>box.x+box.width/2&&checkbox.y>box.y+box.height-36);assert.ok(Math.abs(plus.y-box.y)<2&&Math.abs(plus.height-box.height)<2);
+ assert.equal(await menu.locator('.scroll-content').evaluate(e=>getComputedStyle(e).paddingRight),'0px');assert.equal(await menu.locator('.scroll-thumb').count(),0);
+ const canvas=card.locator('canvas[data-preview-state=ready]');await canvas.waitFor();const first=await canvas.evaluate(c=>c.toDataURL());await page.waitForTimeout(350);assert.notEqual(await canvas.evaluate(c=>c.toDataURL()),first,'visible models rotate');
+ await page.screenshot({path:'.generation-test/model-card-controls/menu.png'});
+ await check.uncheck();assert.equal(await check.isChecked(),false);assert.equal(await card.locator('[aria-checked=true]').count(),1,'optimization does not change the selected model');
+ await page.keyboard.press('Escape');await editor.locator('.model-trigger').click();await canvas.waitFor();const reopened=await canvas.evaluate(c=>c.toDataURL());await page.waitForTimeout(350);assert.notEqual(await canvas.evaluate(c=>c.toDataURL()),reopened,'cached cards also rotate');
+ await page.emulateMedia({reducedMotion:'reduce'});await page.waitForTimeout(150);const still=await canvas.evaluate(c=>c.toDataURL());await page.waitForTimeout(250);assert.equal(await canvas.evaluate(c=>c.toDataURL()),still);
+ await add.click();await page.locator('.generation-overlay').waitFor();assert.equal(await menu.evaluate(e=>e.matches(':popover-open')),false);
+ assert.deepEqual(errors,[]);console.log('PASS: in-card checkbox, no gutter, add card, live/cached rotation with reduced-motion support, one persistent bottom hint');
+}finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1});

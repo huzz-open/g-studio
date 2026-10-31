@@ -12,16 +12,36 @@ const { generationParametersFor, modelParametersFor } = await import('../src/sha
 const { snapshotGenerationConnection } = await import('../src/shared/generation/request-snapshot.ts')
 const { generationConnection } = await import('../src/shared/generation/connection.ts')
 
+test('saved million-face preferences survive reload and new requests use advertised 128 default', () => {
+  storage.set('g-studio-generation-parameters-v1:large-model', JSON.stringify({
+    targetFaces: 1_000_000, seed: 77, parametersByProvider: {},
+  }))
+  const parameters = generationParametersFor('large-model')
+  assert.equal(parameters.targetFaces, 1_000_000)
+  const previous = generationConnection.capabilities
+  generationConnection.capabilities = { protocolVersion: 1, providers: [{
+    providerId: 'hunyuan-mini', name: 'Mini', parameters: {
+      resolution: { min: 128, max: 512, default: 128, integer: true },
+    },
+  }], targetFaces: { min: 1000, max: 1_000_000, default: 40000 },
+  limits: { inputBytes: 100, inputDimension: 100, outputBytes: 100, concurrency: 1, queue: 1 } }
+  try {
+    assert.equal(snapshotGenerationConnection(parameters).parametersByProvider['hunyuan-mini']!.resolution, 128)
+  } finally {
+    generationConnection.capabilities = previous
+  }
+})
+
 test('part edits are isolated from other sources, global defaults and submitted snapshots', () => {
   generationSettings.parametersByProvider = { 'hunyuan-mini': { steps: 5, resolution: 256 } }
   const chair = generationParametersFor('chair'), barrel = generationParametersFor('barrel')
   chair.targetFaces = 24000; chair.seed = 77
   chair.parametersByProvider['hunyuan-mini']!.steps = 10
   chair.parametersByProvider['hunyuan-mini']!.resolution = 128
-  assert.equal(barrel.targetFaces, 12000)
+  assert.equal(barrel.targetFaces, 40000)
   assert.equal(barrel.seed, 12345)
   assert.deepEqual(barrel.parametersByProvider['hunyuan-mini'], { steps: 5, resolution: 256 })
-  assert.equal(generationSettings.targetFaces, 12000)
+  assert.equal(generationSettings.targetFaces, 40000)
   assert.equal(generationSettings.seed, 12345)
   assert.equal(generationSettings.parametersByProvider['hunyuan-mini']!.steps, 5)
   const submitted = snapshotGenerationConnection(chair)
@@ -43,7 +63,7 @@ test('draft persistence survives the panel effect scope, and stores no credentia
   generationParametersFor('reopened').seed = 202
   const saved = JSON.parse(storage.get('g-studio-generation-parameters-v1:reopened')!)
   assert.equal(saved.seed, 202)
-  assert.deepEqual(Object.keys(saved).sort(), ['parametersByProvider', 'seed', 'targetFaces'])
+  assert.deepEqual(Object.keys(saved).sort(), ['optimizeModel', 'parametersByProvider', 'seed', 'targetFaces'])
   storage.set('g-studio-generation-parameters-v1:restored', JSON.stringify(saved))
   assert.equal(generationParametersFor('restored').seed, 202)
 })
@@ -55,7 +75,7 @@ test('global default changes seed only new drafts and malformed storage falls ba
   storage.set('g-studio-generation-parameters-v1:broken', '{')
   storage.set('g-studio-generation-parameters-v1:invalid', JSON.stringify({ targetFaces: -1, seed: 2, parametersByProvider: {} }))
   assert.equal(generationParametersFor('broken').seed, 303)
-  assert.equal(generationParametersFor('invalid').targetFaces, 12000)
+  assert.equal(generationParametersFor('invalid').targetFaces, 40000)
 })
 
 test('provider defaults are filled in the snapshot without leaking global overrides', () => {
@@ -92,7 +112,7 @@ test('custom initial values remain independent inputs without becoming reset bas
 })
 
 test('legacy drafts discard only obsolete baselines while preserving all saved inputs', () => {
-  const inputs = { targetFaces: 16000, seed: 99, parametersByProvider: { 'hunyuan-mini': { steps: 9, resolution: 128 } } }
+  const inputs = { optimizeModel:true, targetFaces: 16000, seed: 99, parametersByProvider: { 'hunyuan-mini': { steps: 9, resolution: 128 } } }
   storage.set('g-studio-generation-parameters-v1:legacy', JSON.stringify({ ...inputs, baseline: { targetFaces: 24000, seed: 87844, parametersByProvider: {} } }))
   const draft = generationParametersFor('legacy')
   assert.equal(draft.targetFaces, 16000)
@@ -111,4 +131,14 @@ test('model request values seed editable inputs without rewriting the job or def
   assert.equal('baseline' in draft, false)
   draft.targetFaces = 12000; draft.seed = 12345; draft.parametersByProvider['hunyuan-mini']!.steps = 5
   assert.equal(JSON.stringify(job), before)
+})
+
+test('generation optimization defaults on and is captured independently for each submitted job',()=>{
+ const params=generationParametersFor('optimization-step')
+ assert.equal(params.optimizeModel,true)
+ params.optimizeModel=false
+ const submitted=snapshotGenerationConnection(params)
+ params.optimizeModel=true
+ assert.equal(submitted.optimizeModel,false)
+ assert.equal(snapshotGenerationConnection(params).optimizeModel,true)
 })

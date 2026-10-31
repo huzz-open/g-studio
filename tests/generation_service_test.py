@@ -137,7 +137,6 @@ class GenerationIntegration(unittest.TestCase):
                     "clientRequestId": "interrupted-fixture",
                     "fingerprint": "fixture",
                     "createdAt": time.time(),
-                    "expiresAt": None,
                 }
             )
         )
@@ -219,7 +218,7 @@ class GenerationIntegration(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertEqual(recovered["status"], "failed")
         self.assertEqual(recovered["error"]["code"], "INTERRUPTED")
-        self.assertGreater(recovered["expiresAt"], time.time())
+        self.assertNotIn("expiresAt", recovered)
         self.assertEqual(call(self.base, "/v1/info")[0], 401)
         self.assertEqual(
             call(
@@ -293,9 +292,9 @@ class GenerationIntegration(unittest.TestCase):
         code, job = call(self.relay, "/v1/jobs", token, "POST", payload, h)
         self.assertEqual(code, 202, job)
         done = self.wait_job(self.relay, token, job["id"])
-        self.assertFalse((self.home / "relay" / (job["id"] + ".input")).exists())
+        self.assertTrue((self.home / "relay" / "files" / (job["id"] + ".input")).exists())
         worker_secret = json.loads((self.home / "worker/config.json").read_text())["deviceSecret"]
-        self.assertEqual(call(self.relay, "/worker/files/" + job["id"] + "/input", worker_secret)[0], 410)
+        self.assertEqual(call(self.relay, "/worker/files/" + job["id"] + "/input", worker_secret)[0], 200)
         self.assertEqual(done["status"], "succeeded", done)
         self.assertEqual(
             call(self.relay, "/v1/jobs/" + job["id"], "wrong-token")[0], 401
@@ -305,8 +304,8 @@ class GenerationIntegration(unittest.TestCase):
         )
         self.assertEqual(code, 200, binary)
         self.assertEqual(binary[:4], b"glTF")
-        self.assertFalse((self.home / "relay" / (job["id"] + ".output")).exists())
-        # Delivery releases the public buffer; retry re-fetches from the local worker.
+        self.assertTrue((self.home / "relay" / "files" / (job["id"] + ".output")).exists())
+        # Delivery retains the file; retries return the same persisted output.
         again_code, again = call(self.relay, "/v1/jobs/" + job["id"] + "/outputs/shadow", token)
         self.assertEqual(again_code, 200)
         self.assertEqual(again, binary)
@@ -338,6 +337,17 @@ class GenerationIntegration(unittest.TestCase):
         code, replayed = call(self.relay, "/v1/jobs", token, "POST", payload, h)
         self.assertEqual(code, 202, replayed)
         self.assertEqual(replayed["id"], job["id"])
+        code, persisted = call(self.relay, "/v1/jobs/" + job["id"] + "/outputs/shadow", token)
+        self.assertEqual((code, persisted), (200, binary))
+        state = json.loads((self.home / "relay" / "state.json").read_text())
+        worker_id = state["jobs"][job["id"]]["workerId"]
+        self.assertEqual(call(self.relay, "/v1/jobs/" + job["id"], "wrong-token", "DELETE")[0], 401)
+        self.assertTrue((self.home / "worker" / "jobs" / worker_id / "shadow.glb").exists())
+        for _ in range(2):
+            self.assertEqual(call(self.relay, "/v1/jobs/" + job["id"], token, "DELETE")[0], 200)
+        self.assertEqual(call(self.relay, "/v1/jobs/" + job["id"], token)[0], 404)
+        self.assertFalse((self.home / "relay" / "files" / (job["id"] + ".output")).exists())
+        self.assertFalse((self.home / "worker" / "jobs" / worker_id).exists())
         self.assertEqual(
             call(self.relay, f"/v1/devices/{device}", token, "DELETE")[0], 200
         )

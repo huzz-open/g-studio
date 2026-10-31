@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useI18n } from '../i18n'
 import ParameterReset from './ParameterReset.vue'
 
@@ -15,8 +16,10 @@ const props = withDefaults(defineProps<{
   options: SegmentOption[]
   disabled?: boolean
   indicator?: boolean
+  orientation?: 'horizontal' | 'vertical'
 }>(), {
   indicator: false,
+  orientation: 'horizontal',
 })
 
 const emit = defineEmits<{
@@ -24,6 +27,8 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+// Modifier keys used by the viewport must not reveal focus on a mouse-clicked tab.
+const pointerFocus = ref<number | null>(null)
 
 function getLabel(opt: SegmentOption): string {
   if (opt.label) return opt.label
@@ -31,10 +36,13 @@ function getLabel(opt: SegmentOption): string {
   return opt.value
 }
 function onKeydown(event: KeyboardEvent, index: number) {
-  if (props.disabled || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+  const previous = props.orientation === 'vertical' ? 'ArrowUp' : 'ArrowLeft'
+  const forward = props.orientation === 'vertical' ? 'ArrowDown' : 'ArrowRight'
+  if (['Tab', 'Enter', ' ', previous, forward, 'Home', 'End'].includes(event.key)) pointerFocus.value = null
+  if (props.disabled || ![previous, forward, 'Home', 'End'].includes(event.key)) return
   event.preventDefault()
   const count = props.options.length
-  const next = event.key === 'Home' ? 0 : event.key === 'End' ? count - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + count) % count
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? count - 1 : (index + (event.key === forward ? 1 : -1) + count) % count
   const buttons = (event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLButtonElement>('button')
   buttons?.[next]?.focus()
   emit('update:modelValue', props.options[next].value)
@@ -42,18 +50,20 @@ function onKeydown(event: KeyboardEvent, index: number) {
 </script>
 
 <template>
-  <div class="seg-control">
+  <div class="seg-control" :class="{ vertical: orientation === 'vertical' }">
     <span v-if="label" class="seg-label">{{ label }}</span>
   <div class="seg-ctrl" :class="{ disabled, 'no-indicator': !indicator }">
     <button
       v-for="(opt, index) in options"
       :key="opt.value"
       class="seg-ctrl-item"
-      :class="{ active: modelValue === opt.value }"
+      :class="{ active: modelValue === opt.value, 'pointer-focus': pointerFocus === index }"
       :disabled="disabled"
       type="button"
       :aria-pressed="modelValue === opt.value"
       :tabindex="modelValue === opt.value || (!options.some(o => o.value === modelValue) && index === 0) ? 0 : -1"
+      @pointerdown="pointerFocus = index"
+      @blur="pointerFocus === index && (pointerFocus = null)"
       @keydown="onKeydown($event, index)"
       @click="emit('update:modelValue', opt.value)"
     >{{ getLabel(opt) }}</button>
@@ -65,6 +75,10 @@ function onKeydown(event: KeyboardEvent, index: number) {
 <style scoped>
 .seg-label { flex: 0 0 auto; font-size: 11px; color: #aaa; margin-right: 5px; }
 .seg-control { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.seg-control.vertical { flex-direction: column; align-items: stretch; }
+.vertical .seg-ctrl { flex-direction: column; }
+.vertical .seg-ctrl-item { flex: none; text-align: left; padding: 8px 10px; border-right: none; border-bottom: 1px solid #444; }
+.vertical .seg-ctrl-item:last-child { border-bottom: none; }
 .seg-ctrl {
   flex: 1;
   min-width: 0;
@@ -108,5 +122,6 @@ function onKeydown(event: KeyboardEvent, index: number) {
   box-shadow: none;
 }
 .seg-ctrl-item:disabled { cursor: default; }
-.seg-ctrl-item:focus-visible { outline: 2px solid #8ab4f8; outline-offset: -2px; }
+.seg-ctrl-item:focus { outline: none; }
+.seg-ctrl-item:focus-visible:not(.pointer-focus) { outline: 2px solid #8ab4f8; outline-offset: -2px; }
 </style>

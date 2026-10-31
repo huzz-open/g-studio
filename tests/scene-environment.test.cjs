@@ -4,7 +4,7 @@ const {createScene,buildRoom,roomBounds,DEFAULT_ROOM}=require('../src/modules/sc
 const {parseScene}=require('../src/modules/scene-lighting/scene-state.ts')
 const {sunDirection,directionalShadowCamera,cornerCoordinates,worldCoordinates}=require('../src/modules/scene-lighting/lighting-math.ts')
 const {transform}=require('../src/modules/experiments/umbrella/math.ts')
-const {partMovementLimits}=require('../src/modules/scene-lighting/part-geometry.ts')
+const {partMovementLimits}=require('../src/modules/scene-lighting/part-model.ts')
 const {sceneCamera,panCameraTarget,DEFAULT_SCENE_TARGET}=require('../src/modules/scene-lighting/scene-camera.ts')
 
 test('camera pan moves all projected points by the pointer delta across zooms and viewport shapes',()=>{

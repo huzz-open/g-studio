@@ -81,7 +81,9 @@ function onHeaderKey(event: KeyboardEvent) {
 }
 .section-title {
   flex: 1;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
+  color: #cdd8d1;
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }

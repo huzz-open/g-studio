@@ -5,7 +5,7 @@ import SegmentedControl from '../../shared/components/SegmentedControl.vue'
 import InlineSwitch from '../../shared/components/InlineSwitch.vue'
 import { useI18n } from '../../shared/i18n'
 import { roomBounds, createScene, type SceneState } from './model'
-const props=defineProps<{state:SceneState; defaults?:Pick<SceneState,'light'|'power'|'ambient'|'sun'>}>()
+const props=withDefaults(defineProps<{state:SceneState; showShadowToggle?:boolean; defaults?:Pick<SceneState,'light'|'power'|'ambient'|'sun'>}>(),{showShadowToggle:true})
 const {t}=useI18n()
 const factoryDefaults=createScene()
 const defaults=computed(()=>props.defaults??factoryDefaults)
@@ -27,5 +27,5 @@ const lightZ=computed({get:()=>props.state.light[2]-bounds.value.minZ,set:v=>{pr
           <SliderRow v-if="state.mode!=='visibility'" v-model="state.sun.intensity" :default-value="defaults.sun.intensity" :label="t('sceneLight.power')" :min="0" :max="4" :step="0.05" :precision="2"/>
         </template>
         <SliderRow v-if="state.mode!=='visibility'" v-model="state.ambient" :default-value="defaults.ambient" :label="t('sceneLight.ambient')" :min="0" :max="1" :step="0.01" :precision="2"/>
-        <InlineSwitch v-model="state.shadows" :label="t('sceneLight.shadows')" block/><InlineSwitch v-model="state.filtered" :label="t('sceneLight.filter')" block/>
+        <InlineSwitch v-if="showShadowToggle!==false" v-model="state.shadows" :label="t('sceneLight.shadows')" block/><InlineSwitch v-model="state.filtered" :label="t('sceneLight.filter')" block/>
 </template>

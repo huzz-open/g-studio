@@ -1,4 +1,4 @@
-"""Generation-only HTTP service. Assets belong to the caller, never this service."""
+"""Generation service. Task files persist until an explicit user deletion."""
 
 import asyncio
 import hashlib
@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import shutil
 import shlex
 import signal
 import sys
@@ -16,7 +17,7 @@ import uuid
 from aiohttp import web
 from config import CONFIG, DATA_HOME, config, atomic_json
 from providers import PROVIDERS
-from model_catalog import MODELS, enabled_models, image_encoder_precision
+from model_catalog import MODELS, DEFAULT_TARGET_FACES, MAX_TARGET_FACES, enabled_models, image_encoder_precision
 from policy import plan
 from worker_client import WorkerClient
 from terminal_table import format_table
@@ -26,7 +27,7 @@ ROOT = Path(__file__).resolve().parent
 JOBS = DATA_HOME / "jobs"
 JOBS.mkdir(exist_ok=True)
 LIMIT = 10 * 1024 * 1024
-TERMINAL = {"succeeded", "failed", "cancelled", "expired"}
+TERMINAL = {"succeeded", "failed", "cancelled"}
 
 
 def credential_file_command():
@@ -79,7 +80,6 @@ class Service:
                     job.update(
                         status="failed",
                         phase="interrupted",
-                        expiresAt=time.time() + 86400,
                         error={
                             "code": "INTERRUPTED",
                             "message": "Worker restarted; resubmit explicitly.",
@@ -122,7 +122,7 @@ class Service:
             },
             "inputFormats": ["image/png", "image/jpeg", "image/webp"],
             "formats": ["model/gltf-binary"],
-            "targetFaces": {"min": 1000, "max": 40000, "default": 12000},
+            "targetFaces": {"min": 1000, "max": MAX_TARGET_FACES, "default": DEFAULT_TARGET_FACES},
             "cancel": True,
         }
 
@@ -249,7 +249,6 @@ class Service:
             job['timings'] = dict(totalSeconds=total, executionSeconds=execution, queueSeconds=max(0., total-execution))
             if job.get('result'): job['result']['timings'] = job['timings']
             print(f"[任务 {job['id']}] {job['status']} | 模型 {PROVIDERS[job['providerId']].name} ({job['providerId']}) | 总耗时 {total:.2f} 秒 | 执行 {execution:.2f} 秒" + (f" | {job['error']['message']}" if job.get('error') else ''), flush=True)
-        job['expiresAt'] = time.time() + 86400
         job['_logged'] = True
         self.save(job)
 
@@ -284,7 +283,7 @@ class Service:
         if request.get("inputSha256") != digest:
             raise Fault("DIGEST_MISMATCH", "Input digest does not match")
         for key, default, lo, hi in [
-            ("targetFaces", 12000, 1000, 40000),
+            ("targetFaces", DEFAULT_TARGET_FACES, 1000, MAX_TARGET_FACES),
             ("seed", 12345, 0, 2147483647),
         ]:
             value = request.setdefault(key, default)
@@ -351,7 +350,6 @@ class Service:
             "createdAt": time.time(),
             "inputSha256": digest,
             "parameters": request,
-            "expiresAt": None,
         }
         self.jobs[id] = job
         self.save(job)
@@ -434,7 +432,7 @@ class Service:
             or not isinstance(bounds, list) or len(bounds) != 2 or any(not isinstance(row, list) or len(row) != 3 for row in bounds)
             or not all(type(v) in (int, float) and math.isfinite(v) for row in bounds for v in row)
             or any(bounds[0][i] > bounds[1][i] for i in range(3))):
-            raise ValueError('Invalid geometry metadata')
+            raise ValueError('Invalid model metadata')
         gpu = PROVIDERS[job['providerId']].supports_gpu and self.device == 'gpu'
         return {**meta, 'protocolVersion': 1, 'jobId': job['id'], 'providerId': job['providerId'],
             'providerVersion': PROVIDERS[job['providerId']].version, 'parameters': job['parameters'],
@@ -488,36 +486,18 @@ class Service:
                 job.update(status='failed', phase='interrupted', error={'code': 'INTERRUPTED', 'message': 'Service stopped; resubmit explicitly.', 'retryable': True})
                 self.complete(job)
 
-    async def cleanup(self):
-        while True:
-            for job in list(self.jobs.values()):
-                try:
-                    if (
-                        job.get("expiresAt")
-                        and job["expiresAt"] < time.time() - 86400
-                        and job["status"] == "expired"
-                    ):
-                        folder = JOBS / job["id"]
-                        for file in folder.iterdir():
-                            if file.is_file():
-                                file.unlink(missing_ok=True)
-                        folder.rmdir()
-                        del self.jobs[job["id"]]
-                        continue
-                    if (
-                        job.get("expiresAt")
-                        and job["expiresAt"] < time.time()
-                        and job["status"] in TERMINAL
-                    ):
-                        job["status"] = "expired"
-                        self.save(job)
-                        for file in (JOBS / job["id"]).iterdir():
-                            if file.name != "job.json" and file.is_file():
-                                file.unlink(missing_ok=True)
-                except OSError:
-                    # A download may still hold a file open on Windows. Retry later.
-                    pass
-            await asyncio.sleep(60)
+    def delete(self, id):
+        if id not in self.jobs: return
+        job = self.get(id)
+        if job['status'] not in TERMINAL or self.running == id:
+            raise Fault('JOB_ACTIVE', 'Wait for the task to finish or cancel before deleting it', 409)
+        folder = (JOBS / id).resolve()
+        if folder.parent != JOBS.resolve():
+            raise Fault('INVALID_JOB', 'Invalid task directory', 400)
+        if folder.exists():
+            shutil.rmtree(folder)
+        del self.jobs[id]
+        self.clocks.pop(id, None)
 
 
 service = Service()
@@ -538,7 +518,7 @@ async def security(request, handler):
             "Access-Control-Allow-Origin": origin,
             "Vary": "Origin",
             "Access-Control-Allow-Headers": "Authorization,Content-Type",
-            "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+            "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
         }
     local = request.transport.get_extra_info("sockname")
     if not local or not host_allowed(request.host, local[0]):
@@ -627,12 +607,9 @@ async def output(r):
     )
 
 
-async def ack(r):
-    job = service.get(r.match_info["id"])
-    if job["status"] == "succeeded":
-        job["expiresAt"] = time.time() + 60
-        service.save(job)
-    return web.json_response({"ok": True})
+async def delete_job(r):
+    service.delete(r.match_info['id'])
+    return web.json_response({'ok': True})
 
 
 async def startup(app):
@@ -640,7 +617,6 @@ async def startup(app):
     service.tasks = [
         asyncio.create_task(service.prepare()),
         asyncio.create_task(service.worker()),
-        asyncio.create_task(service.cleanup()),
     ]
     # Only explicit legacy clients opt into relay; saved config must not connect
     # a direct API deployment to an old relay in the background.
@@ -664,7 +640,7 @@ app.add_routes(
         web.get("/v1/jobs/{id}", status),
         web.post("/v1/jobs/{id}/cancel", cancel),
         web.get("/v1/jobs/{id}/outputs/{output}", output),
-        web.post("/v1/jobs/{id}/ack", ack),
+        web.delete("/v1/jobs/{id}", delete_job),
     ]
 )
 app.on_startup.append(startup)

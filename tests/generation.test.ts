@@ -75,8 +75,8 @@ test("third-party capabilities accept new provider IDs and reject malformed or u
 });
 import { decodeMesh, meshDataUri } from "../src/shared/parts/mesh.ts";
 import { createPart, validatePart } from "../src/shared/parts/schema.ts";
-import { buildPartGeometry } from "../src/modules/scene-lighting/part-geometry.ts";
-import { partGeometryOptions, selectPartGeometry } from '../src/shared/parts/geometry-options.ts';
+import { buildPartModel } from "../src/modules/scene-lighting/part-model.ts";
+import { partModelOptions, selectPartModel } from '../src/shared/parts/model-options.ts';
 
 function glb(mutate: (d: any) => void = () => {}) {
   const binary = new ArrayBuffer(36);
@@ -112,26 +112,46 @@ test('GLB import retains valid triangles when source units are very small',()=>{
   assert.equal(mesh.triangles.length,1)
   assert.ok(mesh.vertices.every(Number.isFinite))
 })
+
+test('GLB importer accepts meshes above the former 40000-face ceiling', () => {
+  // Repeated primitives keep the fixture small while exercising the total face budget.
+  const mesh = decodeMesh(meshDataUri(glb(d => {
+    d.meshes[0].primitives = Array.from({ length: 40_001 }, () => ({ attributes: { POSITION: 0 } }));
+  })));
+  assert.equal(mesh.triangles.length, 40_001);
+});
+
+test('published schemas allow one million faces and importer rejects oversized accessors', () => {
+  for (const file of ['schema.json', 'openapi.json']) {
+    const schema = JSON.parse(readFileSync(new URL('../packages/generation-protocol/' + file, import.meta.url), 'utf8'));
+    const definitions = schema.$defs ?? schema.components.schemas;
+    const request = Object.values(definitions).find((d: any) => d.properties?.targetFaces?.maximum) as any;
+    const result = Object.values(definitions).find((d: any) => d.properties?.triangles) as any;
+    assert.equal(request.properties.targetFaces.maximum, 1_000_000);
+    assert.equal(result.properties.triangles.maximum, 1_000_000);
+  }
+  assert.throws(() => decodeMesh(meshDataUri(glb(d => { d.accessors[0].count = 3_000_001; }))), /Unsupported accessor/);
+});
 test('selected models survive switching, asset serialization and loss of generation history', () => {
   const part = createPart('model', { uri: 'data:image/png;base64,cGl4ZWxz', width: 1, height: 1 });
   const model = { kind: 'mesh' as const, size: [1, 1, .02] as [number, number, number], mesh: {
     uri: meshDataUri(glb()), sha256: 'a'.repeat(64), inputSha256: 'b'.repeat(64), providerId: 'test', warnings: [],
   } };
-  selectPartGeometry(part, model);
-  part.geometry.size[0] = 1.4;
-  selectPartGeometry(part, partGeometryOptions(part).find(g => g.kind === 'silhouette')!);
+  selectPartModel(part, model);
+  part.model.size[0] = 1.4;
+  selectPartModel(part, {kind:'none',size:[1,1,.02]});
   const restored = JSON.parse(JSON.stringify(part));
   validatePart(restored);
-  const available = partGeometryOptions(restored);
-  selectPartGeometry(restored, available.find(g => g.kind === 'mesh')!);
-  assert.equal(restored.geometry.mesh!.uri, model.mesh.uri);
-  assert.equal(restored.geometry.size[0], 1.4);
-  assert.equal(buildPartGeometry(restored, {width:1,height:1,data:new Uint8ClampedArray([255,255,255,255])}).triangles.length, 1);
+  const available = partModelOptions(restored);
+  selectPartModel(restored, available.find(g => g.kind === 'mesh')!);
+  assert.equal(restored.model.mesh!.uri, model.mesh.uri);
+  assert.equal(restored.model.size[0], 1.4);
+  assert.equal(buildPartModel(restored, {width:1,height:1,data:new Uint8ClampedArray([255,255,255,255])}).triangles.length, 1);
   const corrupt = JSON.parse(JSON.stringify(part));
-  corrupt.geometryAlternatives[0].mesh.uri = 'broken';
+  corrupt.modelAlternatives[0].mesh.uri = 'broken';
   assert.throws(() => validatePart(corrupt));
   const badBaseline = JSON.parse(JSON.stringify(part));
-  badBaseline.geometry.defaultSize = [-1, 2, 3];
+  badBaseline.model.defaultSize = [-1, 2, 3];
   assert.throws(() => validatePart(badBaseline));
 });
 test("GLB import preserves transforms and produces existing shadow-renderer triangles", () => {
@@ -173,7 +193,7 @@ test("mesh part v2 round-trips and rejects mesh payloads under v1", () => {
     height: 1,
   });
   p.version = 2;
-  p.geometry = {
+  p.model = {
     kind: "mesh",
     size: [2, 2, 0.02],
     mesh: {
@@ -186,7 +206,7 @@ test("mesh part v2 round-trips and rejects mesh payloads under v1", () => {
   };
   validatePart(JSON.parse(JSON.stringify(p)));
   assert.equal(
-    buildPartGeometry(p, {
+    buildPartModel(p, {
       width: 1,
       height: 1,
       data: new Uint8ClampedArray(4),

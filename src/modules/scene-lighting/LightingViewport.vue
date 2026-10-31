@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { PreviewDisplay } from './preview-display'
+import ModelReferenceOverlay from '../../shared/parts/ModelReferenceOverlay.vue'
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from '../../shared/i18n'
 import SceneViewControls from './SceneViewControls.vue'
@@ -7,14 +9,14 @@ import { sunSphereFrame, sunSphereGrid, spherePoint, pickSunSphere, pickSunAzimu
 import InfoHint from '../../shared/components/InfoHint.vue'
 import { createLatestTask } from '../../shared/utils/latest-task'
 import { clonePart, partRenderKey, partSurfaceKey, type PartAsset } from '../../shared/parts/schema'
-import { partMovementLimits } from './part-geometry'
+import { partMovementLimits } from './part-model'
 import { createSceneRenderer, sceneCamera } from './renderer'
 import { DEFAULT_SCENE_TARGET, panCameraTarget } from './scene-camera'
 import { PITCH, roomBounds, type SceneState } from './model'
 import { sunAnchor, sunDirection } from './lighting-math'
 import type { Vec3 } from '../experiments/umbrella/math'
 
-const props = withDefaults(defineProps<{ state: SceneState; assets: PartAsset[]; compact?: boolean; editable?: boolean; controls?: boolean; showShadowPoints?: boolean; fitView?: () => void; autoFit?: boolean }>(), { compact: false, editable: true, controls: true, showShadowPoints: false })
+const props = withDefaults(defineProps<{ state: SceneState; assets: PartAsset[]; compact?: boolean; editable?: boolean; controls?: boolean; showShadowPoints?: boolean; fitView?: () => void; autoFit?: boolean; checkAlignment?: boolean; referenceLegend?: boolean; guides?: boolean; display?: PreviewDisplay }>(), { compact: false, editable: true, controls: true, showShadowPoints: false, guides: true })
 const emit = defineEmits<{ edit: [assetId: string]; coverage: [value: Record<string, number>]; zoom: []; pan: []; ready: [] }>()
 const { t } = useI18n(), canvas = ref<HTMLCanvasElement>(), ready = ref(false), busy = ref(false), error = ref('')
 const assetsById = computed(() => Object.fromEntries(props.assets.map(a => [a.id, a])))
@@ -35,7 +37,7 @@ function draw() {
     frame = 0
     if (!canvas.value || canvas.value.clientWidth < 1 || canvas.value.clientHeight < 1) return
     try {
-      renderer!.render(props.state, props.showShadowPoints)
+      renderer!.render(props.state, props.showShadowPoints, props.display)
       // Handoffs may expose this canvas as soon as ready fires. Publish only
       // after its first frame, rather than while draw() is still queued.
       if (announceReady) { announceReady = false; emit('ready') }
@@ -61,16 +63,17 @@ const updates = createLatestTask<PartAsset[], boolean>({
   interval: 140, acceptIntermediate: true,
   onBusy: value => { busy.value = value }, onError: e => { error.value = String(e) },
   // Publish finished normal-map frames while the next slider value computes.
-  // Changes to images, geometry or membership still invalidate an old snapshot.
+  // Changes to images, model or membership still invalidate an old snapshot.
   async run(parts) { const key=surfaceKey(parts); return renderer!.syncAssets(parts,()=>surfaceKey(props.assets)===key) },
   apply(committed) { if(!committed)return; ready.value = true; error.value = ''; if(props.autoFit)props.fitView?.(); emit('coverage', renderer!.coverage()); announceReady = true; draw() },
 })
-function refresh() { if (renderer) { error.value = ''; updates.request(props.assets.map(clonePart), true) } }
+function refresh() { if (renderer) { error.value = ''; updates.request(props.assets.map(part=>clonePart({...part,modelAlternatives:undefined,modelComparison:undefined})), true) } }
 // The editor passes a fresh [draft] array on render. Compare content, not array
 // identity, so publishing coverage cannot trigger an endless reload loop.
-watch(() => assetKey(props.assets), () => { if (renderer) updates.request(props.assets.map(clonePart)) })
+watch(() => assetKey(props.assets), () => { if (renderer) updates.request(props.assets.map(part=>clonePart({...part,modelAlternatives:undefined,modelComparison:undefined}))) })
 watch(() => props.state, draw, { deep: true })
 watch(() => props.showShadowPoints, draw)
+watch(() => props.display, draw, {deep:true})
 function ground(event: {clientX:number;clientY:number}): Vec3 | null {
   const r = canvas.value!.getBoundingClientRect()
   return sceneCamera(props.state, r.width / r.height).pickGround((event.clientX - r.left) / r.width * 2 - 1, 1 - (event.clientY - r.top) / r.height * 2)
@@ -238,10 +241,11 @@ onUnmounted(() => { updates.dispose(); observer?.disconnect(); cancelAnimationFr
     </div>
     <div class="viewport-stage" :aria-busy="busy">
       <canvas ref="canvas" tabindex="0" :class="{panning:panDrag,'suppress-focus-ring':suppressFocusRing}" :aria-label="t('sceneLight.canvas')" @pointerdown="start($event)" @pointermove="move" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag" @dblclick="edit" @blur="suppressFocusRing=false" @keydown="canvasKey" @contextmenu.prevent @wheel.prevent="zoomBy($event.deltaY>0?1.06:1/1.06)" />
+      <ModelReferenceOverlay :show-legend="referenceLegend!==false" v-if="checkAlignment&&assets[0]" :part="assets[0]" :state="state"/>
       <CanvasControls v-if="fitView" :show-actual-size="false" @fit="fitView" @zoom-in="zoomBy(1/1.2)" @zoom-out="zoomBy(1.2)"/>
       <div v-if="busy" class="viewport-status" role="status">{{ t('common.updating') }}</div>
       <div v-if="error" class="viewport-error" role="alert">{{ error }} <button @click="refresh">{{ t('normal.retry') }}</button></div>
-      <template v-if="ready&&!error">
+      <template v-if="ready&&!error&&guides">
         <svg class="light-guide" aria-hidden="true"><line :x1="lightFoot.x" :y1="lightFoot.y" :x2="lightMarker.x" :y2="lightMarker.y"/><template v-if="directional"><line v-for="offset in [-6,6]" :key="offset" :x1="lightFoot.x+offset" :y1="lightFoot.y" :x2="lightMarker.x+offset" :y2="lightMarker.y" class="parallel-ray"/></template><circle v-else :cx="lightFoot.x" :cy="lightFoot.y" r="5"/></svg>
         <svg v-if="directional" class="sun-sphere" aria-hidden="true"><path v-for="(path,i) in sunPaths" :key="i" :d="path.d" :class="path.kind"/></svg>
         <button class="light-handle" :class="{directional}" :style="{left:lightMarker.x+'px',top:lightMarker.y+'px'}" :aria-label="t(directional?'sceneLight.dragDirection':'sceneLight.dragHeight')" :title="t(directional?'sceneLight.sphereDrag':'sceneLight.dragHeight')+' · '+t('sceneLight.powerShortcut')" @pointerdown.stop="startHeight" @keydown="heightKey" @wheel.stop.prevent="changePower($event.deltaY<0?1:-1)">

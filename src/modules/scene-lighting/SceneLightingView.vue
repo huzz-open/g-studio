@@ -25,7 +25,7 @@ import { importPart, partLibrary, libraryError } from '../../shared/parts/librar
 import { partImageUrl, portablePart } from '../../shared/parts/images'
 import { openPartEditor } from '../../shared/parts/editor-session'
 import { useSceneTabs, initializeScene, newSceneTab, closeSceneTab, reopenSceneTab, renameSceneTab, closedScenes, emptyScene, addPartsToScene, removeSceneItem, sceneHistory, parseScene, sceneStorageError } from './store'
-import { partMovementLimits } from './part-geometry'
+import { partMovementLimits } from './part-model'
 import { roomBounds, DEFAULT_ROOM, DEFAULT_SCENE_ID } from './model'
 import LightingViewport from './LightingViewport.vue'
 import LightSettings from './LightSettings.vue'
@@ -60,7 +60,7 @@ async function generatePart(part: PartAsset) {
       return
     }
     const input = await portablePart(snapshot)
-    const job = await createGenerationJob(snapshot.name, input.image.uri, connection, { assetId:snapshot.id, origin:'scene' })
+    const job = await createGenerationJob(snapshot.name, input.image.uri, connection, { assetId:snapshot.id, origin:'scene', imageFrame:snapshot.imageFrame })
     showToast(t(job.remote ? 'generation.queuedNamed' : 'generation.submitFailedNamed', { name:snapshot.name }), job.remote ? 'success' : 'error', 2000,
       { label:t('generation.viewTask'), onClick:()=>void viewGeneration(job, input) })
   } catch (e) {

@@ -4,7 +4,7 @@ import { createObservedHistory } from '../../shared/history/createObservedHistor
 import { reactive, ref, watch, type Ref } from 'vue'
 import { useEditorTabs, type UseEditorTabsReturn } from '../../shared/components/editor-shell/useEditorTabs'
 import { translate } from '../../shared/i18n'
-import { partMovementLimits } from './part-geometry'
+import { partMovementLimits } from './part-model'
 import { createScene, createDefaultScene, DEFAULT_SCENE_ID, DEFAULT_ROOM, type Preset, type SceneState } from './model'
 import { clonePart, MAX_SCENE_ITEMS, type PartAsset } from '../../shared/parts/schema'
 import { loadPartLibrary, partLibrary } from '../../shared/parts/library'

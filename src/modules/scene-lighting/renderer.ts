@@ -1,9 +1,10 @@
+import { previewLayers, type PreviewDisplay } from './preview-display'
 import { directionalShadowCamera, sunDirection } from './lighting-math'
 import { add, dot, lookAt, multiply, normalize, perspective, sub, transform, type Mat4, type Vec3 } from '../experiments/umbrella/math'
 import { buildRoom, FORWARD, RIGHT, roomBounds, UP, type Mesh, type SceneState, type SpriteBounds } from './model'
 import { sceneCamera } from './scene-camera'
 export { sceneCamera } from './scene-camera'
-import { buildPartGeometry, alignedBounds, activeRepair } from './part-geometry'
+import { buildPartModel, imageBounds, activeRepair } from './part-model'
 import { clonePart, partRenderKey, partSurfaceKey, type PartAsset } from '../../shared/parts/schema'
 import { partPixels, normalImageUrl, loadImage } from '../../shared/parts/images'
 import { depthFragment, fieldFragment, fieldVertex, meshVertex, spriteFragment, spriteVertex, surfaceFragment, shadowPointVertex, shadowPointFragment } from './shaders'
@@ -62,17 +63,17 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
     for (let i = 0; i < 2; i++) { gl!.enableVertexAttribArray(i); gl!.vertexAttribPointer(i, 3, gl!.FLOAT, false, 24, i * 12) }
     return { vao, buffer: vertexBuffer, count: data.length / 6 }
   }
-  function releaseGeometry(mesh: GpuMesh) {
-    for (const geometry of [mesh, ...(mesh.points ? [mesh.points] : [])]) {
-      gl!.deleteBuffer(geometry.buffer); buffers.splice(buffers.indexOf(geometry.buffer), 1)
-      gl!.deleteVertexArray(geometry.vao); vaos.splice(vaos.indexOf(geometry.vao), 1)
+  function releaseModel(mesh: GpuMesh) {
+    for (const model of [mesh, ...(mesh.points ? [mesh.points] : [])]) {
+      gl!.deleteBuffer(model.buffer); buffers.splice(buffers.indexOf(model.buffer), 1)
+      gl!.deleteVertexArray(model.vao); vaos.splice(vaos.indexOf(model.vao), 1)
     }
   }
   let room:GpuMesh|undefined, roomKey=''
   function updateRoom(state:SceneState){
     const key=JSON.stringify([state.scene,state.room]);if(key===roomKey)return
     const next=meshBuffer(buildRoom(state.scene,state.room))
-    if(room)releaseGeometry(room)
+    if(room)releaseModel(room)
     room=next;roomKey=key;shadowKey=''
   }
   const quadVao = gl.createVertexArray()!; vaos.push(quadVao); gl.bindVertexArray(quadVao)
@@ -100,6 +101,7 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
   const lightProjection = perspective(Math.PI / 2, 1, .03, FAR)
   let sunMatrix:Mat4=new Float32Array(16)
   let lightMatrices: Mat4[] = [], shadowKey = '', lastState: SceneState | undefined, lastShowShadowPoints = false
+  let lastDisplay:PreviewDisplay|undefined
   function status() { if (gl!.checkFramebufferStatus(gl!.FRAMEBUFFER) !== gl!.FRAMEBUFFER_COMPLETE) throw new Error('Lighting framebuffer is unavailable') }
   function basis(p: WebGLProgram, bounds: SpriteBounds) {
     gl!.uniform3fv(u(p, 'right'), RIGHT); gl!.uniform3fv(u(p, 'up'), UP); gl!.uniform3fv(u(p, 'forward'), FORWARD)
@@ -127,12 +129,12 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
     gl!.bindFramebuffer(gl!.FRAMEBUFFER, null)
   }
   function releaseAsset(asset: SpriteAsset) {
-    releaseGeometry(asset)
+    releaseModel(asset)
     for (const tex of [asset.color, asset.normal, asset.depth, asset.surface]) { gl!.deleteTexture(tex); textures.splice(textures.indexOf(tex), 1) }
   }
-  let syncEpoch = 0, geometryController:AbortController|undefined
+  let syncEpoch = 0, modelController:AbortController|undefined
   async function syncAssets(parts: PartAsset[], isCurrent: () => boolean = () => true): Promise<boolean> {
-    geometryController?.abort();const controller=new AbortController();geometryController=controller
+    modelController?.abort();const controller=new AbortController();modelController=controller
     const epoch = ++syncEpoch, snapshots = parts.map(clonePart), ids = new Set(parts.map(p => p.id))
     const staged = new Map<string, SpriteAsset>()
     const normalUpdates = new Map<string, { normal: WebGLTexture; key: string; directx: boolean }>()
@@ -153,9 +155,9 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
         if (!current()) return false
         const normalImage = await loadImage(await normalImageUrl(part))
         if (!current()) return false
-        const mesh = activeRepair(part)?await (await import('./part-geometry-async')).buildPartGeometryAsync(part,pixels,controller.signal):buildPartGeometry(part,pixels)
+        const mesh = activeRepair(part)?await (await import('./part-model-async')).buildPartModelAsync(part,pixels,controller.signal):buildPartModel(part,pixels)
         if(!current())return false
-        const bounds = alignedBounds(part, mesh), d = part.image
+        const bounds = imageBounds(part), d = part.image
         const asset: SpriteAsset = {
           ...meshBuffer(mesh), id: part.id, key, surfaceKey, directx: part.normal.normalFormat === 'directx', bounds,
           color: texture(d.width, d.height, image), normal: texture(d.width, d.height, normalImage),
@@ -168,7 +170,7 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
       if (!current()) return false
       // Publish the whole update together. The old frame stays usable during
       // decoding, normal generation and discarded intermediate requests.
-      let geometryChanged = staged.size > 0
+      let modelChanged = staged.size > 0
       for (const [id, asset] of staged) {
         const existing = assets.get(id)
         assets.set(id, asset)
@@ -181,8 +183,8 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
         Object.assign(existing, update)
       }
       normalUpdates.clear()
-      for (const [id, asset] of assets) if (!ids.has(id)) { releaseAsset(asset); assets.delete(id); geometryChanged = true }
-      if (geometryChanged) shadowKey = ''
+      for (const [id, asset] of assets) if (!ids.has(id)) { releaseAsset(asset); assets.delete(id); modelChanged = true }
+      if (modelChanged) shadowKey = ''
       return true
     } catch(error){if(controller.signal.aborted)return false;throw error} finally {
       // dispose() already freed all GPU resources if the editor was closed.
@@ -216,7 +218,7 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
   }
   function lighting(p: WebGLProgram, state: SceneState, matrix: Mat4) {
     gl!.useProgram(p); gl!.uniformMatrix4fv(u(p, 'matrix'), false, matrix); gl!.uniform3fv(u(p, 'light'), state.light)
-    for (const [key, value] of Object.entries({ farPlane: FAR, filtered: +state.filtered, shadows: +state.shadows, ambient: state.ambient, power: state.lightKind==='directional'?state.sun.intensity:state.power, directional:+(state.lightKind==='directional'), visibilityOnly: +(state.mode === 'visibility') })) gl!.uniform1f(u(p, key), value)
+    for (const [key, value] of Object.entries({ farPlane: FAR, filtered: +state.filtered, shadows: +previewLayers(state,lastDisplay).shadows, ambient: state.ambient, power: state.lightKind==='directional'?state.sun.intensity:state.power, directional:+(state.lightKind==='directional'), visibilityOnly: +previewLayers(state,lastDisplay).shadowInspection })) gl!.uniform1f(u(p, key), value)
     gl!.uniform3fv(u(p,'sunDirection'),sunDirection(state));gl!.uniformMatrix4fv(u(p,'sunMatrix'),false,sunMatrix)
     gl!.activeTexture(gl!.TEXTURE5);gl!.bindTexture(gl!.TEXTURE_2D,sunMap);gl!.uniform1i(u(p,'sunShadowMap'),5)
     gl!.activeTexture(gl!.TEXTURE0); gl!.bindTexture(gl!.TEXTURE_CUBE_MAP, cube); gl!.uniform1i(u(p, 'shadowMap'), 0)
@@ -248,9 +250,10 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
       })
     } finally { gl!.depthMask(true); gl!.depthFunc(gl!.LESS) }
   }
-  function render(state: SceneState, showShadowPoints = false) {
+  function render(state: SceneState, showShadowPoints = false, display:PreviewDisplay|undefined = lastDisplay) {
     if (disposed) return
-    lastState = state; lastShowShadowPoints = showShadowPoints
+    lastState = state; lastShowShadowPoints = showShadowPoints; lastDisplay=display
+    const layers=previewLayers(state,display)
     const rect = canvas.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 1.5)
     const width = Math.max(1, Math.round(rect.width * dpr)), height = Math.max(1, Math.round(rect.height * dpr))
     if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height }
@@ -259,12 +262,14 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
     gl!.clearDepth(1); gl!.clear(gl!.COLOR_BUFFER_BIT | gl!.DEPTH_BUFFER_BIT); gl!.enable(gl!.DEPTH_TEST); gl!.enable(gl!.DITHER)
     const view = sceneCamera(state, width / height)
     lighting(surfaceProgram, state, view.matrix); gl!.uniform1f(u(surfaceProgram, 'receives'), 1); gl!.uniform1f(u(surfaceProgram, 'room'), 1)
-    drawMesh(room!, surfaceProgram, [0, 0, 0], 1); gl!.uniform1f(u(surfaceProgram, 'room'), 0)
-    if (state.mode !== 'sprites') {
+    if(layers.room)drawMesh(room!, surfaceProgram, [0, 0, 0], 1); gl!.uniform1f(u(surfaceProgram, 'room'), 0)
+    if (layers.model) {
       state.items.forEach((item, i) => { const asset = assets.get(item.assetId); if (asset && item.visible) { gl!.uniform1f(u(surfaceProgram, 'receives'), +item.receives); drawMesh(asset, surfaceProgram, [item.x, 0, item.z], i + 2, item.scale) } })
-    } else {
+    }
+    if (layers.image) {
       lighting(spriteProgram, state, view.matrix); gl!.bindVertexArray(quadVao)
       gl!.uniform1f(u(spriteProgram, 'outlinePixelRatio'), dpr)
+      gl!.uniform1f(u(spriteProgram, 'sourceOnly'), +layers.sourceOnly)
       state.items.forEach((item, i) => {
         const asset = assets.get(item.assetId); if (!asset || !item.visible) return
         basis(spriteProgram, asset.bounds); gl!.uniform1f(u(spriteProgram, 'objectScale'), item.scale); gl!.uniform1f(u(spriteProgram, 'directx'), +asset.directx); gl!.uniform3f(u(spriteProgram, 'offset'), item.x, 0, item.z)
@@ -276,6 +281,7 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
         gl!.drawArrays(gl!.TRIANGLES, 0, 6)
       })
     }
+    gl!.disable(gl!.BLEND);gl!.enable(gl!.DEPTH_TEST);gl!.depthMask(true)
     if (showShadowPoints && state.shadows) drawShadowPoints(state, view.matrix, dpr)
     const error = gl!.getError(); if (error !== gl!.NO_ERROR) throw new Error(`WebGL error ${error}`)
   }
@@ -347,7 +353,7 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
     render(state); return result
   }
   function dispose() {
-    geometryController?.abort()
+    modelController?.abort()
     if (disposed) return; disposed = true
     syncEpoch++
     gl!.deleteFramebuffer(shadowFbo); gl!.deleteFramebuffer(fieldFbo); gl!.deleteRenderbuffer(shadowDepth); gl!.deleteRenderbuffer(fieldDepth)

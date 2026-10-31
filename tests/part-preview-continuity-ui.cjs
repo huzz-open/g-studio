@@ -41,7 +41,7 @@ async function main() {
     }
     await delayUpdates()
     const baseline = await single.locator('canvas').evaluate(canvas => canvas.toDataURL())
-    await page.locator('.geometry-trigger').click()
+    await page.locator('.model-trigger').click()
     await page.getByRole('menuitemradio', { name: '轮廓近似', exact: true }).hover()
     await single.locator('.viewport-stage[aria-busy="true"]').waitFor()
     assert.equal(await single.locator('canvas').evaluate(canvas => canvas.toDataURL()), baseline, 'keep the old frame during a slow update')
@@ -63,9 +63,9 @@ async function main() {
       for (const [offset, value] of [[0, 0x46546c67], [4, 2], [8, bytes.byteLength], [12, encoded.length], [16, 0x4e4f534a], [20 + encoded.length, 36], [24 + encoded.length, 0x004e4942]]) view.setUint32(offset, value, true)
       new Uint8Array(bytes, 20, encoded.length).set(encoded); new Uint8Array(bytes, 28 + encoded.length).set(new Uint8Array(positions.buffer))
       const part = clonePart(state.draft)
-      part.version = 2; part.geometry = { kind: 'mesh', size: [1, 2, 1], mesh: { uri: meshDataUri(bytes), sha256: 'a'.repeat(64), inputSha256: 'b'.repeat(64), providerId: 'fixture', warnings: [] } }
-      const initialized = initializeComparison(part, true), candidate = clonePart(initialized)
-      candidate.geometry.size = [.8, 1.8, .8]; storeCandidate(initialized, candidate)
+      part.version = 2; part.model = { kind: 'mesh', size: [1, 2, 1], mesh: { uri: meshDataUri(bytes), sha256: 'a'.repeat(64), inputSha256: 'b'.repeat(64), providerId: 'fixture', warnings: [] } }
+      const initialized = initializeComparison(part), candidate = clonePart(initialized)
+      candidate.model.size = [.8, 1.8, .8]; storeCandidate(initialized, candidate)
       state.draft = initialized
     })
     const comparison = page.locator('.model-comparison')
@@ -74,7 +74,7 @@ async function main() {
     await page.waitForTimeout(100)
     await delayUpdates()
     await comparison.evaluate(element => { window.comparisonElement = element; window.comparisonFrame = element.querySelector('canvas').toDataURL() })
-    await page.locator('.geometry-trigger').click()
+    await page.locator('.model-trigger').click()
     await page.getByRole('menuitemradio', { name: '轮廓近似', exact: true }).hover()
     await single.locator('.viewport-stage[aria-busy="true"]').waitFor({ state: 'attached' })
     assert.equal(await comparison.isVisible(), true, 'comparison stays visible until the hover frame is drawn')

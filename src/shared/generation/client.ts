@@ -6,6 +6,7 @@ import type {
 } from "../../../packages/generation-protocol/types";
 import type { GenerationConnection } from "./settings";
 import { isLocalServiceHost } from './deployment';
+import { MAX_MESH_BYTES } from '../../../packages/generation-protocol/limits';
 import {
   parseCapabilities,
   parseJob,
@@ -88,9 +89,9 @@ export class GenerationClient {
       method: "POST",
     }).then(parseJob);
   }
-  ack(id: string) {
-    return this.call("/v1/jobs/" + encodeURIComponent(id) + "/ack", {
-      method: "POST",
+  deleteJob(id: string) {
+    return this.call("/v1/jobs/" + encodeURIComponent(id), {
+      method: "DELETE",
     });
   }
   async output(id: string, outputId: string): Promise<ArrayBuffer> {
@@ -99,7 +100,7 @@ export class GenerationClient {
         {},
         true,
       ),
-      limit = 18 * 1024 * 1024;
+      limit = MAX_MESH_BYTES;
     if (Number(r.headers.get("Content-Length")) > limit)
       throw Error("Output exceeds the browser mesh budget");
     const reader = r.body?.getReader();

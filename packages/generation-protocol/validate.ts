@@ -87,7 +87,6 @@ export function parseJob(value: unknown): GenerationJob {
       "cancelled",
       "succeeded",
       "failed",
-      "expired",
     ].includes(value.status)
   )
     throw Error("Invalid task response");
