@@ -43,7 +43,7 @@ const initial=initializeComparison(clonePart(props.asset))
 const {t}=useI18n(),router=useRouter(),draft=ref(initial),baseline=ref(clonePart(initial))
 const candidate=computed(()=>optimizedVersion(draft.value)),original=computed(()=>originalVersion(draft.value))
 const candidateCurrent=computed(()=>comparisonCurrent(draft.value)),appliedCandidate=computed(()=>candidateApplied(draft.value))
-const editPart=computed(()=>candidate.value??draft.value),showComparison=ref(true),candidateNotice=ref('')
+const editPart=computed(()=>candidate.value??draft.value),candidateNotice=ref('')
 function useVersion(version:'original'|'optimized'){try{chooseModelVersion(draft.value,version)}catch(e){error.value=String(e)}}
 watch(() => [...generatedModels.values()], () => {
   draft.value = resolvePartModels(draft.value)
@@ -86,7 +86,7 @@ async function selectAlignedGeometry(){
     fit.rotation=[...result.rotation];fit.projection=[...result.projection]
     fit.orientation={...result,rotation:[...result.rotation],projection:[...result.projection],meshSha256:copy.geometry.mesh!.sha256,method:ORIENTATION_METHOD,referenceRotation,alignmentKey:JSON.stringify(copy.alignment)}
     if(controller.signal.aborted||disposed||before!==JSON.stringify(draft.value)||!comparisonCurrent(draft.value))return false
-    const next=clonePart(draft.value);storeCandidate(next,copy);validatePart(next);draft.value=next;showComparison.value=true;return true
+    const next=clonePart(draft.value);storeCandidate(next,copy);validatePart(next);draft.value=next;return true
   }catch(e){if(!controller.signal.aborted)error.value=String(e);return false}finally{aligning.value=false;alignmentController=undefined}
 }
 async function repairCurrentGeometry(){
@@ -102,7 +102,7 @@ async function repairCurrentGeometry(){
     spec.status=result.stats.status
     if(!disposed&&!controller.signal.aborted&&before===JSON.stringify(draft.value)&&comparisonCurrent(draft.value)){
       if(result.stats.status!=='repaired'){candidateNotice.value=t('parts.repairUnsupported');return}
-      copy.geometry.repair=spec;const next=clonePart(draft.value);storeCandidate(next,copy);validatePart(next);draft.value=next;showComparison.value=true;candidateNotice.value=''
+      copy.geometry.repair=spec;const next=clonePart(draft.value);storeCandidate(next,copy);validatePart(next);draft.value=next;candidateNotice.value=''
     }
   }catch(e){if(!controller.signal.aborted)error.value=String(e)}finally{aligning.value=false;repairing.value=false;alignmentController=undefined}
 }
@@ -119,11 +119,31 @@ const modelJobs=computed(()=>matchingModelJobs(generationJobs,inputHash.value))
 const geometryOptions=computed(()=>partGeometryOptions(draft.value,modelJobs.value))
 const geometryChoice=computed(()=>geometryKey(draft.value.geometry))
 const hoveredGeometry=ref<string|null>(null)
+const previewImageHeight=ref<number>()
+watch(()=>[draft.value.image,draft.value.geometry,draft.value.alignment],async(_,__,onCleanup)=>{
+  let current=true;onCleanup(()=>{current=false})
+  previewImageHeight.value=draft.value.alignment.height
+  if(previewImageHeight.value!==undefined)return
+  const part=clonePart(draft.value)
+  try{
+    const {pixels}=await partPixels(part)
+    const height=alignedBounds(part,buildPartGeometry(part,pixels)).height/part.alignment.scale
+    if(current)previewImageHeight.value=height
+  }catch{/* The viewport reports image/geometry loading errors. */}
+},{deep:true,immediate:true})
+const hoverFrameReady=ref(false)
+const comparisonAvailable=computed(()=>!!candidate.value&&candidateCurrent.value)
+const comparisonFrameReady=ref(false)
+// Keep the existing canvas visible until both comparison canvases have rendered.
+watch(()=>[comparisonAvailable.value,view.value],()=>{comparisonFrameReady.value=false},{flush:'sync'})
+const singlePreviewVisible=computed(()=>!comparisonAvailable.value||!comparisonFrameReady.value||!!hoveredGeometry.value&&hoverFrameReady.value)
+watch(hoveredGeometry,value=>{if(!value)hoverFrameReady.value=false})
+function previewReady(){if(hoveredGeometry.value)hoverFrameReady.value=true}
 // Viewport-only data: hover never changes draft, alternatives, dirty state or saved assets.
 const previewPart=computed<PartAsset>(()=>{
   const geometry=geometryOptions.value.find(option=>geometryKey(option)===hoveredGeometry.value)
   if(!geometry||(geometryKey(geometry)===geometryChoice.value&&geometry.mesh?.sha256===draft.value.geometry.mesh?.sha256))return draft.value
-  return {...draft.value,version:geometry.kind==='mesh'?2:draft.value.version,geometry:clonePart(geometry)}
+  return {...draft.value,version:geometry.kind==='mesh'?2:draft.value.version,geometry:clonePart(geometry),alignment:{...draft.value.alignment,height:previewImageHeight.value}}
 })
 function geometryLabel(geometry:PartGeometry){
   if(geometry.kind==='template')return t('sceneLight.'+geometry.template)+' · '+t('parts.template')
@@ -141,8 +161,8 @@ function framePreview(){
   const canvas=panel.value?.querySelector('.part-preview canvas')
   const rect=canvas?.getBoundingClientRect()
   const aspect=rect&&rect.height>0?rect.width/rect.height:1
-  if(candidate.value&&candidateCurrent.value&&showComparison.value)fitModelComparison(preview,original.value,candidate.value,aspect)
-  else fitPartPreview(preview,previewPart.value,aspect)
+  if(candidate.value&&candidateCurrent.value)fitModelComparison(preview,original.value,candidate.value,aspect)
+  else fitPartPreview(preview,draft.value,aspect)
 }
 const normals=createLatestTask<PartAsset,string>({interval:160,acceptIntermediate:true,onBusy:v=>{normalBusy.value=v},onError:e=>{error.value=String(e)},run:part=>normalImageUrl(part),apply:(url,part)=>{if(JSON.stringify(part.image)===JSON.stringify(draft.value.image))normalUrl.value=url}})
 watch(()=>[view.value,draft.value.image,draft.value.normal],()=>{if(view.value==='normal')normals.request(clonePart(draft.value))},{deep:true})
@@ -217,16 +237,11 @@ onUnmounted(()=>{disposed=true;alignmentController?.abort();normals.dispose();do
             <button :aria-pressed="draft.modelComparison.selected==='original'" @click="useVersion('original')">{{t('parts.useOriginal')}}</button>
             <button :disabled="!candidate||!candidateCurrent" :aria-pressed="appliedCandidate" @click="useVersion('optimized')">{{t('parts.useOptimized')}}</button>
           </div>
-          <InlineSwitch v-if="candidate&&candidateCurrent" v-model="showComparison" :label="t('parts.compareModels')" block/>
-          <p class="note" role="status">{{t(!candidateCurrent?'parts.candidateStale':!candidate?'parts.noCandidate':appliedCandidate?'parts.usingCandidate':draft.modelComparison.selected==='optimized'?'parts.previousCandidateActive':'parts.candidateNotApplied')}}</p>
           <p v-if="candidateNotice" class="note" role="status">{{candidateNotice}}</p>
         </template>
-        <p v-if="draft.geometry.kind==='mesh'" class="note">{{t('parts.autoAlignHint')}}</p>
-        <p v-if="orientationScore" class="note">{{t('parts.contourMatch')}} {{(orientationScore.initialScore*100).toFixed(1)}}% → {{(orientationScore.score*100).toFixed(1)}}%</p>
         <p v-if="orientationScore?.reviewRequired" class="note" role="status">{{t('parts.orientationReview')}}</p>
         <template v-if="candidate&&candidateCurrent&&editPart.geometry.imageFit">
           <button class="wide" @click="repairCurrentGeometry">{{t('parts.repairGeometry')}}</button>
-          <p class="note">{{t('parts.repairHint')}}</p>
           <p v-if="repairCurrent&&editPart.geometry.repair?.status&&editPart.geometry.repair.status!=='repaired'" class="note" role="status">{{t('parts.repairUnsupported')}}</p>
           <InlineSwitch v-if="editPart.geometry.repair&&repairCurrent" v-model="editPart.geometry.repair.enabled" :label="t('parts.repairEnabled')" block/>
           <p v-if="editPart.geometry.repair&&!repairCurrent" class="note">{{t('parts.repairStale')}}</p>
@@ -255,13 +270,18 @@ onUnmounted(()=>{disposed=true;alignmentController?.abort();normals.dispose();do
         <ImageCanvas :src="view==='original'?partImageUrl(draft):normalUrl" :fullscreen-toggle="false" keep-view-on-src-change controls-position="bottom-left"/>
         <span v-if="view==='normal'&&normalBusy" class="preview-status" role="status">{{t('normal.generating')}}</span>
       </div>
-      <ModelComparisonViewport v-else-if="candidate&&candidateCurrent&&showComparison&&!hoveredGeometry" :original="original" :candidate="candidate" :state="preview" :fit-view="framePreview" :auto-fit="previewAutoFit" @interact="previewAutoFit=false"/>
-      <LightingViewport v-else :state="preview" :assets="[previewPart]" compact :editable="false" :controls="false" :fit-view="framePreview" :auto-fit="previewAutoFit" @zoom="previewAutoFit=false" @pan="previewAutoFit=false"/>
+      <div v-else class="preview-stage">
+        <ModelComparisonViewport v-if="comparisonAvailable&&candidate" :original="original" :candidate="candidate" :state="preview" :fit-view="framePreview" :auto-fit="previewAutoFit&&!hoveredGeometry" :class="{ 'preview-hidden': singlePreviewVisible }" @ready="comparisonFrameReady=true" @interact="previewAutoFit=false"/>
+        <LightingViewport :state="preview" :assets="[previewPart]" compact :editable="false" :controls="false" :fit-view="framePreview" :auto-fit="previewAutoFit&&!hoveredGeometry&&!comparisonAvailable" :class="{ 'preview-hidden': !singlePreviewVisible }" @ready="previewReady" @zoom="previewAutoFit=false" @pan="previewAutoFit=false"/>
+      </div>
     </main></div>
     <footer><div class="button-row"><button :disabled="saving||aligning" @click="exportAsset">{{t('parts.exportAsset')}}</button><button :disabled="saving||aligning" @click="exportPackage">{{t('parts.exportPackage')}}</button><button v-if="origin==='scene'" :disabled="saving||aligning" @click="locate">{{t('parts.locateSlicer')}}</button></div><div class="button-row"><button :disabled="saving||aligning" @click="addToScene">{{t('parts.addOne')}}</button><button :disabled="saving||aligning" @click="leave">{{t(origin==='scene'?'parts.backScene':'parts.backSlicer')}}</button><button class="primary" :disabled="saving||aligning||conflict" @click="saveAndClose">{{t(saving?'common.loading':'parts.saveReturn')}}</button></div></footer>
   </section></div><div v-if="showGeneration" class="generation-overlay"><GenerationPanel :part="draft" :origin="origin" @apply="applyGenerated" @close="showGeneration=false"/></div></Teleport>
 </template>
 <style scoped>
+.preview-stage{position:relative;display:flex;flex:1;min-height:0;min-width:0}
+.preview-stage>.lighting-viewport,.preview-stage>.model-comparison{position:absolute;inset:0}
+.preview-stage>.preview-hidden{visibility:hidden;pointer-events:none}
 .version-choices{display:flex;gap:6px;margin-top:8px}.version-choices button{flex:1}.version-choices button[aria-pressed="true"]{background:#426b53;border-color:#84ab8d}
 .alignment-progress{padding:8px 10px;font-size:11px;color:#b8d3c1;display:flex;align-items:center;justify-content:space-between}
 .generation-overlay{position:fixed;inset:4vh 3vw;z-index:1800;border:1px solid #555;border-radius:9px;overflow:hidden;box-shadow:0 0 0 100vmax #0009}

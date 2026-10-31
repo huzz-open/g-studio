@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, useId, watch } from 'vue'
 import SvgIcon from '../icons/SvgIcon.vue'
+import ScrollArea from '../components/ScrollArea.vue'
 import { useI18n } from '../i18n'
 import type { PartAsset, PartGeometry } from './schema'
 import { createGeometryCardPreview } from './geometry-card-preview'
@@ -14,27 +15,29 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:modelValue': [value: string]; preview: [value: string | null]; generate: [] }>()
 const { t } = useI18n()
 const id = useId(), trigger = ref<HTMLButtonElement>(), menu = ref<HTMLElement>()
+const scrollArea = ref<InstanceType<typeof ScrollArea>>()
 const open = ref(false), position = ref({ left: '0px', top: '0px', width: '0px', maxHeight: '320px' })
 const selected = computed(() => props.options.find(option => option.value === props.modelValue)?.label ?? '')
 let anchor: DOMRect | undefined
 let disposePreviews: (() => void) | undefined
 watch([open, () => props.options], () => {
   disposePreviews?.(); disposePreviews = undefined
-  if (!open.value || !menu.value) return
+  if (!open.value || !menu.value || !scrollArea.value?.viewport) return
   const canvases = [...menu.value.querySelectorAll<HTMLCanvasElement>('.geometry-thumbnail canvas')]
   disposePreviews = createGeometryCardPreview(props.part, props.options.flatMap((option, index) => {
     const canvas = canvases[index]
     return canvas ? [{ geometry: option.geometry, canvas }] : []
-  }), menu.value)
+  }), scrollArea.value.viewport)
 }, { flush: 'post' })
 
 function focusItem(item?: HTMLButtonElement | null) {
-  if (!item || !menu.value) return
+  const viewport = scrollArea.value?.viewport
+  if (!item || !viewport) return
   item.focus({ preventScroll: true })
   // Scroll only the popup; scrolling its ancestors would move the trigger.
-  const top = item.offsetTop, bottom = top + item.offsetHeight
-  if (top < menu.value.scrollTop) menu.value.scrollTop = top
-  else if (bottom > menu.value.scrollTop + menu.value.clientHeight) menu.value.scrollTop = bottom - menu.value.clientHeight
+  const rect = item.getBoundingClientRect(), clip = viewport.getBoundingClientRect()
+  if (rect.top < clip.top) viewport.scrollTop += rect.top - clip.top
+  else if (rect.bottom > clip.bottom) viewport.scrollTop += rect.bottom - clip.bottom
 }
 
 function close(restoreFocus = true) {
@@ -120,23 +123,25 @@ defineExpose({ close })
     </button>
     <div :id="id" ref="menu" popover="auto" class="geometry-menu" role="menu" :aria-label="t('parts.geometryType')"
       :style="position" @beforetoggle="onBeforeToggle" @toggle="onToggle" @keydown="onKey" @pointerleave="emit('preview', null)">
-      <button type="button" class="geometry-option geometry-create" role="menuitem" tabindex="-1" @click="generate" @focus="emit('preview', null)">
-        <SvgIcon name="plus" :size="16" /><span>{{ t('generation.fromImage') }}</span>
-      </button>
-      <div class="geometry-separator" role="separator" />
-      <div v-if="open" class="geometry-grid" role="group">
-        <button v-for="option in options" :key="option.value" type="button" class="geometry-option geometry-card"
-          role="menuitemradio" :aria-label="option.label" :aria-checked="option.value === modelValue" tabindex="-1" @click="choose(option.value)"
-          @pointerenter="emit('preview', option.value)" @pointerleave="emit('preview', null)"
-          @focus="emit('preview', option.value)" @blur="emit('preview', null)">
-          <span class="geometry-thumbnail" aria-hidden="true">
-            <canvas data-preview-state="loading" />
-            <span class="geometry-placeholder"><SvgIcon :name="option.geometry.kind === 'silhouette' ? 'silhouette' : 'item'" :size="36" /></span>
-          </span>
-          <span v-if="option.value === modelValue" class="geometry-check"><SvgIcon name="check" :size="14" /></span>
-          <span class="geometry-card-label">{{ option.label }}</span>
+      <ScrollArea ref="scrollArea" class="geometry-options-scroll" :label="t('parts.geometryType')" :style="{ maxHeight: `calc(${position.maxHeight} - 10px)` }">
+        <button type="button" class="geometry-option geometry-create" role="menuitem" tabindex="-1" @click="generate" @focus="emit('preview', null)">
+          <SvgIcon name="plus" :size="16" /><span>{{ t('generation.fromImage') }}</span>
         </button>
-      </div>
+        <div class="geometry-separator" role="separator" />
+        <div v-if="open" class="geometry-grid" role="group">
+          <button v-for="option in options" :key="option.value" type="button" class="geometry-option geometry-card"
+            role="menuitemradio" :aria-label="option.label" :aria-checked="option.value === modelValue" tabindex="-1" @click="choose(option.value)"
+            @pointerenter="emit('preview', option.value)" @pointerleave="emit('preview', null)"
+            @focus="emit('preview', option.value)" @blur="emit('preview', null)">
+            <span class="geometry-thumbnail" aria-hidden="true">
+              <canvas data-preview-state="loading" />
+              <span class="geometry-placeholder"><SvgIcon :name="option.geometry.kind === 'silhouette' ? 'silhouette' : 'item'" :size="36" /></span>
+            </span>
+            <span v-if="option.value === modelValue" class="geometry-check"><SvgIcon name="check" :size="14" /></span>
+            <span class="geometry-card-label">{{ option.label }}</span>
+          </button>
+        </div>
+      </ScrollArea>
     </div>
   </div>
 </template>
@@ -150,7 +155,8 @@ defineExpose({ close })
 .geometry-select .geometry-trigger:hover:not(:disabled), .geometry-select .geometry-trigger[aria-expanded="true"] { border-color: #84ab8d; }
 .geometry-select .geometry-trigger:focus-visible { outline: 2px solid #84ab8d; outline-offset: 2px; }
 .geometry-select .geometry-trigger:disabled { opacity: .45; cursor: default; }
-.geometry-menu { position: fixed; inset: auto; margin: 0; box-sizing: border-box; padding: 4px; overflow: auto; border: 1px solid #56675b; border-radius: 6px; background: #28312c; color: #d6ded9; box-shadow: 0 8px 24px #0006; }
+.geometry-menu { position: fixed; inset: auto; margin: 0; box-sizing: border-box; padding: 4px; overflow: hidden; border: 1px solid #56675b; border-radius: 6px; background: #28312c; color: #d6ded9; box-shadow: 0 8px 24px #0006; }
+.geometry-options-scroll :deep(.scroll-viewport) { height: auto; max-height: inherit; }
 .geometry-menu .geometry-option { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 7px 8px; border: 0; border-radius: 3px; background: transparent; color: inherit; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
 .geometry-option span:last-child { overflow-wrap: anywhere; }
 .geometry-check { position: absolute; top: 7px; right: 7px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #466a52; color: #d8f7e0; }

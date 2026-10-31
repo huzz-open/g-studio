@@ -26,6 +26,7 @@ const activePower=computed(()=>directional.value?props.state.sun.intensity:props
 const panDrag = shallowRef<{ pointerId: number; x: number; y: number; target: Vec3; zoom: number; height: number; moved: boolean } | null>(null)
 const suppressFocusRing = ref(false)
 let renderer: ReturnType<typeof createSceneRenderer> | undefined, observer: ResizeObserver | undefined, frame = 0
+let announceReady = false
 let dragging: { id: string; light: boolean; dx: number; dz: number; height?: {y:number;value:number};sphere?:{frame:SunSphere;offsetX:number;offsetY:number;orbit:boolean};resize?:{axis:'width'|'depth'|'height';x:number;y:number;value:number;vx:number;vy:number} } | null = null
 function name(id: string) { const item = props.state.items.find(i => i.id === id); return item ? assetsById.value[item.assetId]?.name ?? t('parts.missing') : '' }
 function draw() {
@@ -35,6 +36,9 @@ function draw() {
     if (!canvas.value || canvas.value.clientWidth < 1 || canvas.value.clientHeight < 1) return
     try {
       renderer!.render(props.state, props.showShadowPoints)
+      // Handoffs may expose this canvas as soon as ready fires. Publish only
+      // after its first frame, rather than while draw() is still queued.
+      if (announceReady) { announceReady = false; emit('ready') }
       markers.value = props.state.items.filter(i => i.visible).map(i => ({ id: i.id, ...renderer!.project([i.x, 0, i.z], props.state) }))
       const anchor=directional.value?sunAnchor(props.state):[props.state.light[0],0,props.state.light[2]] as Vec3
       lightFoot.value=renderer!.project(anchor,props.state)
@@ -59,7 +63,7 @@ const updates = createLatestTask<PartAsset[], boolean>({
   // Publish finished normal-map frames while the next slider value computes.
   // Changes to images, geometry or membership still invalidate an old snapshot.
   async run(parts) { const key=surfaceKey(parts); return renderer!.syncAssets(parts,()=>surfaceKey(props.assets)===key) },
-  apply(committed) { if(!committed)return; ready.value = true; error.value = ''; if(props.autoFit)props.fitView?.(); emit('coverage', renderer!.coverage()); draw();emit('ready') },
+  apply(committed) { if(!committed)return; ready.value = true; error.value = ''; if(props.autoFit)props.fitView?.(); emit('coverage', renderer!.coverage()); announceReady = true; draw() },
 })
 function refresh() { if (renderer) { error.value = ''; updates.request(props.assets.map(clonePart), true) } }
 // The editor passes a fresh [draft] array on render. Compare content, not array

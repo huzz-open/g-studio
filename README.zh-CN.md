@@ -27,7 +27,24 @@ npm run dev:web
 
 打开 <http://localhost:5173>。以上步骤只启动网页，无需 Python 或模型下载。国内网络可在安装依赖前执行 `npm run setup:cn`。
 
-需要 AI 几何生成时，使用 `npm run dev` 同时启动网页和后端；首次准备会下载运行环境及约 4.23 GB 的默认模型权重。连接方式与设备配置见[模型生成指南](docs/guides/model-generation.md)。
+### 启动 AI 后端
+
+在项目根目录运行 `npm run dev` 可同时启动网页和后端；只启动后端可运行：
+
+```sh
+npm run dev:gensvc
+```
+
+默认启用 Mini Turbo，首次启动会准备运行环境并下载约 4.23 GB 的模型权重。使用 `--models` 指定启用的模型：
+
+```sh
+npm run dev:gensvc -- --models turbo       # Standard Turbo
+npm run dev:gensvc -- --models 2.1         # Full 2.1 Shape
+npm run dev:gensvc -- --models mini,turbo  # 同时启用多个模型
+npm run dev:gensvc -- --models all         # 启用全部模型
+```
+
+也可将这些参数传给 `npm run dev --`，同时启动网页。等待所需模型显示就绪后，在网页中填写启动终端显示的服务地址，并按终端提示获取 token 后测试连接。连接方式与设备配置见[模型生成指南](docs/guides/model-generation.md)和[后端配置](services/generation-python/deployment.md)。
 
 ## 开发
 
