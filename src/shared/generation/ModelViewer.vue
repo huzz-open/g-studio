@@ -13,7 +13,7 @@ import { chooseModelVersion } from '../parts/model-comparison'
 const props=defineProps<{uri:string;image:string;name:string;model:PartModel;sourcePart?:PartAsset;comparison?:PartAsset['modelComparison'];controlsTarget?:string}>()
 const emit=defineEmits<{change:[PartAsset|undefined];busy:[boolean]}>()
 const part=ref<PartAsset>(),state=shallowRef<ReturnType<typeof createPartPreview>>(),host=ref<HTMLElement>(),autoFit=ref(true),error=ref(''),busy=ref(false)
-const {t}=useI18n(),swipe=ref(true),review=ref<InstanceType<typeof ModelReviewViewport>>()
+const {t}=useI18n(),review=ref<InstanceType<typeof ModelReviewViewport>>()
 const drafts=new Map<string,PartAsset>()
 watch(()=>[props.uri,props.image,props.sourcePart?.id,props.model.mesh?.modelId,props.model.mesh?.modelRevision,props.comparison],async(_,__,cleanup)=>{
   let current=true;cleanup(()=>{current=false});emit('change',undefined);part.value=undefined;error.value=''
@@ -47,9 +47,9 @@ function fit(){
 </script>
 <template><div ref="host" class="generated-review">
   <Teleport :to="controlsTarget || 'body'" :disabled="!controlsTarget">
-    <aside v-if="part" class="model-controls" :class="{ 'floating-controls': !controlsTarget }"><strong>{{name}}</strong><InlineSwitch v-model="swipe" :label="t('parts.compareSwipe')"/><span v-if="busy" role="status">{{t('parts.aligning')}}</span><InlineSwitch v-else :model-value="part.modelComparison?.autoOptimize??true" :label="t('parts.useOptimized')" @update:model-value="review?.toggleOptimization($event)"/><p v-if="part.modelComparison?.optimizationError" role="alert">{{part.modelComparison.optimizationError}}</p></aside>
+    <aside v-if="part" class="model-controls" :class="{ 'floating-controls': !controlsTarget }"><strong>{{name}}</strong><span v-if="busy" role="status">{{t('parts.aligning')}}</span><InlineSwitch v-else :model-value="part.modelComparison?.autoOptimize??true" :label="t('parts.useOptimized')" @update:model-value="review?.toggleOptimization($event)"/><p v-if="part.modelComparison?.optimizationError" role="alert">{{part.modelComparison.optimizationError}}</p></aside>
   </Teleport>
-  <ModelReviewViewport ref="review" v-if="part&&state" :swipe="swipe" :model-value="part" :state="state" :auto-fit="autoFit" :fit-view="fit" @update:model-value="update" @interact="autoFit=false" @busy="busy=$event;emit('busy',$event)"/>
+  <ModelReviewViewport ref="review" v-if="part&&state" model-only :model-value="part" :state="state" :auto-fit="autoFit" :fit-view="fit" @update:model-value="update" @interact="autoFit=false" @busy="busy=$event;emit('busy',$event)"/>
   <span v-if="error" role="alert">{{error}}</span>
 
 </div></template>

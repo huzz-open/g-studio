@@ -2,7 +2,8 @@ import { clonePart, type PartAsset, type PartModel, type Triple } from './schema
 import { decodeMesh } from './mesh'
 import { imageBounds, buildPartModel, meshExtents } from '../../modules/scene-lighting/part-model'
 import { comparisonInputKey } from '../../modules/scene-lighting/model-repair'
-import { RIGHT,UP,PITCH,YAW,type SceneState } from '../../modules/scene-lighting/model'
+import { RIGHT,UP,FORWARD,PITCH,YAW,type SceneState } from '../../modules/scene-lighting/model'
+import { REFERENCE_UP } from '../../modules/scene-lighting/reference-plane'
 import { dot,type Vec3 } from '../../modules/experiments/umbrella/math'
 
 /** Initialize independent model versions against one shared image reference. */
@@ -59,4 +60,20 @@ export function fitModelComparison(state:SceneState,left:PartAsset,right:PartAss
   const center:Vec3=[offset[0],1,offset[2]],dx=(minX+maxX)/2-dot(center,RIGHT),dy=(minY+maxY)/2-dot(center,UP)
   state.target=center.map((v,i)=>v+RIGHT[i]*dx+UP[i]*dy) as Vec3
   state.zoom=Math.max(4,Math.min(40,1.3*Math.max(maxY-minY,(maxX-minX)/Math.max(.1,aspect))/.8))
+}
+
+
+/** World-space inspection bounds; the reference stands upright in this view. */
+export function inspectionBounds(part:PartAsset,state:SceneState,includeImage:boolean){
+  const item=state.items[0],scale=item?.scale??1,offset:Vec3=[item?.x??0,0,item?.z??0]
+  const mesh=buildPartModel(part,{width:0,height:0,data:new Uint8ClampedArray()})
+  const min:Vec3=[Infinity,Infinity,Infinity],max:Vec3=[-Infinity,-Infinity,-Infinity]
+  const axes=[RIGHT,UP,FORWARD],projectedMin=[Infinity,Infinity,Infinity],projectedMax=[-Infinity,-Infinity,-Infinity]
+  const include=(point:Vec3)=>{
+    const world=point.map((v,i)=>v*scale+offset[i]) as Vec3
+    for(let i=0;i<3;i++){min[i]=Math.min(min[i],world[i]);max[i]=Math.max(max[i],world[i]);const p=dot(world,axes[i]);projectedMin[i]=Math.min(projectedMin[i],p);projectedMax[i]=Math.max(projectedMax[i],p)}
+  }
+  for(let i=0;i<mesh.vertices.length;i+=9)include([mesh.vertices[i],mesh.vertices[i+1],mesh.vertices[i+2]])
+  if(includeImage){const b=imageBounds(part);for(const x of [b.left,b.left+b.width])for(const y of [b.bottom,b.bottom+b.height])include([RIGHT[0]*x,y*REFERENCE_UP[1],RIGHT[2]*x])}
+  return {min,max,center:[0,1,2].map(i=>axes.reduce((sum,axis,j)=>sum+axis[i]*(projectedMin[j]+projectedMax[j])/2,0)) as Vec3}
 }

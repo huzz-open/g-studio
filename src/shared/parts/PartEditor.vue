@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import GenerationPanel from '../generation/GenerationPanel.vue'
 import { generatedModels, resolvePartModels } from '../generation/models'
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, useId, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from '../i18n'
 import { initializeComparison, originalVersion, optimizedVersion, comparisonCurrent, fitModelComparison } from './model-comparison'
@@ -21,11 +21,11 @@ import SegmentedControl from '../components/SegmentedControl.vue'
 import { addPartsToScene } from '../../modules/scene-lighting/store'
 import LightSettings from '../../modules/scene-lighting/LightSettings.vue'
 import SidebarSection from '../components/editor-shell/SidebarSection.vue'
-import InlineSwitch from '../components/InlineSwitch.vue'
 import ScrollArea from '../components/ScrollArea.vue'
 import ModelSelect from './ModelSelect.vue'
 
 const props=defineProps<{asset:PartAsset;origin:'slicer'|'scene'}>()
+const viewControlsId='part-view-controls-'+useId()
 const initial=initializeComparison(clonePart(props.asset))
 const {t}=useI18n(),router=useRouter(),draft=ref(initial),baseline=ref(clonePart(initial))
 const candidate=computed(()=>optimizedVersion(draft.value)),original=computed(()=>originalVersion(draft.value))
@@ -82,7 +82,7 @@ function modelLabel(model:PartModel){
 }
 const previewDefaults=createPartPreview(props.asset)
 const preview=reactive(clonePart(previewDefaults))
-const swipe=ref(true),review=ref<InstanceType<typeof ModelReviewViewport>>()
+const review=ref<InstanceType<typeof ModelReviewViewport>>()
 async function optimizeModel(value:string,enabled:boolean){const model=modelOptions.value.find(option=>modelKey(option)===value);if(!model||!await selectModel(model))return;await nextTick();review.value?.toggleOptimization(enabled)}
 function framePreview(){
   previewAutoFit.value=true
@@ -150,23 +150,23 @@ onUnmounted(()=>{disposed=true;alignmentController?.abort();document.removeEvent
     <div class="editor-body"><aside class="part-sidebar" :aria-label="t('parts.partSettings')">
       <ScrollArea class="part-properties-scroll" :label="t('parts.properties')"><fieldset class="part-properties" :disabled="saving">
       <SidebarSection :title="t('parts.asset')" :collapsible="false"><label class="name-field">{{t('parts.name')}}<input v-model="draft.name" maxlength="120" :aria-label="t('parts.name')"/></label></SidebarSection>
+      <SidebarSection :title="t('parts.viewTask')" :collapsible="false"><div :id="viewControlsId"/></SidebarSection>
       <SidebarSection :title="t('parts.previewLighting')">
         <SegmentedControl v-model="preview.scene" :label="t('sceneLight.environment')" :options="[{value:'open',label:t('sceneLight.open')},{value:'corner',label:t('sceneLight.corner')}]" role="group" :aria-label="t('sceneLight.environment')"/>
         <LightSettings :state="preview" :defaults="previewDefaults" />
       </SidebarSection>
       <SidebarSection :title="t('parts.model')">
-        <InlineSwitch v-model="swipe" :label="t('parts.compareSwipe')"/>
         <ModelSelect ref="modelSelect" :part="draft" :model-value="modelChoice" :options="modelOptions.map(model=>({value:modelKey(model),label:modelLabel(model),model}))" :disabled="saving" :loading="selectingModel||aligning" :optimizing="aligning" :optimization-enabled="draft.modelComparison?.autoOptimize??true" @optimize="optimizeModel" @update:model-value="chooseModel" @preview="hoveredModel=$event" @generate="alignmentController?.abort();showGeneration=true"/>
         <p v-if="draft.modelComparison?.optimizationError" role="alert">{{draft.modelComparison.optimizationError}}</p>
 
       </SidebarSection>
     </fieldset></ScrollArea></aside><main class="part-preview" :aria-label="t('parts.effectPreview')">
-      <ModelReviewViewport ref="review" v-model="draft" :swipe="swipe" :state="preview" :fit-view="framePreview" :auto-fit="previewAutoFit" :preview-part="previewPart" :hovering="!!hoveredModel" :disabled="saving||selectingModel" @busy="aligning=$event" @interact="previewAutoFit=false"/>
+      <ModelReviewViewport ref="review" v-model="draft" :view-controls-target="'#'+viewControlsId" :state="preview" :fit-view="framePreview" :auto-fit="previewAutoFit" :preview-part="previewPart" :hovering="!!hoveredModel" :disabled="saving||selectingModel" @busy="aligning=$event" @interact="previewAutoFit=false"/>
     </main></div>
     <footer><div class="button-row"><button :disabled="saving||aligning||selectingModel" @click="exportAsset">{{t('parts.exportAsset')}}</button><button :disabled="saving||aligning||selectingModel" @click="exportPackage">{{t('parts.exportPackage')}}</button><button v-if="origin==='scene'" :disabled="saving||aligning||selectingModel" @click="locate">{{t('parts.locateSlicer')}}</button></div><div class="button-row"><button :disabled="saving||aligning||selectingModel" @click="addToScene">{{t('parts.addOne')}}</button><button :disabled="saving||aligning||selectingModel" @click="leave">{{t(origin==='scene'?'parts.backScene':'parts.backSlicer')}}</button><button class="primary" :disabled="saving||aligning||selectingModel||conflict" @click="saveAndClose">{{t(saving?'common.loading':'parts.saveReturn')}}</button></div></footer>
   </section></div><div v-if="showGeneration" class="generation-overlay"><GenerationPanel :part="draft" :origin="origin" @apply="applyGenerated" @close="showGeneration=false"/></div></Teleport>
 </template>
 <style scoped>
 .generation-overlay{position:fixed;inset:4vh 3vw;z-index:1800;border:1px solid #555;border-radius:9px;overflow:hidden;box-shadow:0 0 0 100vmax #0009}
-.part-editor-overlay{position:fixed;inset:0;z-index:1700;background:#000b;display:flex;align-items:center;justify-content:center}.part-editor{width:min(1300px,96vw);height:92vh;display:flex;flex-direction:column;background:#202526;border:1px solid #56625b;border-radius:9px;overflow:hidden;color:#d6ded9;outline:none;box-shadow:0 15px 70px #0008}.part-editor header{display:flex;align-items:center;justify-content:space-between;padding:12px 15px;background:#2a3230}.part-editor header>div{display:flex;gap:16px;align-items:center}.part-editor header span{font-size:12px;color:#a8b5ad}.part-editor button{font:inherit;font-size:11px;color:inherit;cursor:pointer;border:1px solid #536058;border-radius:4px;background:#303c35;padding:7px 10px}.part-editor button:disabled{opacity:.45;cursor:default}.part-editor button.primary{background:#426b53;border-color:#84ab8d}.editor-body{display:flex;flex:1;min-height:0}.part-sidebar{display:flex;flex-direction:column;flex:0 0 285px;width:285px;min-width:0;min-height:0;border-right:1px solid #333}.part-properties-scroll{flex:1;min-height:0}.view-hint{font-size:11px;line-height:1.6;color:#9eafa4;margin:0}.part-properties{width:100%;min-width:0;padding:0;margin:0;border:0;box-sizing:border-box}.name-field{display:flex;flex-direction:column;font-size:11px;gap:7px}.name-field input,select{box-sizing:border-box;width:100%;border:1px solid #4c5850;border-radius:4px;padding:7px;background:#2b3330;color:#e0e8e1;font-size:12px}.note{font-size:10px;color:#a0b0a5;line-height:1.6;margin:8px 0}.approximation{color:#d5bd8b}.button-row{display:flex;gap:6px;flex-wrap:wrap}.wide{width:100%;margin-top:7px}.part-preview{display:flex;flex-direction:column;min-width:0;flex:1}.part-editor footer{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 13px;border-top:1px solid #46534a;background:#28322c}.editor-error{font-size:11px;padding:8px 14px;background:#512b28;color:#ffd4c6;overflow-wrap:anywhere}@media(max-width:800px){.part-sidebar{flex-basis:250px;width:250px}.part-editor header>div{gap:7px;flex-wrap:wrap}.part-editor footer{padding:7px}.part-editor button{padding:6px;font-size:10px}}@media(max-width:560px){.editor-body{flex-direction:column;overflow:auto}.part-sidebar{width:100%;flex-basis:260px;height:260px;flex-shrink:0}.part-preview{min-height:380px}.part-editor{height:96vh}}
+.part-editor-overlay{position:fixed;inset:0;z-index:1700;background:#000b;display:flex;align-items:center;justify-content:center}.part-editor{width:100vw;height:100dvh;display:flex;flex-direction:column;background:#202526;border:0;border-radius:0;overflow:hidden;color:#d6ded9;outline:none;box-shadow:0 15px 70px #0008}.part-editor header{display:flex;align-items:center;justify-content:space-between;padding:12px 15px;background:#2a3230}.part-editor header>div{display:flex;gap:16px;align-items:center}.part-editor header span{font-size:12px;color:#a8b5ad}.part-editor button{font:inherit;font-size:11px;color:inherit;cursor:pointer;border:1px solid #536058;border-radius:4px;background:#333;padding:7px 10px}.part-editor button:disabled{opacity:.45;cursor:default}.part-editor button.primary{background:#3a3a3a;border-color:#777}.editor-body{display:flex;flex:1;min-height:0}.part-sidebar{display:flex;flex-direction:column;flex:0 0 285px;width:285px;min-width:0;min-height:0;border-right:1px solid #333}.part-properties-scroll{flex:1;min-height:0}.view-hint{font-size:11px;line-height:1.6;color:#9eafa4;margin:0}.part-properties{width:100%;min-width:0;padding:0;margin:0;border:0;box-sizing:border-box}.name-field{display:flex;flex-direction:column;font-size:11px;gap:7px}.name-field input,select{box-sizing:border-box;width:100%;border:1px solid #4c5850;border-radius:4px;padding:7px;background:#2b3330;color:#e0e8e1;font-size:12px}.note{font-size:10px;color:#a0b0a5;line-height:1.6;margin:8px 0}.approximation{color:#d5bd8b}.button-row{display:flex;gap:6px;flex-wrap:wrap}.wide{width:100%;margin-top:7px}.part-preview{display:flex;flex-direction:column;min-width:0;flex:1}.part-editor footer{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 13px;border-top:1px solid #46534a;background:#28322c}.editor-error{font-size:11px;padding:8px 14px;background:#512b28;color:#ffd4c6;overflow-wrap:anywhere}@media(max-width:800px){.part-sidebar{flex-basis:250px;width:250px}.part-editor header>div{gap:7px;flex-wrap:wrap}.part-editor footer{padding:7px}.part-editor button{padding:6px;font-size:10px}}@media(max-width:560px){.editor-body{flex-direction:column;overflow:auto}.part-sidebar{width:100%;flex-basis:260px;height:260px;flex-shrink:0}.part-preview{min-height:380px}.part-editor{height:100dvh}}
 </style>

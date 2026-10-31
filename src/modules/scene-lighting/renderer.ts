@@ -1,3 +1,4 @@
+import { REFERENCE_UP } from './reference-plane'
 import { previewLayers, type PreviewDisplay } from './preview-display'
 import { directionalShadowCamera, sunDirection } from './lighting-math'
 import { add, dot, lookAt, multiply, normalize, perspective, sub, transform, type Mat4, type Vec3 } from '../experiments/umbrella/math'
@@ -103,8 +104,8 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
   let lightMatrices: Mat4[] = [], shadowKey = '', lastState: SceneState | undefined, lastShowShadowPoints = false
   let lastDisplay:PreviewDisplay|undefined
   function status() { if (gl!.checkFramebufferStatus(gl!.FRAMEBUFFER) !== gl!.FRAMEBUFFER_COMPLETE) throw new Error('Lighting framebuffer is unavailable') }
-  function basis(p: WebGLProgram, bounds: SpriteBounds) {
-    gl!.uniform3fv(u(p, 'right'), RIGHT); gl!.uniform3fv(u(p, 'up'), UP); gl!.uniform3fv(u(p, 'forward'), FORWARD)
+  function basis(p: WebGLProgram, bounds: SpriteBounds, upright = false) {
+    gl!.uniform3fv(u(p, 'right'), RIGHT); gl!.uniform3fv(u(p, 'up'), upright ? REFERENCE_UP : UP); gl!.uniform3fv(u(p, 'forward'), FORWARD)
     gl!.uniform4f(u(p, 'bounds'), bounds.left, bounds.bottom, bounds.width, bounds.height)
   }
   function bakeField(asset: SpriteAsset) {
@@ -272,7 +273,7 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
       gl!.uniform1f(u(spriteProgram, 'sourceOnly'), +layers.sourceOnly)
       state.items.forEach((item, i) => {
         const asset = assets.get(item.assetId); if (!asset || !item.visible) return
-        basis(spriteProgram, asset.bounds); gl!.uniform1f(u(spriteProgram, 'objectScale'), item.scale); gl!.uniform1f(u(spriteProgram, 'directx'), +asset.directx); gl!.uniform3f(u(spriteProgram, 'offset'), item.x, 0, item.z)
+        basis(spriteProgram, asset.bounds, display?.uprightReference === true); gl!.uniform1f(u(spriteProgram, 'objectScale'), item.scale); gl!.uniform1f(u(spriteProgram, 'directx'), +asset.directx); gl!.uniform3f(u(spriteProgram, 'offset'), item.x, 0, item.z)
         gl!.uniform1f(u(spriteProgram, 'objectId'), i + 2); gl!.uniform1f(u(spriteProgram, 'receives'), +item.receives)
         gl!.uniform1f(u(spriteProgram, 'selected'), +(selectionOutline && item.id === state.selected))
         for (const [j, [name, tex]] of [['colorMap', asset.color], ['normalMap', asset.normal], ['fieldDepth', asset.depth], ['fieldNormal', asset.surface]].entries()) {

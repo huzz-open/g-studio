@@ -70,3 +70,25 @@ test('versions share a single image frame and candidates cannot replace it',()=>
  c.imageFrame.left+=.1;assert.throws(()=>storeCandidate(p,c))
  p.imageFrame.height*=1.1;assert.equal(comparisonCurrent(p),false)
 })
+
+
+test('upright reference stays vertical and preserves the original image projection',()=>{
+ const {REFERENCE_UP}=require('../src/modules/scene-lighting/reference-plane.ts')
+ const {RIGHT,UP}=require('../src/modules/scene-lighting/model.ts')
+ const {dot}=require('../src/modules/experiments/umbrella/math.ts')
+ assert.equal(REFERENCE_UP[0],0);assert.equal(REFERENCE_UP[2],0)
+ assert.ok(Math.abs(dot(REFERENCE_UP,UP)-1)<1e-12)
+ assert.ok(Math.abs(dot(REFERENCE_UP,RIGHT))<1e-12)
+ const {inspectionBounds}=require('../src/shared/parts/model-comparison.ts')
+ const p=part(),snapshot=clonePart(p),state=createScene()
+ state.items=[]
+ const bounds=inspectionBounds(p,state,true)
+ assert.ok(bounds.max[1]>bounds.min[1]);assert.ok(bounds.center.every(Number.isFinite))
+ assert.deepEqual(p,snapshot)
+ const modelBounds=inspectionBounds(p,state,false),vertices=buildPartModel(p,{}).vertices
+ for(const axis of [RIGHT,UP]){
+   let lo=Infinity,hi=-Infinity
+   for(let i=0;i<vertices.length;i+=9){const v=dot([vertices[i],vertices[i+1],vertices[i+2]],axis);lo=Math.min(lo,v);hi=Math.max(hi,v)}
+   assert.ok(Math.abs(dot(modelBounds.center,axis)-(lo+hi)/2)<1e-6,'model target must center its projected silhouette')
+ }
+})
