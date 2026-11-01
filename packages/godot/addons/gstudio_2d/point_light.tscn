@@ -1,0 +1,5 @@
+[gd_scene format=3]
+[ext_resource type="Script" path="res://addons/gstudio_2d/gs_point_light_2d.gd" id="script"]
+[node name="GSPoint_Light2D" type="Marker2D"]
+script = ExtResource("script")
+shadow_enabled = true

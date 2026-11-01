@@ -134,12 +134,12 @@ void main(){
 export const spriteVertex = `#version 300 es
 layout(location=0) in vec2 uvPosition;
 uniform mat4 matrix;uniform vec3 offset;uniform vec3 right;uniform vec3 up;uniform vec4 bounds;uniform float objectScale;
-out vec2 uv;
-void main(){uv=uvPosition;vec2 p=bounds.xy+uv*bounds.zw;gl_Position=matrix*vec4(offset+(right*p.x+up*p.y)*objectScale,1.0);}
+out vec2 uv;out vec3 projectedWorld;out vec3 projectedNormal;
+void main(){projectedWorld=vec3(0);projectedNormal=vec3(0);uv=uvPosition;vec2 p=bounds.xy+uv*bounds.zw;gl_Position=matrix*vec4(offset+(right*p.x+up*p.y)*objectScale,1.0);}
 `
 export const spriteFragment = `#version 300 es
 precision highp float;
-in vec2 uv;out vec4 color;
+in vec2 uv;in vec3 projectedWorld;in vec3 projectedNormal;uniform float projected;out vec4 color;
 uniform sampler2D colorMap;uniform sampler2D normalMap;uniform sampler2D fieldDepth;uniform sampler2D fieldNormal;
 uniform vec3 offset;uniform vec3 right;uniform vec3 up;uniform vec3 forward;uniform vec4 bounds;uniform mat4 matrix;uniform float objectId;
 uniform float sourceOnly;uniform float objectScale;uniform float directx;uniform float selected;uniform float outlinePixelRatio;
@@ -152,6 +152,7 @@ void main(){
   // Evaluate derivatives before alpha discard. The stroke stays two CSS pixels
   // wide at every zoom and follows the same aligned UVs and depth as the image.
   vec2 outlineStep=fwidth(uv)*outlinePixelRatio;
+  if(any(lessThan(uv,vec2(0)))||any(greaterThan(uv,vec2(1))))discard;
   vec4 texel=texture(colorMap,uv);if(texel.a<0.08)discard;
   if(sourceOnly>0.5){color=vec4(texel.rgb,1.0);return;}
   vec4 field=texture(fieldDepth,uv);
@@ -159,6 +160,7 @@ void main(){
   vec2 q=bounds.xy+uv*bounds.zw;
   vec3 p=offset+(right*q.x+up*q.y+forward*d)*objectScale;
   vec3 n=field.a>0.5?normalize(texture(fieldNormal,uv).xyz*2.0-1.0):-forward;
+  if(projected>0.5){p=projectedWorld;n=normalize(projectedNormal);}
   vec3 detail=texture(normalMap,uv).xyz*2.0-1.0;
   if(directx>0.5)detail.y=-detail.y;
   // Reorient the complete normal map onto the geometric surface. A flat map
@@ -181,4 +183,11 @@ void main(){
     color.rgb=mix(color.rgb,vec3(0.72,0.94,0.83),edge);
   }
 }
+`
+
+export const projectedSpriteVertex = `#version 300 es
+layout(location=0) in vec3 position;layout(location=1) in vec3 normal;
+uniform mat4 matrix;uniform vec3 offset;uniform float objectScale;uniform vec3 right;uniform vec3 up;uniform vec4 bounds;
+out vec2 uv;out vec3 projectedWorld;out vec3 projectedNormal;
+void main(){uv=(vec2(dot(position,right),dot(position,up))-bounds.xy)/bounds.zw;projectedWorld=position*objectScale+offset;projectedNormal=normal;gl_Position=matrix*vec4(projectedWorld,1.0);}
 `

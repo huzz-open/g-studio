@@ -1,3 +1,4 @@
+import { registeredModel } from './registered-model'
 import { decodeMesh } from '../../shared/parts/mesh'
 import { resolveGeneratedModel } from '../../shared/generation/models'
 import { isPartModelAllowed, type PartAsset, type Triple } from '../../shared/parts/schema'
@@ -51,6 +52,7 @@ export function buildPartModel(part: PartAsset, _pixels: { width: number; height
   if (g.kind === 'mesh') {
     const source = decodeMesh(g.mesh!.uri)
     if(g.original)return source
+    if(g.registration){const key=JSON.stringify([g.mesh!.sha256,g.registration,part.imageFrame]);const cached=processedModels.get(key);if(cached?.source===source)return cached.mesh;const mesh=registeredModel(source,part);processedModels.set(key,{source,mesh});while(processedModels.size>8)processedModels.delete(processedModels.keys().next().value!);return mesh}
     const fit=g.imageFit
     const key=JSON.stringify([g.mesh!.sha256,g.size,fit&&[fit.size,fit.target,fit.rotation,fit.projection]])
     const cached=processedModels.get(key)
@@ -93,7 +95,7 @@ export function alignPartModel(part: PartAsset, pixels: { width: number; height:
 export function partMovementLimits(part: PartAsset | undefined, scale = 1, room?: RoomSize) {
   const ROOM=roomBounds(room)
   const repair=part?activeRepair(part):undefined,readyBounds=repair?cachedRepairBounds(repair):undefined
-  if (part?.model.imageFit && part.model.kind === 'mesh' && (!repair||readyBounds)) {
+  if ((part?.model.imageFit||part?.model.registration) && part.model.kind === 'mesh' && (!repair||readyBounds)) {
     const { min, max } = readyBounds??processedBounds(buildPartModel(part, { width: 0, height: 0, data: new Uint8ClampedArray() }))
     const limits = (a: number, b: number, lo: number, hi: number) => {
       const lower = Math.ceil((lo - a * scale + .05) * 100) / 100, upper = Math.floor((hi - b * scale - .05) * 100) / 100

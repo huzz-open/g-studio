@@ -16,6 +16,7 @@ export interface PartModel {
   /** Explicitly adopted model snapshots do not follow background regeneration. */
   frozen?: boolean
   original?: boolean
+  registration?: { method: 'orthographic-camera'; pitch:number; yaw:number; scale:number; offset:[number,number]; width:number; height:number }
   repair?: ModelRepair
   /** Projection registration; size is the baseline for subsequent manual edits. */
   imageFit?: {
@@ -31,6 +32,7 @@ export interface PartAsset {
   revision: number
   name: string
   image: { uri: string; width: number; height: number }
+  normalImage?: {uri:string;width:number;height:number}
   normal: NormalSettings
   model: PartModel
   modelComparison?: {
@@ -74,6 +76,7 @@ export function validatePart(value: unknown): asserts value is PartAsset {
     || BUILTIN_IMAGE_IDS.some(id => uri === `builtin:${id}`))) fail('image must be embedded PNG or a known bundled asset')
   if (!object(v.normal) || !Object.keys(DEFAULT_NORMAL_SETTINGS).every(k => k in v.normal)) fail('normal settings')
   normalSettings(v.normal)
+  if(v.normalImage!==undefined&&(!object(v.normalImage)||v.normalImage.width!==v.image.width||v.normalImage.height!==v.image.height||typeof v.normalImage.uri!=='string'||!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(v.normalImage.uri)))fail('frozen normal image')
   const g = v.model
   validateModel(g, v.version, fail)
   if (!isPartModelAllowed(v as PartAsset, g)) fail('model does not belong to this part')
@@ -107,6 +110,10 @@ function validateModel(g: any, version: number, fail: (message: string) => never
   if (g.defaultSize !== undefined && !tuple(g.defaultSize, 3, .02, 8)) fail('model default size')
   if(g.frozen!==undefined&&typeof g.frozen!=='boolean')fail('frozen model')
   if(g.original!==undefined&&(typeof g.original!=='boolean'||g.kind!=='mesh'||(g.original&&(g.imageFit||g.repair))))fail('original model')
+  if(g.registration!==undefined){
+    const r=g.registration
+    if(g.kind!=='mesh'||!object(r)||g.original||g.imageFit||g.repair||r.method!=='orthographic-camera'||!finite(r.pitch,5,80)||!finite(r.yaw,-180,180)||!finite(r.scale,1e-8,1e8)||!tuple(r.offset,2,-1e8,1e8)||!finite(r.width,1,2048)||!finite(r.height,1,2048)||!Number.isInteger(r.width)||!Number.isInteger(r.height))fail('camera registration')
+  }
   if(g.repair!==undefined){
     const r=g.repair
     if(g.kind!=='mesh'||!object(r)||![1,2].includes(r.version)||typeof r.enabled!=='boolean'||typeof r.key!=='string'||r.key.length>16384
@@ -147,7 +154,7 @@ export function createPart(name: string, image: PartAsset['image'], id: string =
     imageFrame: { left: -image.width / Math.max(image.width,image.height), bottom: 0, height: 2*image.height/Math.max(image.width,image.height) } }
   validatePart(part); return part
 }
-export function partRenderKey(part: PartAsset) { return JSON.stringify([part.image, part.normal, part.model, part.imageFrame]) }
+export function partRenderKey(part: PartAsset) { return JSON.stringify([part.image, part.normal, part.normalImage, part.model, part.imageFrame]) }
 /** Inputs that affect the mesh, color texture and projected surface fields. */
 export function partSurfaceKey(part: PartAsset) { return JSON.stringify([part.image, part.model, part.imageFrame]) }
 

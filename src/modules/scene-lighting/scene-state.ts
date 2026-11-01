@@ -18,9 +18,11 @@ export function parseScene(value: any): SceneState {
     ||!Number.isFinite(room.width)||room.width<2||room.width>24||!Number.isFinite(room.depth)||room.depth<2||room.depth>24
     ||!Number.isFinite(room.height)||room.height<.5||room.height>12||!Number.isFinite(sun.azimuth)||Math.abs(sun.azimuth)>180
     ||!Number.isFinite(sun.elevation)||sun.elevation<5||sun.elevation>85||!Number.isFinite(sun.intensity)||sun.intensity<0||sun.intensity>4)throw new Error('Invalid room or light settings')
+  const cameraPitch=value.cameraPitch??20
+  if(!Number.isFinite(cameraPitch)||cameraPitch<5||cameraPitch>80)throw new Error('Invalid camera pitch')
   const selected = migrated.selected === '' || migrated.items.some((i: any) => i.id === migrated.selected) ? migrated.selected : migrated.items[0]?.id ?? ''
   if (migrated.target !== undefined && (!Array.isArray(migrated.target) || migrated.target.length !== 3 || !migrated.target.every(Number.isFinite))) throw new Error('Invalid camera target')
-  return { room,lightKind,sun, showNames: migrated.showNames !== false, scene: migrated.scene, mode: migrated.mode, tool: migrated.tool, shadows: migrated.shadows, filtered: migrated.filtered,
+  return { cameraPitch,room,lightKind,sun, showNames: migrated.showNames !== false, scene: migrated.scene, mode: migrated.mode, tool: migrated.tool, shadows: migrated.shadows, filtered: migrated.filtered,
     light: migrated.light, zoom: migrated.zoom, ambient: migrated.ambient, power: migrated.power, items: migrated.items, selected,
     ...(migrated.target === undefined ? {} : { target: migrated.target }) }
 }

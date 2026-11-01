@@ -32,7 +32,7 @@ let anchor: DOMRect | undefined
 let disposePreviews: (() => void) | undefined
 // Parent status updates create new option arrays without changing the models.
 // Keep their canvases and animation alive until preview content actually changes.
-const previewKey = computed(() => props.options.map(option=>[option.value,option.model.mesh?.sha256,option.model.repair?.key,JSON.stringify(option.model.imageFit)].join(':')).join('|'))
+const previewKey = computed(() => props.options.map(option=>[option.value,option.model.mesh?.sha256,option.model.repair?.key,JSON.stringify(option.model.registration)].join(':')).join('|'))
 watch([open, previewKey], () => {
   disposePreviews?.(); disposePreviews = undefined
   if (!open.value || !menu.value || !scrollArea.value?.viewport) return
@@ -150,7 +150,7 @@ defineExpose({ close })
           </button>
           <div class="model-optimization">
             <span v-if="option.value===modelValue&&optimizing" class="model-loading" role="status" :aria-label="t('parts.aligning')"/>
-            <input v-else type="checkbox" :checked="option.value===modelValue?optimizationEnabled!==false:!!option.model.imageFit" :disabled="disabled" :aria-label="t('parts.useOptimized')" :title="t('parts.useOptimized')" @change="emit('optimize',option.value,($event.target as HTMLInputElement).checked)"/>
+            <input v-else type="checkbox" :checked="option.value===modelValue?optimizationEnabled!==false:!!option.model.registration" :disabled="disabled" :aria-label="t('parts.useOptimized')" :title="t('parts.useOptimized')" @change="emit('optimize',option.value,($event.target as HTMLInputElement).checked)"/>
           </div></div>
           <button type="button" class="model-option model-create" role="menuitem" tabindex="-1" @click="generate" :aria-label="t('generation.fromImage')">
             <SvgIcon name="plus" :size="36"/><span>{{t('generation.fromImage')}}</span>

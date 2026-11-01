@@ -11,7 +11,7 @@ export async function reviewKey(part:PartAsset){
  const {pixels}=await partPixels(part)
  const digest=await crypto.subtle.digest('SHA-256',new Uint8Array(pixels.data))
  const hash=Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0')).join('')
- return JSON.stringify(['model-fit-v3',part.model.mesh?.sha256,hash,part.image.width,part.image.height,part.imageFrame])
+ return JSON.stringify(['orthographic-camera',part.model.mesh?.sha256,hash,part.image.width,part.image.height,part.imageFrame])
 }
 export async function readReview(part:PartAsset){
   const database=await db(),key=await reviewKey(part)

@@ -25,6 +25,7 @@ export function pixelsUrl(pixels: ImageData) {
 }
 const normalCache = new Map<string, { key: string; promise: Promise<string> }>()
 export function normalImageUrl(part: PartAsset): Promise<string> {
+  if(part.normalImage)return Promise.resolve(part.normalImage.uri)
   const key = JSON.stringify([part.image, part.normal]), cached = normalCache.get(part.id)
   if (cached?.key === key) return cached.promise
   const snapshot = clonePart(part)

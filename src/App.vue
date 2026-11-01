@@ -16,6 +16,7 @@ import { loadSettings } from './shared/settings'
 import { checkGenerationConnection, generationConnection } from './shared/generation/connection'
 import { navigationItems } from './shared/navigation'
 import { settingsDialog, needsGenerationSetup } from './shared/settings-dialog'
+import GodotExportPanel from './shared/godot/GodotExportPanel.vue'
 import PartEditorHost from './shared/parts/PartEditorHost.vue'
 
 const router = useRouter()
@@ -23,6 +24,7 @@ const route = useRoute()
 const { t, locale, setLocale, availableLocales } = useI18n()
 const { isOpen: wsOpen, workspaceName, openWorkspace, closeWorkspace, tryRestoreWorkspace, reconnectWorkspace, hasSavedHandle, listSavedWorkspaces, removeSavedWorkspace } = useWorkspace()
 
+const showGodot = ref(false)
 const recentWorkspaces = ref<SavedWorkspace[]>([])
 
 const isDashboard = computed(() => route.path === '/')
@@ -252,6 +254,7 @@ async function handleRemoveRecent(e: Event, ws: SavedWorkspace) {
           </div>
         </div>
 
+        <button class="top-btn" @click="showGodot = true">Godot</button>
         <button class="top-btn" @click="showSettings = true" :title="t('settings.title')">
           <SvgIcon name="settings" :size="14" />
         </button>
@@ -282,6 +285,7 @@ async function handleRemoveRecent(e: Event, ws: SavedWorkspace) {
     <ConfirmDialog ref="confirmDialogRef" />
     <PromptDialog ref="promptDialogRef" />
 
+    <GodotExportPanel v-if="showGodot" @close="showGodot=false"/>
     <SettingsDialog :initial-category="settingsDialog.category" :visible="showSettings" @close="showSettings = false" />
   </div>
 </template>

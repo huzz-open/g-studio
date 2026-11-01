@@ -1,4 +1,7 @@
 export default {
+  "parts.cameraScale": "投影比例",
+  "parts.cameraYaw": "水平朝向",
+  "parts.cameraPitch": "参考俯视角",
   "parts.compareSideBySide": "并排对比",
   "parts.compareSwipeMode": "拖线对比",
   "parts.reviewPanHelp": "拖动画面平移 · 滚轮缩放",

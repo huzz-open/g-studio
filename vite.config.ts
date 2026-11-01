@@ -3,6 +3,7 @@ import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { createReadStream, existsSync, statSync, copyFileSync, mkdirSync, readFileSync } from 'fs'
 import vue from '@vitejs/plugin-vue'
+import { godotBridge } from './services/godot/vite-plugin.mjs'
 import { generationDistribution } from './scripts/generation/distribution.mjs'
 
 const projectRoot = dirname(fileURLToPath(import.meta.url))
@@ -65,7 +66,7 @@ export default defineConfig({
   optimizeDeps: { entries: ['index.html'] },
   server: { watch: { ignored: ['**/runtime/**', '**/.generation-test/**', '**/.venv/**', '**/venv/**'] } },
   base: process.env.GITHUB_ACTIONS ? '/g-studio/' : '/',
-  plugins: [vue(), opencvRawServe(), generationInstaller()],
+  plugins: [vue(), godotBridge(), opencvRawServe(), generationInstaller()],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },

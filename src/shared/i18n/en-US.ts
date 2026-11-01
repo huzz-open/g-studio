@@ -1,4 +1,7 @@
 export default {
+  "parts.cameraScale": "Projection scale",
+  "parts.cameraYaw": "Heading",
+  "parts.cameraPitch": "Reference elevation",
   "parts.compareSideBySide": "Side by side",
   "parts.compareSwipeMode": "Swipe comparison",
   "parts.reviewPanHelp": "Drag to pan · Scroll to zoom",

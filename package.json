@@ -31,7 +31,12 @@
     "relay:dev": "tsx services/generation-relay/server.ts",
     "relay:start": "tsx services/generation-relay/server.ts",
     "check:relay": "tsc --noEmit -p services/tsconfig.json",
-    "test:generation": "node --import tsx --test tests/generation.test.ts"
+    "test:generation": "node --import tsx --test tests/generation.test.ts",
+    "test:registration": "node --test tests/camera-registration.test.cjs tests/registered-model.test.cjs",
+    "verify:registration": "node scripts/registration/verify.cjs",
+    "mcp:godot": "node services/godot/mcp.mjs",
+    "godot:serve": "node services/godot/server.mjs",
+    "test:godot": "node --test tests/godot-service.test.mjs tests/ground-footprint.test.cjs tests/godot-snapshot.test.cjs tests/godot-trim.test.cjs"
   },
   "dependencies": {
     "@techstark/opencv-js": "github:TechStark/opencv-js#92e4734",

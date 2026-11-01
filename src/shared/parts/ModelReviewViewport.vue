@@ -41,7 +41,7 @@ const center=computed(()=>leftBounds.value.center.map((v,i)=>comparisonAvailable
 const sideTarget=(bounds:ReturnType<typeof inspectionBounds>)=>bounds.center.map((v,i)=>v+(props.state.target??center.value)[i]-center.value[i]) as Vec3
 const comparisonKey=computed(()=>[modelSurface.value,comparisonAvailable.value,showSource.value,comparisonLeft.value.model.id].join(':'))
 watch(canCompare,available=>{if(!available)showOriginal.value=true})
-watch(modelSurface,value=>{props.state.mode=value?'model':'sprites'},{immediate:true})
+watch([modelSurface,()=>draft.value.model.registration?.pitch],([value])=>{props.state.mode=value?'model':'sprites';props.state.cameraPitch=draft.value.model.registration?.pitch??20},{immediate:true})
 function fitComparison(){
   const rect=host.value?.getBoundingClientRect();if(!rect?.height)return
   const aspect=rect.width/(sideBySide.value?2:1)/rect.height
@@ -58,8 +58,15 @@ function fitComparison(){
   props.state.zoom=Math.max(4,Math.min(40,1.3*Math.max(extentY*2,extentX*2/Math.max(.1,aspect))/.8))
 }
 watch([comparisonLayout,comparisonAvailable],()=>{if(modelSurface.value)void nextTick(fitComparison)})
+function editRegistration(field:'pitch'|'yaw'|'scale'|'x'|'y',value:number){
+ if(!Number.isFinite(value)||aligning.value||saving.value)return
+ const next=clonePart(draft.value),r=next.modelComparison?.candidate?.registration;if(!r)return
+ if(field==='x'||field==='y')r.offset[field==='x'?0:1]=value
+ else r[field]=value
+ chooseModelVersion(next,'optimized');draft.value=next;props.state.inspectionPitch=r.pitch;props.state.cameraPitch=r.pitch
+}
 function resetView(){
-  props.state.inspectionYaw=YAW;props.state.inspectionPitch=PITCH
+  props.state.inspectionYaw=YAW;props.state.inspectionPitch=candidate.value?.model.registration?.pitch??PITCH
   if(modelSurface.value)fitComparison();else props.fitView()
 }
 const helpText=computed(()=>t(modelSurface.value?'parts.compareOrbitHelp':'parts.reviewPanHelp'))
@@ -110,6 +117,14 @@ async function selectAlignedModel(){
   <div ref="host" class="model-review">
     <ModelComparisonViewport :show-help="false" :key="comparisonKey" :original="comparisonLeft" :candidate="comparisonRight" :single="!comparisonAvailable" :side-by-side="sideBySide" :left-target="sideTarget(leftBounds)" :right-target="sideTarget(rightBounds)" :state="state" :fit-view="resetView" :auto-fit="autoFit" :display="display" presentation="split" :guides="!modelSurface" :reference-mode="modelSurface&&showSource?'overlay':undefined" :opacity="overlayOpacity/100" @interact="emit('interact')"/>
     <p v-if="error&&error!==draft.modelComparison?.optimizationError" class="review-error" role="alert">{{error}}</p>
+<button v-if="aligning" class="registration-cancel" @click="alignmentController?.abort()">{{t('common.cancel')}}</button>
+    <div v-if="candidate?.model.registration&&modelSurface" class="registration-tools">
+      <label>{{t('parts.cameraPitch')}}<input type="number" min="5" max="80" step=".1" :value="candidate.model.registration.pitch" @change="editRegistration('pitch',Math.max(5,Math.min(80,Number(($event.target as HTMLInputElement).value))))"/></label>
+      <label>{{t('parts.cameraYaw')}}<input type="number" min="-180" max="180" step="1" :value="candidate.model.registration.yaw" @change="editRegistration('yaw',Math.max(-180,Math.min(180,Number(($event.target as HTMLInputElement).value))))"/></label>
+      <label>{{t('parts.cameraScale')}}<input type="number" min=".001" step="1" :value="candidate.model.registration.scale" @change="editRegistration('scale',Math.max(.001,Number(($event.target as HTMLInputElement).value)))"/></label>
+      <label>X<input type="number" :value="candidate.model.registration.offset[0]" @change="editRegistration('x',Number(($event.target as HTMLInputElement).value))"/></label>
+      <label>Y<input type="number" :value="candidate.model.registration.offset[1]" @change="editRegistration('y',Number(($event.target as HTMLInputElement).value))"/></label>
+    </div>
     <div class="comparison-tools">
       <Teleport defer v-if="!modelOnly" :to="viewControlsTarget || 'body'" :disabled="!viewControlsTarget">
       <SegmentedControl v-model="surface" :options="[{value:'effect',label:t('parts.effectPreview')},{value:'model',label:t('parts.modelInspection')}]" role="group" :aria-label="t('parts.viewTask')"/>
@@ -131,6 +146,7 @@ async function selectAlignedModel(){
   </div>
 </template>
 <style scoped>
+.registration-cancel{position:absolute;top:12px;left:50%;z-index:10;background:#333;color:#ddd;border:1px solid #555;padding:6px 12px}.registration-tools{position:absolute;top:48px;left:12px;z-index:8;display:flex;gap:8px;flex-wrap:wrap;max-width:calc(100% - 24px);background:#252525ee;padding:8px;color:#bbb;font-size:11px}.registration-tools label{display:flex;gap:5px;align-items:center}.registration-tools input{width:62px;background:#333;color:#ddd;border:1px solid #555;border-radius:3px;padding:4px}
 .review-help{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);font-size:11px;padding:5px 8px;background:#252525ee;color:#bbb;pointer-events:none;white-space:nowrap;max-width:calc(100% - 24px);box-sizing:border-box;z-index:8}
 
 .model-layers{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;padding:8px 10px;background:#252525ee;border:1px solid #444;border-radius:5px;font-size:12px}.model-layers label{display:flex;align-items:center;gap:5px;white-space:nowrap}.model-layers input{accent-color:#8ab4f8}.model-layers button{font:inherit;color:inherit;background:#333;border:1px solid #555;border-radius:4px;padding:5px 8px;cursor:pointer}.model-layers button:hover{background:#3a3a3a;color:#eee}.model-layers button:focus-visible{outline:2px solid #8ab4f8;outline-offset:2px}.opacity-control input{width:80px}

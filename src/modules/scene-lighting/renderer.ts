@@ -1,4 +1,4 @@
-import { REFERENCE_UP } from './reference-plane'
+import { registrationBasis } from './registered-model'
 import { previewLayers, type PreviewDisplay } from './preview-display'
 import { directionalShadowCamera, sunDirection } from './lighting-math'
 import { add, dot, lookAt, multiply, normalize, perspective, sub, transform, type Mat4, type Vec3 } from '../experiments/umbrella/math'
@@ -8,7 +8,7 @@ export { sceneCamera } from './scene-camera'
 import { buildPartModel, imageBounds, activeRepair } from './part-model'
 import { clonePart, partRenderKey, partSurfaceKey, type PartAsset } from '../../shared/parts/schema'
 import { partPixels, normalImageUrl, loadImage } from '../../shared/parts/images'
-import { depthFragment, fieldFragment, fieldVertex, meshVertex, spriteFragment, spriteVertex, surfaceFragment, shadowPointVertex, shadowPointFragment } from './shaders'
+import { projectedSpriteVertex, depthFragment, fieldFragment, fieldVertex, meshVertex, spriteFragment, spriteVertex, surfaceFragment, shadowPointVertex, shadowPointFragment } from './shaders'
 import { meshShadowSamples, roomShadowSamples } from './shadow-samples'
 
 const FAR = 64, MAP_SIZE = 1024
@@ -17,7 +17,7 @@ const UPS: Vec3[] = [[0, -1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1], [0, -1, 0], 
 interface GpuPoints { vao: WebGLVertexArrayObject; buffer: WebGLBuffer; count: number }
 interface GpuMesh extends GpuPoints { mesh: Mesh; points?: GpuPoints }
 interface SpriteAsset extends GpuMesh {
-  id: string; key: string; surfaceKey: string; directx: boolean; bounds: SpriteBounds; color: WebGLTexture; normal: WebGLTexture
+  calibrated:boolean; pitch: number; id: string; key: string; surfaceKey: string; directx: boolean; bounds: SpriteBounds; color: WebGLTexture; normal: WebGLTexture
   depth: WebGLTexture; surface: WebGLTexture; alpha: Uint8ClampedArray; width: number; height: number
   field: Uint8Array; coverage: number
 }
@@ -40,7 +40,7 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
     return p
   }
   const depthProgram = program(meshVertex, depthFragment), surfaceProgram = program(meshVertex, surfaceFragment)
-  const fieldProgram = program(fieldVertex, fieldFragment), spriteProgram = program(spriteVertex, spriteFragment)
+  const fieldProgram = program(fieldVertex, fieldFragment), spriteProgram = program(spriteVertex, spriteFragment), projectedProgram = program(projectedSpriteVertex,spriteFragment)
   const pointProgram = program(shadowPointVertex, shadowPointFragment)
   const uniformCache = new Map<WebGLProgram, Map<string, WebGLUniformLocation | null>>()
   function u(p: WebGLProgram, name: string) {
@@ -104,8 +104,9 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
   let lightMatrices: Mat4[] = [], shadowKey = '', lastState: SceneState | undefined, lastShowShadowPoints = false
   let lastDisplay:PreviewDisplay|undefined
   function status() { if (gl!.checkFramebufferStatus(gl!.FRAMEBUFFER) !== gl!.FRAMEBUFFER_COMPLETE) throw new Error('Lighting framebuffer is unavailable') }
-  function basis(p: WebGLProgram, bounds: SpriteBounds, upright = false) {
-    gl!.uniform3fv(u(p, 'right'), RIGHT); gl!.uniform3fv(u(p, 'up'), upright ? REFERENCE_UP : UP); gl!.uniform3fv(u(p, 'forward'), FORWARD)
+  function basis(p: WebGLProgram, bounds: SpriteBounds, upright = false, pitch=20) {
+    const b=registrationBasis(pitch)
+    gl!.uniform3fv(u(p, 'right'), b.right); gl!.uniform3fv(u(p, 'up'), upright ? [0,1/Math.cos(pitch*Math.PI/180),0] : b.up); gl!.uniform3fv(u(p, 'forward'), b.forward)
     gl!.uniform4f(u(p, 'bounds'), bounds.left, bounds.bottom, bounds.width, bounds.height)
   }
   function bakeField(asset: SpriteAsset) {
@@ -118,7 +119,7 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
     gl!.viewport(0, 0, asset.width, asset.height); gl!.enable(gl!.DEPTH_TEST); gl!.depthFunc(gl!.LESS)
     gl!.disable(gl!.BLEND); gl!.disable(gl!.CULL_FACE); gl!.disable(gl!.DITHER)
     gl!.clearColor(0, 0, 0, 0); gl!.clearDepth(1); gl!.clear(gl!.COLOR_BUFFER_BIT | gl!.DEPTH_BUFFER_BIT)
-    gl!.useProgram(fieldProgram); basis(fieldProgram, asset.bounds); gl!.bindVertexArray(asset.vao)
+    gl!.useProgram(fieldProgram); basis(fieldProgram, asset.bounds,false,asset.pitch); gl!.bindVertexArray(asset.vao)
     gl!.drawArrays(gl!.TRIANGLES, 0, asset.count)
     gl!.readBuffer(gl!.COLOR_ATTACHMENT0); gl!.readPixels(0, 0, asset.width, asset.height, gl!.RGBA, gl!.UNSIGNED_BYTE, asset.field)
     let covered = 0, opaque = 0
@@ -160,7 +161,7 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
         if(!current())return false
         const bounds = imageBounds(part), d = part.image
         const asset: SpriteAsset = {
-          ...meshBuffer(mesh), id: part.id, key, surfaceKey, directx: part.normal.normalFormat === 'directx', bounds,
+          ...meshBuffer(mesh), calibrated:!!part.model.registration,pitch:part.model.registration?.pitch??20, id: part.id, key, surfaceKey, directx: part.normal.normalFormat === 'directx', bounds,
           color: texture(d.width, d.height, image), normal: texture(d.width, d.height, normalImage),
           depth: texture(d.width, d.height), surface: texture(d.width, d.height), width: d.width, height: d.height,
           alpha: pixels.data, field: new Uint8Array(d.width * d.height * 4), coverage: 0,
@@ -245,7 +246,7 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
         if (!asset || !item.visible || !item.receives) return
         asset.points ??= pointBuffer(meshShadowSamples(asset.mesh))
         gl!.uniform1f(u(pointProgram, 'spriteReceiver'), +(state.mode === 'sprites'))
-        basis(pointProgram, asset.bounds)
+        basis(pointProgram, asset.bounds,false,asset.pitch)
         gl!.activeTexture(gl!.TEXTURE1); gl!.bindTexture(gl!.TEXTURE_2D, asset.color)
         draw(asset, [item.x, 0, item.z], i + 2, item.scale)
       })
@@ -268,18 +269,18 @@ export function createSceneRenderer(canvas: HTMLCanvasElement, { selectionOutlin
       state.items.forEach((item, i) => { const asset = assets.get(item.assetId); if (asset && item.visible) { gl!.uniform1f(u(surfaceProgram, 'receives'), +item.receives); drawMesh(asset, surfaceProgram, [item.x, 0, item.z], i + 2, item.scale) } })
     }
     if (layers.image) {
-      lighting(spriteProgram, state, view.matrix); gl!.bindVertexArray(quadVao)
-      gl!.uniform1f(u(spriteProgram, 'outlinePixelRatio'), dpr)
-      gl!.uniform1f(u(spriteProgram, 'sourceOnly'), +layers.sourceOnly)
       state.items.forEach((item, i) => {
         const asset = assets.get(item.assetId); if (!asset || !item.visible) return
-        basis(spriteProgram, asset.bounds, display?.uprightReference === true); gl!.uniform1f(u(spriteProgram, 'objectScale'), item.scale); gl!.uniform1f(u(spriteProgram, 'directx'), +asset.directx); gl!.uniform3f(u(spriteProgram, 'offset'), item.x, 0, item.z)
-        gl!.uniform1f(u(spriteProgram, 'objectId'), i + 2); gl!.uniform1f(u(spriteProgram, 'receives'), +item.receives)
-        gl!.uniform1f(u(spriteProgram, 'selected'), +(selectionOutline && item.id === state.selected))
+        const useMesh=asset.calibrated&&!layers.sourceOnly,p=useMesh?projectedProgram:spriteProgram
+        lighting(p,state,view.matrix);gl!.bindVertexArray(useMesh?asset.vao:quadVao)
+        gl!.uniform1f(u(p,'projected'),+useMesh);gl!.uniform1f(u(p,'outlinePixelRatio'),dpr);gl!.uniform1f(u(p,'sourceOnly'),+layers.sourceOnly)
+        basis(p, asset.bounds, display?.uprightReference === true,display?.referencePitch??asset.pitch); gl!.uniform1f(u(p, 'objectScale'), item.scale); gl!.uniform1f(u(p, 'directx'), +asset.directx); gl!.uniform3f(u(p, 'offset'), item.x, 0, item.z)
+        gl!.uniform1f(u(p, 'objectId'), i + 2); gl!.uniform1f(u(p, 'receives'), +item.receives)
+        gl!.uniform1f(u(p, 'selected'), +(selectionOutline && item.id === state.selected))
         for (const [j, [name, tex]] of [['colorMap', asset.color], ['normalMap', asset.normal], ['fieldDepth', asset.depth], ['fieldNormal', asset.surface]].entries()) {
-          gl!.activeTexture(gl!.TEXTURE1 + j); gl!.bindTexture(gl!.TEXTURE_2D, tex as WebGLTexture); gl!.uniform1i(u(spriteProgram, name as string), j + 1)
+          gl!.activeTexture(gl!.TEXTURE1 + j); gl!.bindTexture(gl!.TEXTURE_2D, tex as WebGLTexture); gl!.uniform1i(u(p, name as string), j + 1)
         }
-        gl!.drawArrays(gl!.TRIANGLES, 0, 6)
+        gl!.drawArrays(gl!.TRIANGLES, 0, useMesh?asset.count:6)
       })
     }
     gl!.disable(gl!.BLEND);gl!.enable(gl!.DEPTH_TEST);gl!.depthMask(true)

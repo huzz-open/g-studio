@@ -134,6 +134,7 @@ export async function addPartsToScene(parts: PartAsset[], targetId?: string, poi
   for (const part of parts) if (!partLibrary[part.id]) throw new Error(`部件未保存：${part.name}`)
   sceneHistory(doc).batch(()=>{
   const start = state.items.length
+  if(start===0&&parts[0]?.model.registration)state.cameraPitch=parts[0].model.registration.pitch
   parts.forEach((part, index) => {
     const slot = start + index, id = crypto.randomUUID()
     const bounds=partMovementLimits(part,1,state.room)

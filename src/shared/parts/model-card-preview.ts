@@ -16,7 +16,7 @@ export function createModelCardPreview(part:PartAsset,targets:ModelPreviewTarget
   const light=new DirectionalLight(0xffedd4,3.1);light.position.set(3,5,4);scene.add(light)
   type Preview={mesh:Mesh<BufferGeometry,MeshStandardMaterial>;radius:number}
   const models=new Map<string,Preview>(),ready=new Map<ModelPreviewTarget,Preview>()
-  const key=(target:ModelPreviewTarget)=>JSON.stringify([target.model.mesh?.sha256,target.model.size,target.model.original,target.model.imageFit,target.model.repair?.key])
+  const key=(target:ModelPreviewTarget)=>JSON.stringify([target.model.mesh?.sha256,target.model.size,target.model.original,target.model.registration,target.model.repair?.key])
   function draw(target:ModelPreviewTarget,preview:Preview){
     renderer??=new WebGLRenderer({antialias:true,alpha:true});renderer.setClearColor(0,0);renderer.setSize(240,160,false)
     const {mesh,radius}=preview,extent=radius*1.18

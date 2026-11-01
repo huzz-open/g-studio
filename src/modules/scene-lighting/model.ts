@@ -20,6 +20,7 @@ export interface SceneState {
   /** Inspection camera only; sprite relighting keeps its calibrated camera. */
   inspectionYaw?: number
   inspectionPitch?: number
+  cameraPitch?: number
 }
 export const PITCH = 20, YAW = 25, ROOM = { minX: -5.5, maxX: 5.5, minZ: -4, maxZ: 5, height: 4.8 }
 const yaw = YAW * Math.PI / 180, pitch = PITCH * Math.PI / 180
@@ -42,7 +43,7 @@ export function createScene(preset: Preset = 'spread'): SceneState {
     mutual: [[-1.4, 0], [3, -1.1], [1.1, 1.1], [-0.55, -0.35], [1.2, -0.5], [-2.9, 1.5]],
   }
   return {
-    room:{...DEFAULT_ROOM}, lightKind:'point', sun:{azimuth:45,elevation:45,intensity:1.2},
+    cameraPitch:20,room:{...DEFAULT_ROOM}, lightKind:'point', sun:{azimuth:45,elevation:45,intensity:1.2},
     scene: preset === 'wall' ? 'corner' : 'open', mode: 'sprites', selected: preset === 'mutual' ? 'vase' : 'umbrella', tool: 'objects',
     items: DEFINITIONS.map((d, i) => ({ id: d.id, assetId: `example:${d.id}`, scale: 1, x: positions[preset][i][0], z: positions[preset][i][1], visible: true, casts: true, receives: true })),
     light: preset === 'wall' ? [1.5, 3.5, 3.6] : preset === 'mutual' ? [-2.2, 5.5, 2.4] : [-2.8, 5, 2.5],

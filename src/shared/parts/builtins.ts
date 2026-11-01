@@ -12,7 +12,7 @@ let loading:Promise<void>|undefined
 export function loadBuiltinModels(){return loading??=(async()=>{
  const base=new URL('scene-lighting/models/',document.baseURI).href
  const [manifest,recipes]=await Promise.all([fetch(base+'manifest.json').then(r=>r.json()),fetch(base+'optimized.json').then(r=>r.json())])
- if(recipes.algorithmVersion!=='model-fit-v3')throw Error('Default model optimization version mismatch')
+ if(recipes.algorithmVersion!=='orthographic-camera')throw Error('Default model optimization version mismatch')
  optimized=recipes.models
  await Promise.all(manifest.map(async(record:any)=>{
   if(!optimized[record.id])throw Error('Bundled optimized model missing: '+record.id)

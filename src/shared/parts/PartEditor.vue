@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { renderSnapshot } from '../godot/render-snapshot'
 import GenerationPanel from '../generation/GenerationPanel.vue'
 import { generatedModels, resolvePartModels } from '../generation/models'
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, useId, watch } from 'vue'
@@ -34,7 +35,7 @@ watch(() => [...generatedModels.values()], () => {
   draft.value = resolvePartModels(draft.value)
   baseline.value = resolvePartModels(baseline.value)
 }, { flush:'sync' })
-const saving=ref(false),error=ref('')
+const saving=ref(false),error=ref(''),godotStatus=ref('')
 const confirming=ref(false),showGeneration=ref(false),aligning=ref(false)
 const selectingModel=ref(false)
 let alignmentController:AbortController|undefined,disposed=false
@@ -117,6 +118,19 @@ async function locate(){
   saving.value=true
   try{const source=await openPartInSlicer(part);closePartEditor();await router.push('/sprite-slicer');openPartEditor({assetId:part.id,origin:'slicer',sourceTabId:source.tabId,spriteId:source.spriteId})}catch(e){error.value=String(e)}finally{saving.value=false}
 }
+async function syncGodotSnapshot(){
+ const part=await save();if(!part)return
+ saving.value=true;godotStatus.value=''
+ try{
+  const call=async(name:string,args:Record<string,unknown>={})=>{const response=await fetch('/api/godot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,arguments:args})});const result=await response.json();if(!response.ok)throw Error(result.error);return result}
+  const assets=(await call('gs_list_assets')).assets as {id:string;sourceMeshSha256?:string}[]
+  const matches=assets.filter(a=>a.sourceMeshSha256===part.model.mesh?.sha256)
+  if(matches.length!==1)throw Error('请先在 Godot 面板登记唯一匹配的资产')
+  const portable=await portablePart(part);portable.normalImage={uri:await normalImageUrl(part),width:part.image.width,height:part.image.height}
+  const mesh=renderSnapshot(portable),digest=await crypto.subtle.digest('SHA-256',new Float32Array(mesh.vertices).buffer),geometryHash=Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0')).join('')
+  await call('gs_set_render_snapshot',{id:matches[0].id,part:portable,geometryHash});godotStatus.value='当前 GS 网格已保存为 Godot 导出快照'
+ }catch(e){error.value=String(e)}finally{saving.value=false}
+}
 async function exportAsset(){
   const part=await save();if(!part)return
   saving.value=true
@@ -163,7 +177,7 @@ onUnmounted(()=>{disposed=true;alignmentController?.abort();document.removeEvent
     </fieldset></ScrollArea></aside><main class="part-preview" :aria-label="t('parts.effectPreview')">
       <ModelReviewViewport ref="review" v-model="draft" :view-controls-target="'#'+viewControlsId" :state="preview" :fit-view="framePreview" :auto-fit="previewAutoFit" :preview-part="previewPart" :hovering="!!hoveredModel" :disabled="saving||selectingModel" @busy="aligning=$event" @interact="previewAutoFit=false"/>
     </main></div>
-    <footer><div class="button-row"><button :disabled="saving||aligning||selectingModel" @click="exportAsset">{{t('parts.exportAsset')}}</button><button :disabled="saving||aligning||selectingModel" @click="exportPackage">{{t('parts.exportPackage')}}</button><button v-if="origin==='scene'" :disabled="saving||aligning||selectingModel" @click="locate">{{t('parts.locateSlicer')}}</button></div><div class="button-row"><button :disabled="saving||aligning||selectingModel" @click="addToScene">{{t('parts.addOne')}}</button><button :disabled="saving||aligning||selectingModel" @click="leave">{{t(origin==='scene'?'parts.backScene':'parts.backSlicer')}}</button><button class="primary" :disabled="saving||aligning||selectingModel||conflict" @click="saveAndClose">{{t(saving?'common.loading':'parts.saveReturn')}}</button></div></footer>
+    <footer><div class="button-row"><button v-if="draft.model.kind==='mesh'" :disabled="saving||aligning||selectingModel" @click="syncGodotSnapshot">同步当前模型到 Godot</button><span v-if="godotStatus" role="status">{{godotStatus}}</span><button :disabled="saving||aligning||selectingModel" @click="exportAsset">{{t('parts.exportAsset')}}</button><button :disabled="saving||aligning||selectingModel" @click="exportPackage">{{t('parts.exportPackage')}}</button><button v-if="origin==='scene'" :disabled="saving||aligning||selectingModel" @click="locate">{{t('parts.locateSlicer')}}</button></div><div class="button-row"><button :disabled="saving||aligning||selectingModel" @click="addToScene">{{t('parts.addOne')}}</button><button :disabled="saving||aligning||selectingModel" @click="leave">{{t(origin==='scene'?'parts.backScene':'parts.backSlicer')}}</button><button class="primary" :disabled="saving||aligning||selectingModel||conflict" @click="saveAndClose">{{t(saving?'common.loading':'parts.saveReturn')}}</button></div></footer>
   </section></div><div v-if="showGeneration" class="generation-overlay"><GenerationPanel :part="draft" :origin="origin" @apply="applyGenerated" @close="showGeneration=false"/></div></Teleport>
 </template>
 <style scoped>

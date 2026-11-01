@@ -170,7 +170,7 @@ function move(event: PointerEvent) {
     const dx = event.clientX - pan.x, dy = event.clientY - pan.y
     if (!pan.moved && Math.hypot(dx, dy) < 3) return
     if (!pan.moved) { pan.moved = true; emit('pan') }
-    props.state.target = panCameraTarget(pan.target, pan.zoom, pan.height, dx, dy)
+    props.state.target = panCameraTarget(pan.target, pan.zoom, pan.height, dx, dy,props.state.cameraPitch??20)
     return
   }
   if (!dragging) return
@@ -182,7 +182,7 @@ function move(event: PointerEvent) {
   }
   if(dragging.resize){const r=dragging.resize,delta=((event.clientX-r.x)*r.vx+(event.clientY-r.y)*r.vy)/(r.vx*r.vx+r.vy*r.vy);props.state.room[r.axis]=Math.round(Math.max(r.axis==='height'?.5:2,Math.min(r.axis==='height'?12:24,r.value+delta))*10)/10;return}
   if(dragging.height){
-    const pixelsPerUnit=canvas.value!.clientHeight/(props.state.zoom*.8)*Math.cos(PITCH*Math.PI/180)
+    const pixelsPerUnit=canvas.value!.clientHeight/(props.state.zoom*.8)*Math.cos((props.state.cameraPitch??PITCH)*Math.PI/180)
     props.state.light[1]=Math.round(Math.max(.5,Math.min(12,dragging.height.value-(event.clientY-dragging.height.y)/pixelsPerUnit))*100)/100
     return
   }
@@ -237,7 +237,7 @@ onUnmounted(() => { updates.dispose(); observer?.disconnect(); cancelAnimationFr
   <div class="lighting-viewport" :class="{compact}">
     <div v-if="controls" class="viewport-toolbar">
       <SceneViewControls :state="state"/>
-      <span class="camera-angle" :title="t('sceneLight.fixed')">20°</span><slot name="actions"/><InfoHint :label="t('parts.previewHelp')" :text="t('parts.previewHelpText')"/>
+      <span class="camera-angle">{{(state.cameraPitch??20).toFixed(1)}}°</span><slot name="actions"/><InfoHint :label="t('parts.previewHelp')" :text="t('parts.previewHelpText')"/>
     </div>
     <div class="viewport-stage" :aria-busy="busy">
       <canvas ref="canvas" tabindex="0" :class="{panning:panDrag,'suppress-focus-ring':suppressFocusRing}" :aria-label="t('sceneLight.canvas')" @pointerdown="start($event)" @pointermove="move" @pointerup="endDrag" @pointercancel="endDrag" @lostpointercapture="endDrag" @dblclick="edit" @blur="suppressFocusRing=false" @keydown="canvasKey" @contextmenu.prevent @wheel.prevent="zoomBy($event.deltaY>0?1.06:1/1.06)" />
